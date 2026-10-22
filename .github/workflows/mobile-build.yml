@@ -10,14 +10,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # only to attach the unsigned APK / shots to a CI pre-release (public download for signing)
+  contents: read   # artifacts only; no releases
 
 concurrency:
   group: mobile-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g -Dkotlin.daemon.jvm.options=-Xmx2g"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  # Kotlin JVM backend overflows the default thread stack on the big agent coroutines (StackOverflowError in run 39836794933)
 
 jobs:
   apk:
@@ -46,24 +47,17 @@ jobs:
       - name: Build unsigned release APK
         run: |
           set -o pipefail
-          ./gradlew :app:assembleRelease --stacktrace --console=plain 2>&1 | tee build.log
+          ./gradlew :app:assembleRelease --stacktrace --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process 2>&1 | tee build.log
           VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           mkdir -p out
           cp app/build/outputs/apk/release/*-unsigned.apk "out/Blaze-v${VER}-release-unsigned.apk"
           (cd out && sha256sum *.apk | tee SHA256SUMS)
           echo "${GITHUB_SHA}" > out/COMMIT
-      - name: Attach to a CI pre-release (unsigned; signed copies are published elsewhere)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="ci-${GITHUB_RUN_ID}"
-          gh release create "$TAG" out/*.apk out/SHA256SUMS out/COMMIT --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --prerelease --title "CI build ${GITHUB_RUN_ID} (unsigned)" --notes "Unsigned CI build. Not for install."
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: apk-unsigned
-          retention-days: 14
+          retention-days: 3
           path: |
             out/
             build.log
@@ -83,7 +77,7 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
       - name: Unit tests
-        run: set -o pipefail; ./gradlew :app:testDebugUnitTest --continue --console=plain 2>&1 | tee test.log
+        run: set -o pipefail; ./gradlew :app:testDebugUnitTest --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process 2>&1 | tee test.log
       - name: Summary
         if: always()
         run: |
@@ -98,12 +92,9 @@ jobs:
           print(f"UNITS tests={t} failures={f} errors={e} skipped={s}")
           for b in bad[:50]: print("FAIL", b)
           PY
-      - name: Attach the unit summary to the CI pre-release
+      - name: units.txt
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ci-${GITHUB_RUN_ID}"
           python3 - > units.txt <<'PY'
           import glob, xml.etree.ElementTree as ET
           t=f=e=s=0; bad=[]
@@ -115,16 +106,14 @@ jobs:
           print(f"UNITS tests={t} failures={f} errors={e} skipped={s}")
           for b in bad: print("FAIL", b)
           PY
-          for i in $(seq 1 60); do gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break; sleep 30; done
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "CI build ${GITHUB_RUN_ID} (unsigned)" --notes "Unsigned CI build. Not for install."
-          gh release upload "$TAG" units.txt --clobber --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: unit-tests
-          retention-days: 14
+          retention-days: 3
           path: |
             test.log
+            units.txt
             app/build/test-results/testDebugUnitTest/*.xml
 
   shots:
@@ -147,24 +136,19 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew :app:testDebugUnitTest --tests 'com.blaze.assistant.ui.ShotsTest' --tests 'com.blaze.assistant.ui.Shots375Test' \
-            --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx4g -Xss4m -XX:MaxMetaspaceSize=768m" \
+            --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" \
             -Pkotlin.compiler.execution.strategy=in-process 2>&1 | tee shots.log
-      - name: Attach shots to the CI pre-release
+      - name: shots.zip
         if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ci-${GITHUB_RUN_ID}"
           (cd app/build && zip -qr ../../shots.zip shots) || true
           zip -qj shots.zip shots.log || true
-          for i in $(seq 1 60); do gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break; sleep 30; done
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "CI build ${GITHUB_RUN_ID} (unsigned)" --notes "Unsigned CI build. Not for install."
-          gh release upload "$TAG" shots.zip --clobber --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: shots
-          retention-days: 14
+          retention-days: 3
           path: |
             shots.log
+            shots.zip
             app/build/shots/
