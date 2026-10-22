@@ -31,10 +31,10 @@ class UpdatePath0458Test {
 
     @Test fun versionCodeAndIdentity() {
         val g = src("build.gradle.kts")
-        // v0.45.16 (161): the 0.45.5 → current update path still holds with a higher versionCode.
+        // v0.45.17 (162): the 0.45.5 → current update path still holds with a higher versionCode.
         val code = Regex("versionCode = (\\d+)").find(g)!!.groupValues[1].toInt()
         assertTrue(code >= 156)
-        assertTrue(g.contains("versionCode = 161") && g.contains("versionName = \"0.45.16\""))
+        assertTrue(g.contains("versionCode = 162") && g.contains("versionName = \"0.45.17\""))
         assertTrue(g.contains("applicationId = \"com.blaze.assistant\""))
         assertTrue(156 > 153)
     }
