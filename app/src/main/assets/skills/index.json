@@ -163,8 +163,8 @@
     },
     {
       "name": "shell-sysadmin",
-      "version": 1,
-      "sha256": "6bb16273b047554ae31bd9532eee058ce70f80c74bf7c91f2d9a01933bf2ee22"
+      "version": 2,
+      "sha256": "6afa9dfd74760e53e87827a60d96d2a116d9a73ba1a6232341849bd2e2108bd5"
     },
     {
       "name": "three-d-design",
@@ -249,8 +249,8 @@
     },
     {
       "name": "whatsapp-replies",
-      "version": 1,
-      "sha256": "c62cf98e8cbfb7acb9627726c8ec7e51c608d480632d55f3d08041e1bc3dd0ab"
+      "version": 2,
+      "sha256": "46cf3a16c8f58ff1563d3682a2acf253c703a6f415f45c8c2ab632f965c21a40"
     },
     {
       "name": "weekly-digest",
@@ -289,8 +289,8 @@
     },
     {
       "name": "wf-send-to-person",
-      "version": 1,
-      "sha256": "163498a4adf126e6949bd0bc36e07c8812185b6ba8b1a28baf66da59a8f63398"
+      "version": 2,
+      "sha256": "12c3ff7d919c9a89e4a983e29f01101fe86b3ee1e5b842bc06599c3ac9ee6914"
     },
     {
       "name": "wf-find-a-person",
@@ -304,8 +304,8 @@
     },
     {
       "name": "wf-reply-to-latest",
-      "version": 1,
-      "sha256": "a01ff085aaa3626a587c0059b25d4d89d9e3d6a4d6e28871f0c631b0e2eec3c1"
+      "version": 2,
+      "sha256": "f4a5c00c0cc5dacc4d4dc3a3602b8290fca0b2556dbf0e2534965fab467c640f"
     },
     {
       "name": "wf-make-and-share",
@@ -314,8 +314,8 @@
     },
     {
       "name": "wf-do-it-on-screen",
-      "version": 1,
-      "sha256": "bf517f03d5c7eced897246e4889c1072e4065b925d90c8d7372e98df330409e2"
+      "version": 2,
+      "sha256": "f26e88bdfc5631bbf652c04ddbeaf5f64a0a3fc027489cd8ab7fc1f5631e1063"
     },
     {
       "name": "paperwork-mode",

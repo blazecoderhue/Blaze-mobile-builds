@@ -1,3 +1,5 @@
+# Source copy of the workflow used by the public builds repo blazecoderhue/Blaze-mobile-builds (exported there as
+# .github/workflows/mobile-build.yml). It never runs from this GitLab repo. Releases: builds repo -> sandbox signing -> Site /dl.
 name: Mobile build
 
 # Blaze Android on the temporary public build repo (branch app/mobile).

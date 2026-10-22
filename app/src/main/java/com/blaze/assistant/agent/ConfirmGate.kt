@@ -41,7 +41,7 @@ object ConfirmGate {
         tool in notifications -> "notifications"
         tool in messages -> "your messages"
         tool in mail -> "your email"
-        tool in screen -> "the screen"
+        tool in screen -> SCREEN
         tool in otherApps -> "content from ${tool.substringBefore('_').replaceFirstChar { it.uppercase() }}"
         tool.startsWith("mcp__") -> "an MCP tool's answer"
         else -> null
@@ -70,9 +70,53 @@ object ConfirmGate {
         companion object Key : CoroutineContext.Key<Taint>
         @Volatile var source: String? = null
             private set
+        /** 0.45.18: the first source this turn that isn't the screen itself (web, messages, email, files…), see [screenAct]. */
+        @Volatile var outside: String? = null
+            private set
+        /** 0.45.18: the user OK'd acting on the screen after reading [outside] this turn. */
+        @Volatile var screenOk: Boolean = false
+        /** 0.45.18: the label the screen gate last asked about, so the tap's own risky card doesn't ask twice. */
+        @Volatile var askedLabel: String? = null
         /** Keeps the first source this turn (the card names one). */
-        fun mark(s: String?) { if (!s.isNullOrBlank() && source == null) source = s }
-        fun clear() { source = null }
+        fun mark(s: String?) {
+            if (s.isNullOrBlank()) return
+            if (source == null) source = s
+            if (outside == null && s != SCREEN) outside = s
+        }
+        fun clear() { source = null; outside = null; screenOk = false; askedLabel = null }
+    }
+
+    /** What reading the screen counts as ([sourceOf]); the only source that doesn't count as outside content. */
+    const val SCREEN = "the screen"
+
+    /** Tools that act on another app's screen. */
+    val screenActs = setOf("tap", "type_text", "press_button", "run_plan")
+
+    /** Labels that send, pay, post, delete or confirm something. */
+    private val outbound = Regex("\\b(send|reply|post|publish|share|pay|buy|purchase|order|checkout|check out|transfer|delete|remove|confirm|subscribe|book|call|submit|accept|allow|install)\\b",
+        RegexOption.IGNORE_CASE)
+    fun outbound(label: String): Boolean = outbound.containsMatchIn(label)
+    /** The narrower set that still asks in a turn that only read the screen (sends, money, posts, deletes). */
+    private val sendsOrPays = Regex("\\b(send|reply|post|publish|pay|buy|purchase|order|checkout|check out|transfer|delete)\\b", RegexOption.IGNORE_CASE)
+    fun sendsOrPays(label: String): Boolean = sendsOrPays.containsMatchIn(label)
+
+    enum class ScreenDecision { PASS, ASK_ONCE, ASK }
+
+    /**
+     * 0.45.18 prompt-injection rule for screen actions (unit-tested in ScreenActGateTest), applied in every mode
+     * (Autopilot and standing OKs included):
+     *  - A turn that read outside content ([Taint.outside]: a web page, messages, notifications, email, a file, an MCP
+     *    answer…): a tap on something that sends, pays, posts, deletes or confirms asks every time ([ASK]); any other
+     *    screen action asks once per turn ([ASK_ONCE]) until the user OKs it.
+     *  - A turn that only read the screen: a tap that sends, pays, posts or deletes asks ([ASK]) even with "confirm risky taps" off.
+     *  - Otherwise [PASS].
+     */
+    fun screenAct(tool: String, label: String, tainted: Boolean, outside: String?, screenOk: Boolean): ScreenDecision = when {
+        tool !in screenActs -> ScreenDecision.PASS
+        outside != null && tool == "tap" && outbound(label) -> ScreenDecision.ASK
+        outside != null && !screenOk -> ScreenDecision.ASK_ONCE
+        tainted && tool == "tap" && sendsOrPays(label) -> ScreenDecision.ASK
+        else -> ScreenDecision.PASS
     }
 
     /**

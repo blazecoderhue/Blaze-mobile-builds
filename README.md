@@ -19,12 +19,10 @@ normal with no YouTube Store.
 - **Local dev with YouTube:** `git clone https://github.com/lacksonkapapahue/Blaze-mobile.git youtube` in this folder
   (needs access), then `./gradlew :storeapi:test :youtube:test assembleRelease`. Commit plug-in changes inside `youtube/`
   (its own repo).
-- **CI:** `build.yml` checks Blaze-mobile `main` out into `youtube/` with the Actions secret `BLAZE_MOBILE_TOKEN`
+- **CI (historic, GitHub):** `build.yml` checked Blaze-mobile `main` out into `youtube/` with the Actions secret `BLAZE_MOBILE_TOKEN`
   (fine-grained PAT, Contents: read on Blaze-mobile). No secret (forks) or a failed checkout = the build carries on
   **without** YouTube and says so in a warning and the run summary. `build-without-youtube` keeps proving that build.
-- **Daily check:** `youtube-daily.yml` (04:47 UTC) rebuilds `main` with Blaze-mobile `main` (plug-in tests, media
-  Store tests, release APK, `YouTubeSource` present after R8); publishes nothing and opens the issue "YouTube plug-in
-  daily check failing" when it breaks. Skipped while `BLAZE_MOBILE_TOKEN` isn't set. Blaze-mobile has its own `sync.yml`.
+- **Daily check:** retired (0.45.18). Blaze-mobile keeps its own `sync.yml`.
 
 ## Layout
 - `agent/` – Agent loop, LlmClient (OpenAI-compatible), Providers, Settings, Memory, ChatStore, Secrets (Keystore encryption), LongChat (rolling summary, FTS chat search, artifacts), Mind + MindReview (one mind: journal, memories, context ladder, idle review)

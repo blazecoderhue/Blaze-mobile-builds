@@ -87,7 +87,7 @@ fun UpdateBanner() {
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).glass(GlassTokens.tileShape, GlassIntensity.Medium, shadow = false).padding(horizontal = 14.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Label(banner.line, size = 10.sp, modifier = Modifier.weight(1f))
-            ActionText("Update", color = c.accent, size = 10.sp, modifier = Modifier.clickable { Updater.updateFromBanner(ctx) }.padding(8.dp))
+            ActionText(if (banner.legacy) "Site" else "Update", color = c.accent, size = 10.sp, modifier = Modifier.clickable { Updater.updateFromBanner(ctx) }.padding(8.dp))
             ActionText("\u00d7", color = c.sub, size = 12.sp, modifier = Modifier.clickable { Updater.dismissBanner() }.padding(8.dp))
         }
         if (banner.notes.isNotBlank()) Text(banner.notes, modifier = Modifier.padding(bottom = 4.dp), maxLines = 2,

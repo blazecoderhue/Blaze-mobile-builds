@@ -103,7 +103,7 @@ object Updater {
     private val KEY_DISMISSED = "update_banner_dismissed"
 
     /** v0.45.4: the "Blaze X.Y.Z is available" banner (null = hidden). */
-    data class Banner(val version: String, val line: String, val notes: String)
+    data class Banner(val version: String, val line: String, val notes: String, val legacy: Boolean = false)
     private val _banner = MutableStateFlow<Banner?>(null)
     val banner: StateFlow<Banner?> = _banner
 
@@ -120,7 +120,7 @@ object Updater {
             val a = withContext(Dispatchers.IO) { try { latest() } catch (_: Exception) { null } } ?: return@launch
             try { com.blaze.assistant.agent.Settings.setStr(KEY_LAST_CHECK, now.toString()) } catch (_: Exception) { }
             val dismissed = try { com.blaze.assistant.agent.Settings.str(KEY_DISMISSED, "") } catch (_: Exception) { "" }
-            VersionFeed.banner(a, installed(app), dismissed)?.let { _banner.value = Banner(a.version, it, a.notes) }
+            VersionFeed.banner(a, installed(app), dismissed)?.let { val note = legacyNote(app); _banner.value = Banner(a.version, note ?: it, a.notes, note != null) }
         }
     }
 
@@ -132,7 +132,15 @@ object Updater {
     }
 
     /** The banner's Update: the normal in-app update (card + download + install). */
-    fun updateFromBanner(ctx: Context) { _banner.value = null; start(ctx) }
+    fun updateFromBanner(ctx: Context) {
+        val b = _banner.value; _banner.value = null
+        // 0.45.18: Android 7/8 on the old key: the site's download page instead of an install that can't work.
+        if (b?.legacy == true) try {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SITE)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return
+        } catch (_: Throwable) { }
+        start(ctx)
+    }
+    const val SITE = "https://blazeinchue.pages.dev"
 
     init {
         scope.launch {
@@ -189,6 +197,8 @@ object Updater {
             val name = "blaze-$version.apk"
             val isNewer = VersionFeed.newer(version, have)
             if (!isNewer) { _state.value = State.UpToDate(have); return "Blaze is up to date (v$have)." }
+            // 0.45.18: an Android 7/8 phone on the old key can't take this APK in place, so don't download it at all.
+            legacyNote(ctx)?.let { _state.value = State.Failed(it); return "Blaze v$version is available, but: $it" }
             if (!install) { _state.value = State.Ready(version); return "Blaze v$version is available (installed: v$have). Say update to install it." }
             if (Build.VERSION.SDK_INT >= 26 && !ctx.packageManager.canRequestPackageInstalls()) {
                 _state.value = State.NeedsPermission(version)
@@ -267,6 +277,18 @@ object Updater {
      * 0.45.16: Blaze's signing key changed in 0.45.15 (the old key was public). A phone whose Blaze can't take the new
      * build in place is told the one fix: uninstall once and reinstall from the site. The site says the same.
      */
+    /** 0.45.18: the installed Blaze's signer fingerprints (lowercase hex SHA-256), empty when they can't be read. */
+    @Suppress("DEPRECATION")
+    private fun installedSigners(ctx: Context): Set<String> = try {
+        fun sha(b: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest(b).joinToString("") { "%02x".format(it) }
+        if (Build.VERSION.SDK_INT >= 28)
+            ctx.packageManager.getPackageInfo(ctx.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES).signingInfo.apkContentsSigners.map { sha(it.toByteArray()) }.toSet()
+        else ctx.packageManager.getPackageInfo(ctx.packageName, android.content.pm.PackageManager.GET_SIGNATURES).signatures.map { sha(it.toByteArray()) }.toSet()
+    } catch (_: Throwable) { emptySet() }
+
+    /** 0.45.18: the Android 7/8 old-key note ([UpdateKeys.legacyNote]) for this phone, or null. */
+    fun legacyNote(ctx: Context): String? = UpdateKeys.legacyNote(Build.VERSION.SDK_INT, installedSigners(ctx))
+
     const val KEY_CHANGED = "Blaze's signing key changed in 0.45.15, so this phone can't update in place. Uninstall Blaze once, " +
         "then install it again from blazeinchue.pages.dev. Updates work normally after that."
 

@@ -3880,6 +3880,27 @@ When you finish, say what you did in one short sentence.
         }
 
         /** Every tool call goes through here: a crash or an empty result becomes a plain error with a fix. */
+        /** 0.45.18: the prompt-injection card for a screen action, or null to go ahead. */
+        private suspend fun screenGate(name: String, args: JSONObject): String? {
+            val taint = kotlin.coroutines.coroutineContext[ConfirmGate.Taint] ?: return null
+            val label = args.optString("text").ifBlank { if (args.has("element")) com.blaze.assistant.phone.BlazeAccessibilityService.instance?.labelOf(args.optInt("element")).orEmpty() else "" }
+                .ifBlank { args.optString("button") }.trim()
+            val app0 = com.blaze.assistant.phone.BlazeAccessibilityService.instance?.currentApp() ?: "the app"
+            val what = when (name) { "type_text" -> "type \u201c${label.take(40)}\u201d"; "press_button" -> "press ${label.ifBlank { "a button" }.take(30)}"
+                "run_plan" -> "run a saved set of taps"; else -> "tap \u201c${label.take(40)}\u201d" }
+            return when (ConfirmGate.screenAct(name, label, taint.source != null, taint.outside, taint.screenOk)) {
+                ConfirmGate.ScreenDecision.PASS -> null
+                ConfirmGate.ScreenDecision.ASK_ONCE ->
+                    if (confirm("Use the screen in $app0?", "Blaze wants to $what, and keep working on the screen this turn.", "Allow", always = true)) { taint.screenOk = true; null }
+                    else "The user did NOT approve acting on the screen after reading ${taint.outside}. Don't retry; tell them what you would have done so they can do it."
+                ConfirmGate.ScreenDecision.ASK -> {
+                    taint.askedLabel = label
+                    if (confirm("${what.replaceFirstChar { it.uppercase() }}?", "Blaze wants to $what in $app0.", "Tap", always = true)) null
+                    else "The user did NOT approve tapping \"$label\". Don't retry; tell them it's ready for them to finish."
+                }
+            }
+        }
+
         suspend fun runTool(name: String, args: JSONObject, shots: MutableList<String>): String {
             // Plan mode is enforced here, at dispatch, not only in the prompt.
             Modes.block(name, args, agentPlan).takeIf { it.isNotEmpty() }?.let { add(Role.STEP, "Plan mode: skipped ${name.replace('_', ' ')}"); return it }
@@ -3889,6 +3910,8 @@ When you finish, say what you did in one short sentence.
             if (com.blaze.assistant.bank.BankMode.active && (name in Orient.acting || name in Orient.looking || name == "open_app" || name == "search_in_app"))
                 return "Bank mode is on: Blaze has stepped back so the user's banking app works, and doesn't read or use the screen. " +
                     "Tell the user, and offer to turn Bank mode off (bank_mode action=off) when they're done banking."
+            // 0.45.18: screen actions after outside content (web, messages, email…) need the user's OK (ConfirmGate.screenAct).
+            if (name in ConfirmGate.screenActs) screenGate(name, args)?.let { return it }
             // Visible pointer (v0.21.0): while the user has the pointer, screen actions wait for them.
             if (name in Orient.acting && com.blaze.assistant.phone.Pointer.enabled) pointerGate()?.let { return it }
             // Orient loop (v0.20.0): know where we are before acting on the screen.
@@ -4483,7 +4506,7 @@ When you finish, say what you did in one short sentence.
                     val wantNow = wantId?.let { svc?.switchState(it) }
                     if (want != null && wantNow != null && !TapLoop.needsTap(want, wantNow))
                         "Already ${TapLoop.wantWord(want)}: \u201c${(wantId?.let { svc?.labelOf(it) } ?: label).ifBlank { label }.take(40)}\u201d. Not tapped, it's already how you wanted it."
-                    else if (Settings.confirmRisky && risky.containsMatchIn(label) &&
+                    else if (Settings.confirmRisky && risky.containsMatchIn(label) && kotlin.coroutines.coroutineContext[ConfirmGate.Taint]?.askedLabel != label.trim() &&
                         !confirm("Tap \u201c${label.take(40)}\u201d?", "Blaze wants to tap this in ${svc?.currentApp() ?: "the app"}.", "Tap", always = true))
                         "The user did NOT approve tapping \"$label\". Don't retry; tell them it's ready for them to finish."
                     else PhoneTools.run(app, name, args).let { r ->

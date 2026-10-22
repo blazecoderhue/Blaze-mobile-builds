@@ -253,6 +253,7 @@ dependencies {
     // v0.36.0 BlazeOS native apps: Chicory, a pure-JVM WebAssembly interpreter (no NDK, no per-CPU libraries).
     implementation("com.dylibso.chicory:runtime:1.7.5")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.hamcrest:hamcrest-core:1.3")   // 0.45.18: was a root hamcrest.jar; now a normal test dependency
     testImplementation("org.json:json:20240303")   // the real org.json (android.jar only has stubs)
     testImplementation("org.xerial:sqlite-jdbc:3.46.1.3")   // v0.26.3: blaze.db tests on a JVM SQLite with FTS5 (store/JdbcSql)
     // Screenshot tests: Compose UI test on Robolectric's native graphics.
