@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # only to attach the unsigned APK / shots to a CI pre-release (public download for signing)
 
 concurrency:
   group: mobile-${{ github.ref }}
@@ -52,6 +52,13 @@ jobs:
           cp app/build/outputs/apk/release/*-unsigned.apk "out/Blaze-v${VER}-release-unsigned.apk"
           (cd out && sha256sum *.apk | tee SHA256SUMS)
           echo "${GITHUB_SHA}" > out/COMMIT
+      - name: Attach to a CI pre-release (unsigned; signed copies are published elsewhere)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ci-${GITHUB_RUN_ID}"
+          gh release create "$TAG" out/*.apk out/SHA256SUMS out/COMMIT --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --prerelease --title "CI build ${GITHUB_RUN_ID} (unsigned)" --notes "Unsigned CI build. Not for install."
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -91,6 +98,26 @@ jobs:
           print(f"UNITS tests={t} failures={f} errors={e} skipped={s}")
           for b in bad[:50]: print("FAIL", b)
           PY
+      - name: Attach the unit summary to the CI pre-release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ci-${GITHUB_RUN_ID}"
+          python3 - > units.txt <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          t=f=e=s=0; bad=[]
+          for p in glob.glob('app/build/test-results/testDebugUnitTest/*.xml'):
+              r=ET.parse(p).getroot()
+              t+=int(r.get('tests',0)); f+=int(r.get('failures',0)); e+=int(r.get('errors',0)); s+=int(r.get('skipped',0))
+              for c in r.iter('testcase'):
+                  if c.find('failure') is not None or c.find('error') is not None: bad.append(c.get('classname')+'.'+c.get('name'))
+          print(f"UNITS tests={t} failures={f} errors={e} skipped={s}")
+          for b in bad: print("FAIL", b)
+          PY
+          for i in $(seq 1 60); do gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break; sleep 30; done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "CI build ${GITHUB_RUN_ID} (unsigned)" --notes "Unsigned CI build. Not for install."
+          gh release upload "$TAG" units.txt --clobber --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -122,6 +149,17 @@ jobs:
           ./gradlew :app:testDebugUnitTest --tests 'com.blaze.assistant.ui.ShotsTest' --tests 'com.blaze.assistant.ui.Shots375Test' \
             --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx4g -Xss4m -XX:MaxMetaspaceSize=768m" \
             -Pkotlin.compiler.execution.strategy=in-process 2>&1 | tee shots.log
+      - name: Attach shots to the CI pre-release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ci-${GITHUB_RUN_ID}"
+          (cd app/build && zip -qr ../../shots.zip shots) || true
+          zip -qj shots.zip shots.log || true
+          for i in $(seq 1 60); do gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break; sleep 30; done
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "CI build ${GITHUB_RUN_ID} (unsigned)" --notes "Unsigned CI build. Not for install."
+          gh release upload "$TAG" shots.zip --clobber --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
