@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <!-- v0.28.2: no chats, memory or account / gateway tokens in Google's cloud backup (see backup_rules.xml).
+         files/ (chats/, blaze.db, backup/) and databases/ (mind.db) aren't included at all; the "blaze" prefs
+         file holds the memory mirror and the session tokens, so it's excluded. -->
+    <cloud-backup>
+        <include domain="sharedpref" path="." />
+        <exclude domain="sharedpref" path="blaze.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="." />
+        <!-- Saved logins are sealed with this phone's Keystore key; they can't be opened on another phone. -->
+        <exclude domain="file" path="vault.json" />
+        <exclude domain="file" path="browser_logins.json" />
+    </device-transfer>
+</data-extraction-rules>

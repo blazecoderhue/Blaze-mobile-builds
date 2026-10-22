@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notes</title><script src="bridge.js"></script>
+<style>
+:root{--accent:#FF9A3C}
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,Roboto,"Inter",sans-serif}
+html.light body{background:#f2f2f7;color:#000}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 6px}
+h1{font-size:2rem;margin:0}
+.btn{background:none;border:0;color:var(--accent);font-size:1.05rem;padding:8px;font-family:inherit}
+#q{margin:4px 16px 10px;width:calc(100% - 32px);box-sizing:border-box;border:0;border-radius:12px;padding:10px 12px;background:#1c1c1e;color:inherit;font-size:1rem}
+html.light #q{background:#e5e5ea}
+#list{margin:0 16px;border-radius:14px;overflow:hidden}
+.n{background:#1c1c1e;padding:12px 14px;border-bottom:1px solid #2c2c2e}
+html.light .n{background:#fff;border-color:#e5e5ea}
+.n b{display:block;font-size:1.02rem;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n span{color:#8e8e93;font-size:.9rem}
+#ed{display:none;flex-direction:column;height:100%}
+#ed textarea{flex:1;border:0;background:transparent;color:inherit;font:1.05rem/1.5 inherit;padding:8px 16px;outline:none;resize:none;font-family:inherit}
+.empty{color:#8e8e93;text-align:center;padding:40px 0}
+</style></head><body>
+<div id="home"><header><h1>Notes</h1><button class="btn" onclick="edit(null)">New</button></header>
+<input id="q" placeholder="Search" oninput="draw()"><div id="list"></div></div>
+<div id="ed"><header><button class="btn" onclick="done()">‹ Notes</button><button class="btn" onclick="del()">Delete</button></header>
+<textarea id="t" placeholder="Start typing…"></textarea></div>
+<script>
+var notes=JSON.parse(os.get("notes","[]")),open=null;
+function save(){os.set("notes",JSON.stringify(notes))}
+function when(t){var d=new Date(t);return d.toLocaleDateString()+" "+d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}
+function esc(s){return s.replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+function draw(){var q=document.getElementById("q").value.toLowerCase();var l=notes.filter(function(n){return n.text.toLowerCase().indexOf(q)>=0}).sort(function(a,b){return b.at-a.at});
+ document.getElementById("list").innerHTML=l.length?l.map(function(n){var lines=n.text.split("\n");return'<div class="n" onclick="edit('+n.id+')"><b>'+esc(lines[0]||"New note")+'</b><span>'+when(n.at)+" · "+esc((lines[1]||"").slice(0,40))+'</span></div>'}).join(""):'<div class="empty">No notes yet</div>'}
+function edit(id){open=id==null?{id:Date.now(),text:"",at:Date.now()}:notes.filter(function(n){return n.id==id})[0];
+ document.getElementById("t").value=open.text;document.getElementById("home").style.display="none";document.getElementById("ed").style.display="flex";document.getElementById("t").focus()}
+function done(){var t=document.getElementById("t").value;if(open){notes=notes.filter(function(n){return n.id!=open.id});if(t.trim()){open.text=t;open.at=Date.now();notes.push(open)}save()}
+ open=null;document.getElementById("ed").style.display="none";document.getElementById("home").style.display="block";draw()}
+function del(){if(open){notes=notes.filter(function(n){return n.id!=open.id});save();open=null}done()}
+window.blazeosBack=function(){if(open){done();return true}return false};
+draw();
+</script></body></html>

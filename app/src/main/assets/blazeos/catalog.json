@@ -1,0 +1,143 @@
+{
+ "version": 1,
+ "remote": "",
+ "apps": [
+  {
+   "id": "blazeos.snake",
+   "name": "Snake",
+   "version": "1.0.0",
+   "versionCode": 1,
+   "icon": {
+    "glyph": "snake",
+    "from": "#34C759",
+    "to": "#0A7D32"
+   },
+   "entry": {
+    "type": "web",
+    "path": "index.html"
+   },
+   "permissions": [
+    "notifications"
+   ],
+   "description": "The classic. Swipe to turn, eat, grow, beat your best.",
+   "author": "Blaze",
+   "category": "Games",
+   "package": "asset:blazeos/apps/snake.zip",
+   "size": 5006
+  },
+  {
+   "id": "blazeos.snake.native",
+   "name": "Snake Native",
+   "version": "1.0.0",
+   "versionCode": 1,
+   "icon": {
+    "glyph": "snake",
+    "from": "#30D158",
+    "to": "#0B5D2A"
+   },
+   "entry": {
+    "type": "wasm",
+    "path": "app.wasm"
+   },
+   "permissions": [
+    "notifications",
+    "storage"
+   ],
+   "description": "Snake as a native BlazeOS app: WebAssembly drawing straight to the screen, no web page.",
+   "author": "Blaze",
+   "category": "Games",
+   "package": "asset:blazeos/apps/snake-native.zip",
+   "size": 1878
+  },
+  {
+   "id": "blazeos.notes",
+   "name": "Notes",
+   "version": "1.0.0",
+   "versionCode": 1,
+   "icon": {
+    "glyph": "notes",
+    "from": "#FFD60A",
+    "to": "#F2A900"
+   },
+   "entry": {
+    "type": "web",
+    "path": "index.html"
+   },
+   "permissions": [
+    "storage"
+   ],
+   "description": "Quick notes, saved on the BlazeOS disk. Search, pin and delete.",
+   "author": "Blaze",
+   "category": "Productivity",
+   "package": "asset:blazeos/apps/notes.zip",
+   "size": 4932
+  },
+  {
+   "id": "blazeos.calculator",
+   "name": "Calculator",
+   "version": "1.0.0",
+   "versionCode": 1,
+   "icon": {
+    "glyph": "calculator",
+    "from": "#5E5E66",
+    "to": "#1C1C21"
+   },
+   "entry": {
+    "type": "web",
+    "path": "index.html"
+   },
+   "permissions": [],
+   "description": "A clean calculator with a history of your last results.",
+   "author": "Blaze",
+   "category": "Utilities",
+   "package": "asset:blazeos/apps/calculator.zip",
+   "size": 4221
+  },
+  {
+   "id": "blazeos.xeyes",
+   "name": "X Eyes",
+   "version": "1.0",
+   "versionCode": 1,
+   "icon": {
+    "glyph": "eyes",
+    "from": "#5AC8FA",
+    "to": "#0A60C2"
+   },
+   "entry": {
+    "type": "linux",
+    "command": "xeyes",
+    "packages": [
+     "xeyes"
+    ]
+   },
+   "permissions": [],
+   "description": "A Linux app: the classic eyes that follow the pointer, run in the Linux desktop.",
+   "author": "X.Org",
+   "category": "Linux",
+   "size": 0
+  },
+  {
+   "id": "blazeos.xcalc",
+   "name": "X Calc",
+   "version": "1.0",
+   "versionCode": 1,
+   "icon": {
+    "glyph": "terminal",
+    "from": "#8E8E93",
+    "to": "#3A3A3C"
+   },
+   "entry": {
+    "type": "linux",
+    "command": "xcalc",
+    "packages": [
+     "xcalc"
+    ]
+   },
+   "permissions": [],
+   "description": "A Linux app: the X11 scientific calculator, run in the Linux desktop.",
+   "author": "X.Org",
+   "category": "Linux",
+   "size": 0
+  }
+ ]
+}

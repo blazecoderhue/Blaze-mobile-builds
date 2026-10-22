@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Calculator</title><script src="bridge.js"></script>
+<style>
+:root{--accent:#FF9A3C}
+html,body{margin:0;height:100%;background:#000;color:#fff;font-family:-apple-system,Roboto,"Inter",sans-serif;user-select:none}
+html.light body{background:#f2f2f7;color:#000}
+#app{display:flex;flex-direction:column;height:100%;padding:12px;box-sizing:border-box}
+#hist{flex:1;overflow:auto;color:#8e8e93;text-align:right;font-size:1rem;padding:8px 6px}
+#disp{text-align:right;font-size:4.2rem;font-weight:300;padding:0 8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#keys{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+button{border:0;border-radius:999px;aspect-ratio:1;font-size:1.9rem;background:#333;color:#fff;font-family:inherit}
+html.light button{background:#e5e5ea;color:#000}
+button.op{background:var(--accent);color:#fff}
+button.fn{background:#a5a5a5;color:#000}
+button.zero{grid-column:span 2;aspect-ratio:auto;border-radius:999px;text-align:left;padding-left:30px}
+button:active{filter:brightness(1.35)}
+</style></head><body><div id="app"><div id="hist"></div><div id="disp">0</div><div id="keys"></div></div>
+<script>
+var cur="0",prev=null,op=null,fresh=true,hist=JSON.parse(os.get("history","[]"));
+var K=[["AC","fn"],["±","fn"],["%","fn"],["÷","op"],["7"],["8"],["9"],["×","op"],["4"],["5"],["6"],["−","op"],["1"],["2"],["3"],["+","op"],["0","zero"],["."],["=","op"]];
+var keys=document.getElementById("keys");
+K.forEach(function(k){var b=document.createElement("button");b.textContent=k[0];if(k[1])b.className=k[1];b.onclick=function(){press(k[0])};keys.appendChild(b)});
+function fmt(n){if(!isFinite(n))return"Error";var s=String(+n.toPrecision(12));return s.length>12?(+n).toExponential(6):s}
+function calc(a,b,o){a=+a;b=+b;return o=="+"?a+b:o=="−"?a-b:o=="×"?a*b:o=="÷"?a/b:b}
+function show(){document.getElementById("disp").textContent=cur;document.getElementById("hist").innerHTML=hist.slice(-8).map(function(h){return"<div>"+h+"</div>"}).join("")}
+function press(k){
+ if(/^[0-9]$/.test(k)){cur=fresh||cur=="0"?k:cur+k;fresh=false}
+ else if(k=="."){if(fresh){cur="0.";fresh=false}else if(cur.indexOf(".")<0)cur+="."}
+ else if(k=="AC"){cur="0";prev=null;op=null;fresh=true}
+ else if(k=="±"){cur=fmt(-cur)}
+ else if(k=="%"){cur=fmt(cur/100)}
+ else if(k=="="){if(op!=null){var r=fmt(calc(prev,cur,op));hist.push(prev+" "+op+" "+cur+" = "+r);hist=hist.slice(-30);os.set("history",JSON.stringify(hist));cur=r;op=null;prev=null;fresh=true}}
+ else{if(op!=null&&!fresh)cur=fmt(calc(prev,cur,op));prev=cur;op=k;fresh=true}
+ show()}
+show();
+</script></body></html>

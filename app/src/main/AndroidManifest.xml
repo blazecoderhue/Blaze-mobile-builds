@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- v0.45.2 Keep desktop running: the Linux desktop's foreground service (Android 14 specialUse type). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- v0.30.1 Blaze Music: background playback (media session foreground service). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- v0.30.1 Music / Video downloads into Music/Blaze/Music and Movies/Blaze/Videos: only Android 8–9 need this. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+    <!-- CAMERA itself comes from zxing-android-embedded's manifest (merged); it is kept on purpose: Blaze Camera, the
+         Desktop pairing scanner and ACTION_IMAGE_CAPTURE all need it. No camera is required to install Blaze. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- v0.30.0 Gallery: Screenshots and Camera albums (asked for only from Gallery → Albums). Blaze's own files in shared
+         storage (Music/Blaze, Movies/Blaze, Download/Blaze, Pictures/Blaze) show without these. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- v0.43.0 Bank mode: optional, granted only by the user with adb; lets Blaze switch phone control back on by itself. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
+
+    <queries>
+        <package android:name="com.termux" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- v0.27.0: home apps and keyboards are never habit offers (proactive/HabitApps). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.view.InputMethod" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="text/plain" />
+        </intent>
+        <!-- v0.28.x camera-fix: see camera apps on Android 11+ (package visibility), so the capture chain can tell
+             "no camera app" from "camera app refused". -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAMERA" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".BlazeApp"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_rules"
+        android:label="Blaze"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="true"
+        android:extractNativeLibs="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.Blaze">
+        <!-- v0.34.0: Blaze Music in Android Auto (MusicService is a media library service). -->
+        <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
+
+        <!-- QR scanner for Blaze Desktop pairing: follow the phone's rotation instead of forcing landscape. -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="fullSensor"
+            tools:replace="screenOrientation" />
+
+        <!-- v0.28.x Blaze Camera (CameraX): fallback for + → Camera and the multi-mode camera. Keeps running through
+             rotation (no restart on low-end phones). -->
+        <activity
+            android:name=".ui.CameraActivity"
+            android:exported="false"
+            android:label="Blaze Camera"
+            android:theme="@style/Theme.Blaze"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".device.PermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="com.blaze.assistant.perms"
+            android:theme="@style/Theme.Blaze.Transparent" />
+
+        <activity
+            android:name=".terminal.BlazeTerminalActivity"
+            android:exported="false"
+            android:label="Blaze Terminal"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.blaze.assistant.terminal"
+            android:theme="@android:style/Theme.Black.NoTitleBar"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode"
+            android:windowSoftInputMode="adjustResize|stateVisible" />
+
+        <!-- v0.30.1 Blaze Music and Blaze Video: their own apps inside Blaze (own task, like Terminal and Browser). -->
+        <activity
+            android:name=".mediaapps.MusicActivity"
+            android:exported="false"
+            android:label="Blaze Music"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.blaze.assistant.music"
+            android:theme="@style/Theme.Blaze"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".mediaapps.VideoActivity"
+            android:exported="false"
+            android:label="Blaze Video"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.blaze.assistant.video"
+            android:theme="@style/Theme.Blaze"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+        <service
+            android:name=".mediaapps.MusicService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+        <!-- WorkManager's foreground service runs the Music / Video download queue (dataSync). -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
+        <!-- v0.33.2 BlazeOS: Blaze's own virtual phone, fullscreen (same task as Blaze; its own power / pause / exit). -->
+        <activity
+            android:name=".blazeos.BlazeOsActivity"
+            android:exported="false"
+            android:label="BlazeOS"
+            android:theme="@style/Theme.Blaze"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- v0.33.2 an installed website as its own app: one document task per site (its own Recents entry). -->
+        <activity
+            android:name=".siteapps.SiteAppActivity"
+            android:exported="false"
+            android:label="App"
+            android:launchMode="standard"
+            android:documentLaunchMode="intoExisting"
+            android:autoRemoveFromRecents="false"
+            android:theme="@style/Theme.Blaze"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
+            android:name=".browser.BrowserActivity"
+            android:exported="true"
+            android:supportsPictureInPicture="true"
+            android:label="Blaze browser"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.blaze.assistant.browser"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- v0.45.4: Google / GitHub sign-in comes back here (blaze://auth/cb?code=..&state=..), bound by state + PKCE. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="blaze" android:host="auth" android:path="/cb" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".assist.BlazeInteractionService"
+            android:exported="true"
+            android:label="Blaze"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data android:name="android.voice_interaction" android:resource="@xml/blaze_interaction" />
+            <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
+        </service>
+        <service
+            android:name=".assist.BlazeSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service
+            android:name=".assist.BlazeRecognitionService"
+            android:exported="true"
+            android:label="Blaze">
+            <intent-filter><action android:name="android.speech.RecognitionService" /></intent-filter>
+            <meta-data android:name="android.speech" android:resource="@xml/blaze_recognizer" />
+        </service>
+        <service
+            android:name=".voice.WakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <!-- Life logs (v0.19.0): on-device transcription while the user has it on; persistent notification, no audio kept. -->
+        <service
+            android:name=".life.LifeLogService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <service
+            android:name=".assist.BlazeTile"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_blaze"
+            android:label="Ask Blaze"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+        </service>
+
+        <receiver android:name=".notify.ActionReceiver" android:exported="false" />
+        <receiver android:name=".update.InstallReceiver" android:exported="false" />
+        <receiver android:name=".proactive.ProactiveReceiver" android:exported="false" />
+        <receiver android:name=".proactive.FollowUpReceiver" android:exported="false" />
+        <receiver android:name=".phone.SafeWalkReceiver" android:exported="false" />
+        <service android:name=".phone.CallCopilotService" android:exported="false" android:foregroundServiceType="microphone" />
+
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
+        </provider>
+
+        <receiver android:name=".routine.RoutineReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+        <service android:name=".routine.RoutineService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service android:name=".terminal.JobKeeper" android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service android:name=".desktop.DesktopKeeper" android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service android:name=".desktop.DesktopAliveService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps a user-started Linux desktop (proot + VNC server on 127.0.0.1) running while the user works in other apps; started only when the user turns on Keep desktop running." />
+        </service>
+        <service android:name=".bank.BankModeService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver android:name=".widget.BlazeWidget" android:exported="false" android:label="Blaze">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.blaze.assistant.WIDGET_ASK" />
+                <action android:name="com.blaze.assistant.WIDGET_MIC" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/blaze_widget" />
+        </receiver>
+
+        <service
+            android:name=".phone.BlazeAccessibilityService"
+            android:exported="false"
+            android:label="Blaze phone control"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_config" />
+        </service>
+        <service
+            android:name=".notify.NotificationBrain"
+            android:exported="true"
+            android:label="Blaze notification brain"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

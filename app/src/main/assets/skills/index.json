@@ -1,0 +1,331 @@
+{
+  "format": 1,
+  "skills": [
+    {
+      "name": "blaze-voice",
+      "version": 1,
+      "sha256": "15f43fc690b216642c6de25ffe18e3fee31cc48367ae779e4e1c1e120e24f46c"
+    },
+    {
+      "name": "deep-research",
+      "version": 1,
+      "sha256": "971702c8de39058dd31f9856b7912e0460e2ac85056a5e167e6a08d5e19e5c3e"
+    },
+    {
+      "name": "email-drafting",
+      "version": 1,
+      "sha256": "c5dc92ece85074e76ef53e3fa5bc030aa00f4c4e1be2aa8c7bd7b3c363dc1a44"
+    },
+    {
+      "name": "planning-task-breakdown",
+      "version": 1,
+      "sha256": "a9bede6fd297dd0456c5ae610f7402eb732921ecdc64385540c2a18536402fb3"
+    },
+    {
+      "name": "document-writing",
+      "version": 1,
+      "sha256": "1bf0efa77203bb7c18bba72b42790e3cbffb3ec1e3f57e2da372aea765bb7639"
+    },
+    {
+      "name": "data-analysis",
+      "version": 2,
+      "sha256": "a1c07694d98a2332d6317ce32569b7ac6618eb408cdaae93ff4a7efa719d253c"
+    },
+    {
+      "name": "api-integration",
+      "version": 1,
+      "sha256": "8cb0a2aa3574f4fa5dab33596e78a769da8ed81cc1a50c7c5c7513cf70a218e1"
+    },
+    {
+      "name": "skill-creator",
+      "version": 2,
+      "sha256": "4cd192c01bc1d7f581a4f48004e034c35adf295ffd73f18ca94d51de2e031f2d"
+    },
+    {
+      "name": "code-review",
+      "version": 1,
+      "sha256": "3e37831937cc73e6b08d6db1ed0ed0a98b58d1e4b4c6032679731807be4f858b"
+    },
+    {
+      "name": "debugging",
+      "version": 1,
+      "sha256": "329da5e64d9e5a04df55d274ffee02a47faaf263b7595aed4d87bb2608ff9214"
+    },
+    {
+      "name": "git-pr-workflow",
+      "version": 1,
+      "sha256": "c29734355540e3c1036081280cfbb2b7ac988b93c0696124681d5d2d44c810a1"
+    },
+    {
+      "name": "writing-tests",
+      "version": 1,
+      "sha256": "f019f6117afe04b1e6e4cd433d5472fcb571a9a7979a57b3b125467755333610"
+    },
+    {
+      "name": "refactoring",
+      "version": 1,
+      "sha256": "e0f8b9b1a433e3961834d6c54e98f0479667aa965a400c47a57a21fd6a195c20"
+    },
+    {
+      "name": "web-audit",
+      "version": 1,
+      "sha256": "15c79e21a7786c25660b98443534cf118a6dc70bc871ac35c31bb8cbce8a20f3"
+    },
+    {
+      "name": "landing-page-builder",
+      "version": 1,
+      "sha256": "be549b58047c72e84e8473908adb0a85a5f990a52a32f800a9e6bcca8f5519b0",
+      "files": [
+        "SKILL.md",
+        "assets/template.html"
+      ]
+    },
+    {
+      "name": "slide-deck",
+      "version": 1,
+      "sha256": "fa798a752428edfe54d5e7eb671a933711e78091699bab862ed1484d62c086a1",
+      "files": [
+        "SKILL.md",
+        "assets/deck.html"
+      ]
+    },
+    {
+      "name": "web-design-blaze-classic",
+      "version": 1,
+      "sha256": "44a556c2ef45c15cc1b451ff03c01c80a2ab62dd36ec04674ad09fd98dec40ca",
+      "files": [
+        "SKILL.md",
+        "assets/starter.html",
+        "assets/tokens.css"
+      ]
+    },
+    {
+      "name": "web-design-teamofkeys",
+      "version": 1,
+      "sha256": "c829bb557cc9fb7adf56076d5fca52ba5ea23cc273bf35693e516540f3b4e6f2",
+      "files": [
+        "SKILL.md",
+        "assets/starter.html",
+        "assets/tokens.css"
+      ]
+    },
+    {
+      "name": "image-assets",
+      "version": 1,
+      "sha256": "b0875c97b485e2f5e5ddcde214442effb79c17fc6016b643f47a15dda2adc43e",
+      "files": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "name": "browser-game",
+      "version": 1,
+      "sha256": "090a818ce2a9b2b709d0f7b2a6f87a1f19781b6e906c6318206ccfcbee3f12e2"
+    },
+    {
+      "name": "diagrams",
+      "version": 2,
+      "sha256": "76731602b7beb5675486672412c0c0415f82e2b0ea9f4b0917f719d449813c9a"
+    },
+    {
+      "name": "floor-plan",
+      "version": 1,
+      "sha256": "a0798910f5e75ce622ec7762e5e2f95afb34e2da7acb9853c6b69df93eb32c40"
+    },
+    {
+      "name": "motion-graphics",
+      "version": 1,
+      "sha256": "f8b9b468e7c17cfe224f2a0bf785dd285a33584eea9bdc88e2b4c9e9fd79b0f5"
+    },
+    {
+      "name": "music-audio",
+      "version": 1,
+      "sha256": "9563032d9a2f158c40f0667d5e146eb7d4764c2faa97dfeee6735d6f20269a6f"
+    },
+    {
+      "name": "paper-sketch",
+      "version": 1,
+      "sha256": "3c1657c78fff376043896e1d96e41e46d46d400a35d566f41a6c94d3e927a2b3",
+      "files": [
+        "SKILL.md",
+        "assets/sketch.svg"
+      ]
+    },
+    {
+      "name": "pixel-art",
+      "version": 1,
+      "sha256": "8ea4e1e69421bc6775d24554bd174dfb313f36cf7c23b59c2e6a1c6ad4b4419d"
+    },
+    {
+      "name": "print-design",
+      "version": 1,
+      "sha256": "ddeec053b0caa408449ec0be9d676e48d11fdf6fe6df4fa932352b2b0da7f59a"
+    },
+    {
+      "name": "shell-sysadmin",
+      "version": 1,
+      "sha256": "6bb16273b047554ae31bd9532eee058ce70f80c74bf7c91f2d9a01933bf2ee22"
+    },
+    {
+      "name": "three-d-design",
+      "version": 2,
+      "sha256": "72797b795022cb9bf917ded5b46d9f40039fd1ca7b6fd478f170b9ab3bee6f2f",
+      "files": [
+        "SKILL.md",
+        "assets/mockup.html"
+      ]
+    },
+    {
+      "name": "android-app-builder",
+      "version": 1,
+      "sha256": "3602a1f21cb25cf50c62be856766ea90e81e9517a0cdb0b0a9b583927e1294c5",
+      "files": [
+        "SKILL.md",
+        "setup.sh",
+        "template/app/build.gradle.kts",
+        "template/app/src/main/AndroidManifest.xml",
+        "template/app/src/main/java/com/example/app/MainActivity.kt",
+        "template/app/src/main/res/values/strings.xml",
+        "template/build.gradle.kts",
+        "template/github/workflows/build.yml",
+        "template/gitignore",
+        "template/gradle.properties",
+        "template/gradle/wrapper/gradle-wrapper.jar",
+        "template/gradle/wrapper/gradle-wrapper.properties",
+        "template/gradlew",
+        "template/gradlew.bat",
+        "template/settings.gradle.kts"
+      ]
+    },
+    {
+      "name": "study-planner",
+      "version": 1,
+      "sha256": "d615cdba550c8264d37948ffe88a6d36feaddbc7cd24059bd6f36cdb82609407"
+    },
+    {
+      "name": "tutor",
+      "version": 1,
+      "sha256": "10e93095f72e2952a48656668815b1432c7d3249b69fbef92606da9190240a22"
+    },
+    {
+      "name": "lecture-notes",
+      "version": 1,
+      "sha256": "bfdaf64d055105c8c12968c9f27ffde41b05484cbae8ce54cdaaa6f2db85dec6"
+    },
+    {
+      "name": "essay-coach",
+      "version": 1,
+      "sha256": "26e857ecc5c61821ba14d7eaf7931972b2ac0dd2a0c79faeea1e43ef1361c3b7"
+    },
+    {
+      "name": "group-project",
+      "version": 1,
+      "sha256": "0baf1469600521603aabae128f63d4d47ff3496a9f3deda275a6304619a92c73"
+    },
+    {
+      "name": "classroom-sync",
+      "version": 1,
+      "sha256": "d3d55933d903516abf50f75d0e21ecc10497182bc2452bc054c1a603e8bf62d6"
+    },
+    {
+      "name": "content-calendar",
+      "version": 1,
+      "sha256": "5975de2a84324cc7ede099aa07b7f6c468fd9c8d87f3cbc1e60976ba292519d4"
+    },
+    {
+      "name": "product-listing",
+      "version": 1,
+      "sha256": "2335e7d37716fe5433ccdf35a59a59100bc33eb29f244c9fab3283a07344fdbe"
+    },
+    {
+      "name": "ad-lab",
+      "version": 1,
+      "sha256": "e5a81a677bfa52ae3a8b113b35a2fe3a7ae578a164bbb46c1fe2f8f55819e2d7"
+    },
+    {
+      "name": "research-brief",
+      "version": 1,
+      "sha256": "1fdd97b7472943d2669236776a0433ea67825ceff1083c111f366e5ea5f07b01"
+    },
+    {
+      "name": "whatsapp-replies",
+      "version": 1,
+      "sha256": "c62cf98e8cbfb7acb9627726c8ec7e51c608d480632d55f3d08041e1bc3dd0ab"
+    },
+    {
+      "name": "weekly-digest",
+      "version": 1,
+      "sha256": "f8dc4f2fae09282dab6a2b275f35c5b9f7fd6356bb65de5eb161d7b1cf6b8e6f"
+    },
+    {
+      "name": "study-flashcards",
+      "version": 1,
+      "sha256": "7a7b52116b49e230093c24192636f0d1aa405ab385c8fc67476b9038a2f8c4b7"
+    },
+    {
+      "name": "blaze-task-workflow",
+      "version": 1,
+      "sha256": "9e786948eba2d9deed6308f8287902c44fd6702c63587eeb24301232a728cf71"
+    },
+    {
+      "name": "blaze-coding-workflow",
+      "version": 1,
+      "sha256": "759b8e19d982d2a97b008507e9a803563c868c298ee6ec414dcb64751c9ca712"
+    },
+    {
+      "name": "blaze-views",
+      "version": 2,
+      "sha256": "a1b3351c8050e7100b9526c39d350fe58dc6a817ab013cbdbbec430e572aaa8d"
+    },
+    {
+      "name": "blaze-workflow-builder",
+      "version": 1,
+      "sha256": "85c424f987fd2a5c9d8f8ff7e8a3cb3858331379df149d03f299e771f5c3fd55"
+    },
+    {
+      "name": "blaze-specialists",
+      "version": 2,
+      "sha256": "59481b5166a0d670170356dd839c5bf69b344b77b275ce66005be88822ea484d"
+    },
+    {
+      "name": "wf-send-to-person",
+      "version": 1,
+      "sha256": "163498a4adf126e6949bd0bc36e07c8812185b6ba8b1a28baf66da59a8f63398"
+    },
+    {
+      "name": "wf-find-a-person",
+      "version": 1,
+      "sha256": "2e152e952653da844c2ef9c66d1bd3fddac75595a32df6d0949653a34df19b1f"
+    },
+    {
+      "name": "wf-call-someone",
+      "version": 1,
+      "sha256": "bffc400480b3ac16380df5e554f606bb0857879f449ba60b8b4c185331198ea9"
+    },
+    {
+      "name": "wf-reply-to-latest",
+      "version": 1,
+      "sha256": "a01ff085aaa3626a587c0059b25d4d89d9e3d6a4d6e28871f0c631b0e2eec3c1"
+    },
+    {
+      "name": "wf-make-and-share",
+      "version": 1,
+      "sha256": "5c1f40fe28a813dd31a0419594b1d91be362ea3f7915cd75110aec047d2dbcdc"
+    },
+    {
+      "name": "wf-do-it-on-screen",
+      "version": 1,
+      "sha256": "bf517f03d5c7eced897246e4889c1072e4065b925d90c8d7372e98df330409e2"
+    },
+    {
+      "name": "paperwork-mode",
+      "version": 1,
+      "sha256": "e12a80894708c282585575fbba6e37e97c7b5f10df8ba1034b3a384ddb22a1a2"
+    },
+    {
+      "name": "price-scout",
+      "version": 1,
+      "sha256": "d42bcac0c7827d71c3794da5eeebe12eeefd095eb94151060d98e5168647c464"
+    }
+  ]
+}

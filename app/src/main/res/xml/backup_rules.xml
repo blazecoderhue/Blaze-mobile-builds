@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android's own backup (Android 11 and older; also adb backup).
+     v0.28.2: chats (files/chats/), memory (files/blaze.db, databases/mind.db, files/backup/) and the "blaze" prefs
+     (which hold the memory mirror and the Keystore-sealed Blaze account / gateway session tokens) are never
+     backed up to Google: only what isn't listed below as excluded. Settings › Advanced › Backup › Export makes a
+     copy you keep yourself; switching phones directly (device transfer, data_rules.xml) still copies everything
+     except saved logins. -->
+<full-backup-content>
+    <include domain="sharedpref" path="." />
+    <exclude domain="sharedpref" path="blaze.xml" />
+</full-backup-content>

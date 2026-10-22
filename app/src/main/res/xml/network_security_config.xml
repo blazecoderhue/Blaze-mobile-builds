@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS everywhere for Blaze's own calls, except plain HTTP to this phone (on-device Needle runner, OAuth loopback)
+     and to a self-hosted gateway/MCP server the user adds on their LAN or Tailscale (e.g. OmniRoute on their own PC):
+     connect/UrlSafety refuses http:// to any other host before a request is made, and never sends keys in the clear.
+     v0.45.0 (#32) review: cleartext stays permitted at the platform level on purpose. The in-app browser must still open
+     http:// websites, internet radio and podcast streams are often plain http, and a user's LAN gateway is an IP that a
+     network-security-config can't express as a range. Turning base-config off would break those without a per-host
+     runtime allowance (Android has none). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

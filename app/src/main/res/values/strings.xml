@@ -1,0 +1,4 @@
+<resources>
+    <string name="a11y_description">Lets Blaze see what is on your screen and tap, type, scroll and open apps when you ask it to. Blaze only acts while it is working on a request you gave it.</string>
+    <string name="widget_desc">Ask Blaze or talk to it from your home screen</string>
+</resources>

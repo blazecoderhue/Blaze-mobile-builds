@@ -1,0 +1,22 @@
+# v0.31.1 baseline profile (picked up by AGP and installed by androidx.profileinstaller): the chat thread's hot path is
+# AOT-compiled at install, so the first message, the first streamed reply and the first rich-block window don't JIT-jank.
+# Compose / foundation ship their own profiles; these cover Blaze's code on that path.
+HSPLcom/blaze/assistant/ui/ChatScreenKt;->**(**)**
+HSPLcom/blaze/assistant/ui/AnswerCardsKt;->**(**)**
+HSPLcom/blaze/assistant/ui/AnswerCards;->**(**)**
+HSPLcom/blaze/assistant/ui/Md;->**(**)**
+HSPLcom/blaze/assistant/ui/HtmlLite;->**(**)**
+HSPLcom/blaze/assistant/ui/TableSniff;->**(**)**
+HSPLcom/blaze/assistant/ui/RichReplies;->**(**)**
+HSPLcom/blaze/assistant/ui/RichPreviewKt;->**(**)**
+HSPLcom/blaze/assistant/ui/RichPreview;->**(**)**
+HSPLcom/blaze/assistant/ui/StreamOrbKt;->**(**)**
+HSPLcom/blaze/assistant/ui/OrbTracker;->**(**)**
+HSPLcom/blaze/assistant/ui/BubblesKt;->**(**)**
+HSPLcom/blaze/assistant/ui/GlassKitKt;->**(**)**
+HSPLcom/blaze/assistant/ui/GlassFloatKt;->**(**)**
+HSPLcom/blaze/assistant/agent/StreamGate;->**(**)**
+HSPLcom/blaze/assistant/agent/ChatMessage;->**(**)**
+HSPLcom/blaze/assistant/agent/ReplyParts;->**(**)**
+Lcom/blaze/assistant/ui/**;
+Lcom/blaze/assistant/agent/ChatMessage;
