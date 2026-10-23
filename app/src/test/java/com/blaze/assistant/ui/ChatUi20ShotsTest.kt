@@ -212,5 +212,11 @@ class ChatUi20ShotsTest {
     }
 
     /** waitForIdle with live animations would never settle: advance the clock instead. */
-    private fun androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>.waitForIdleSafe() { mainClock.advanceTimeBy(800) }
+    private fun androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>.waitForIdleSafe() {
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(800)
+        waitForIdle()
+        mainClock.advanceTimeByFrame()
+    }
 }

@@ -52,7 +52,7 @@ import java.util.Locale
  * the theme accent (never WhatsApp green), and readable in light and dark over every theme: each fill's opacity is the
  * least that keeps the text at WCAG AA (4.5:1) over the darkest AND brightest thing that can sit behind it
  * ([BubblePalette]); ChatUi20Test checks every theme. No backdrop blur (a RenderEffect behind every bubble is too heavy
- * for a Galaxy A12): the frost is the fill plus a soft top sheen.
+ * for low-end phones): the frost is the fill plus a soft top sheen.
  *
  * Bubbles.kt keeps the old public composables (UserBubble, BlazeBubble) and draws them in [ChatBubble].
  */
@@ -107,8 +107,8 @@ object BubblePalette {
     /** The bubble's fill (theme-aware, semi-opaque). */
     fun fill(c: BlazeColors, mine: Boolean): Color {
         val b = base(c, mine)
-        val a = maxOf(minAlpha(b, text(c, mine), grounds(c), FROST), minAlpha(b, c.ink.copy(alpha = META_FLOOR), grounds(c), FROST))
-        return b.copy(alpha = a)
+        // The time / labels may use more ink than META_FLOOR (meta() raises it), so only the text sets the opacity.
+        return b.copy(alpha = minAlpha(b, text(c, mine), grounds(c), FROST))
     }
 
     /** The fill as it looks over [ground] (solid): for contrast checks and fades inside answer cards. */

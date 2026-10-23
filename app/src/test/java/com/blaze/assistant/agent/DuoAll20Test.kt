@@ -29,8 +29,8 @@ class DuoAll20Test {
 
     @Test fun agent_allChatRunsBlazeFirstThenHalo() = five {
         val src = listOf(File("src/main/java/com/blaze/assistant/agent/Agent.kt"), File("app/src/main/java/com/blaze/assistant/agent/Agent.kt")).first { it.exists() }.readText()
-        assertTrue(src.contains("if (kind == Duo.Kind.CHAT) { duoAll(name, facts)"))
-        val body = src.substringAfter("private suspend fun duoAll(").substringBefore("/** After both agreed")
+        assertTrue(src.contains("if (kind == Duo.Kind.CHAT) { duoDoer(name, facts)"))
+        val body = src.substringAfter("private suspend fun duoDoer(").substringBefore("/** After both agreed")
         assertTrue("Blaze before Halo", body.indexOf("ask(Duo.Who.BLAZE") in 0 until body.indexOf("DuoAll.haloSystem"))
         assertTrue("Halo isn't streamed (a dropped repeat never flashes up)", body.contains("DuoAll.haloSystem(base(Duo.Who.HALO), blaze), stream = false"))
         assertFalse("no tools for the chat duo", body.contains("roomTools("))

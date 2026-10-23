@@ -2432,7 +2432,7 @@ When you finish, say what you did in one short sentence.
             val maxTurns = Settings.str("duo_max_turns", "24").toIntOrNull()?.coerceIn(4, 200) ?: 24
             var room = -1L
             // 0.45.20: the app picked the message up itself (no run): the label under the bubble says Sent.
-            try { Delivery.tracker().apply(msgs.filter { it.role == Role.USER && it.id >= fromMsg }.map { it.gid }, Delivery.Ev.LOCAL_PICKUP) } catch (_: Throwable) { }
+            try { Delivery.tracker().apply(msgs.filter { it.role == Role.USER && it.id >= fromMsg }.map { it.gid }, Delivery.Ev.LOCAL_PICKUP) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: delivery duo", e) }
             try {
                 mood = Mood.THINKING
                 duoChatOpenAt = 0L
@@ -2458,7 +2458,7 @@ When you finish, say what you did in one short sentence.
                 // v0.43.0: an @all chat message gets both answers at once (parallel, streamed, 45 s cap each) instead of a
                 // race + a second, sequential answer + more back-and-forth, which took about two minutes on a phone.
                 // 0.45.20 (item 9): Blaze answers, then Halo adds only what Blaze missed or stays quiet (DuoAll).
-                if (kind == Duo.Kind.CHAT) { duoAll(name, facts); duoChatOpenAt = System.currentTimeMillis() }
+                if (kind == Duo.Kind.CHAT) { duoDoer(name, facts); duoChatOpenAt = System.currentTimeMillis() }
                 else while (true) {
                     pullUser()
                     val wrap = n + 1 >= maxTurns
@@ -2588,7 +2588,7 @@ When you finish, say what you did in one short sentence.
          * [Duo.PARALLEL_LIMIT_MS]); Halo then reads it and adds only what Blaze missed, in a sentence or two, or stays
          * quiet ([DuoAll.haloLine]): never two full answers. If Blaze fails, Halo answers alone.
          */
-        private suspend fun duoAll(name: String?, facts: String) {
+        private suspend fun duoDoer(name: String?, facts: String) {
             val t0 = System.currentTimeMillis()
             fun base(w: Duo.Who) = Duo.soul(w) + (if (!name.isNullOrBlank()) "\nThe user's name is $name." else "")
             // Blaze streams into its bubble; Halo's add-on is checked whole first (a repeat never flashes up and vanishes).
@@ -2627,7 +2627,7 @@ When you finish, say what you did in one short sentence.
                     history.put(JSONObject().put("role", "assistant").put("content", Duo.tag(Duo.Who.HALO) + line))
                 }
             }
-            try { android.util.Log.i("BlazeSpeed", "@all doer+brief: ${System.currentTimeMillis() - t0} ms") } catch (_: Throwable) { }
+            try { android.util.Log.i("BlazeSpeed", "@all doer+brief: ${System.currentTimeMillis() - t0} ms") } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: duo speed", e) }
             persist()
         }
 

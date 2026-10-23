@@ -12,7 +12,7 @@ blazecoderhue/Blaze-mobile-builds branch app/0.45.20-chatui; workflow_dispatch o
 - Grouping unchanged (3 dp inside a run, 16 dp between), Halo and Blaze never share a group (19-chat).
 - Frost: BubblePalette.fill = theme-aware base (Blaze grey / accent tint for yours, never green) at the least opacity
   (>= 0.80) that keeps the text and the time at >= 4.5:1 over pure black, pure white and the page. No backdrop blur
-  (RenderEffect behind every bubble is too heavy for a Galaxy A12): the frost is the fill + a soft sheen.
+  (RenderEffect behind every bubble is too heavy for low-end phones): the frost is the fill + a soft sheen.
 - Action row: only under the latest Blaze reply when idle; every bubble has a long-press menu (Copy, Quote, Retry, React)
   via a gesture that never consumes taps/swipes (bubbleLongPress). Over selectable text the system selection wins.
 - The ack is a normal Blaze bubble (it is a Role.BLAZE message). Code blocks, tables, error bubbles render inside bubbles;
