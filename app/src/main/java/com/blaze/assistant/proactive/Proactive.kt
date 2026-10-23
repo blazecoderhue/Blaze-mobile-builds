@@ -207,7 +207,7 @@ Reply ONLY with JSON: {"say": "" or "one or two short friendly sentences", "urge
         com.blaze.assistant.notify.Notifier.proactive(text, suggest, urgent, kind)
         val audio = app.getSystemService(AudioManager::class.java)
         val canTalk = audio?.ringerMode == AudioManager.RINGER_MODE_NORMAL && audio.mode == AudioManager.MODE_NORMAL && !quietNow()
-        // v0.20.0 (Luke): heads-ups and reminders are read aloud only when the user switched "proactive_speak" on.
+        // v0.20.0 (Blazeinchue): heads-ups and reminders are read aloud only when the user switched "proactive_speak" on.
         // Urgent ones used to speak even with it off; now urgent only means "notify even in quiet hours".
         if (shouldSpeak(speak, canTalk)) android.os.Handler(android.os.Looper.getMainLooper()).post { com.blaze.assistant.voice.Voice.speak(text) }
     }

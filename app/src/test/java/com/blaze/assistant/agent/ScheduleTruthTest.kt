@@ -72,7 +72,7 @@ class ScheduleTruthTest {
         val r = "Nothing scheduled. Want me to open the calendar?"
         assertEquals(r, ScheduleTruth.fix(r, sunday, false))
         assertEquals(r, ScheduleTruth.fix(r, empty, true))
-        assertFalse(ScheduleTruth.wrong("Hey Lackson.", emptyList(), null))
+        assertFalse(ScheduleTruth.wrong("Hey Sam.", emptyList(), null))
         assertEquals("<<follow-ups: a | b | c>>", ScheduleTruth.fix("<<follow-ups: a | b | c>>", sunday, true))
         assertEquals("", ScheduleTruth.fix("", sunday, true))
     }

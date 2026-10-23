@@ -37,7 +37,7 @@ import com.blaze.assistant.agent.Role
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
- * v0.30.6 rapid messages (Luke: "blaze highlights the one it's responding to and such"). Kept out of ChatScreen.kt so the
+ * v0.30.6 rapid messages (Blazeinchue: "blaze highlights the one it's responding to and such"). Kept out of ChatScreen.kt so the
  * bubble styling there can change freely: a quote chip above a reply that answers a message that isn't right above it
  * (or several), a soft glow on the user messages Blaze is working on, and a brief glow on a message a chip jumps to.
  * Which chips show is decided in RapidMessages.chipMap (pure, RapidMessagesTest).

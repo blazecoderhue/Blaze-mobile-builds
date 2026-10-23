@@ -15,7 +15,7 @@ class Wip0456Test {
         val awareness = "## Live now\nCurrent Blaze UI: Chat (pull down from the top for Home)\n| Recent | App | When |\n| App | Terminal | 27 min ago |\n| Music | Blaze Music | 5 h ago |"
         val bad = "Current Blaze UI\n> Chat (pull down from the top for Home)\n| Recent | App | When |\n| App | Terminal | 27 min ago |"
         assertTrue(EchoGuard.echoes(bad, "Hi! Introduce yourself", listOf(awareness), emptyList()))
-        assertFalse(EchoGuard.echoes("Hi Luke! I'm Blaze. I can chat, run your phone, play music and build things.", "Hi! Introduce yourself", listOf(awareness), emptyList()))
+        assertFalse(EchoGuard.echoes("Hi Sam! I'm Blaze. I can chat, run your phone, play music and build things.", "Hi! Introduce yourself", listOf(awareness), emptyList()))
         assertFalse("asking for the status makes quoting it the answer", EchoGuard.echoes(bad, "what's going on right now?", listOf(awareness), emptyList()))
         assertTrue(EchoGuard.HONEST.isNotBlank() && EchoGuard.NUDGE.isNotBlank())
     }
@@ -48,7 +48,7 @@ class Wip0456Test {
         assertEquals(p, SharedPersona.pick("{broken", asset.readText()))
         assertTrue(SharedPersona.due(0, 5)); assertFalse(SharedPersona.due(1000, 1000 + SharedPersona.DAY_MS - 1)); assertTrue(SharedPersona.due(1000, 1000 + SharedPersona.DAY_MS))
         assertTrue(SharedPersona.applies("blaze")); assertFalse(SharedPersona.applies("pirate"))
-        assertEquals("App context for Blaze on the user's Android phone. User's first name: Luke. Local time: 9:40 PM on Tuesday. ", SharedPersona.contextLine("Luke Banda", "9:40 PM on Tuesday"))
+        assertEquals("App context for Blaze on the user's Android phone. User's first name: Sam. Local time: 9:40 PM on Tuesday. ", SharedPersona.contextLine("Sam Banda", "9:40 PM on Tuesday"))
         assertTrue(SharedPersona.MIN_MAX_TOKENS >= 400)
     }
 

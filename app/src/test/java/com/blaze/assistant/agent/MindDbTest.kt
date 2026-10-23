@@ -103,7 +103,7 @@ class MindDbTest {
     }
 
     @Test fun idleReviewMarksTurnsAndSaves() = runBlocking {
-        val chats = mapOf("c1" to chat("I'm Luke and I study computer science at Northrise", "Nice to meet you, Luke."))
+        val chats = mapOf("c1" to chat("I'm Sam and I study computer science at Northrise", "Nice to meet you, Sam."))
         Mind.migrate(db, listOf("c1"), { chats[it] }, emptyList())
         assertEquals(2, db.unreviewedCount())
         // A failed model call leaves the turns queued.

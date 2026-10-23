@@ -38,7 +38,7 @@ class HaloReplayRequestTest {
 
     /** The app's second system message for one turn (Agent.systemPrompt's persona/name/rules parts + requestMessages' tail). */
     private fun second(user: String, now: ZonedDateTime, halo: Boolean, extra: List<ScheduleDay.Entry> = emptyList(), calOff: Boolean = false): String {
-        val name = GreetName.pick("", "Lackson Kapapa")
+        val name = GreetName.pick("", "Sam Banda")
         val block = TurnContext.block(TurnContext.Inputs(now, weather, reminders + extra, ScheduleDay.datesAsked(user, now.toLocalDate()), open,
             TurnContext.newInLine("0.45.8", "", 0), calOff))
         return SharedPersona.contextLine(name, "") + (if (name != null) "The user's name is $name. " else "") + GreetName.RULE +

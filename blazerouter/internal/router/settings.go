@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
 )
 
 const DefaultPort = 20128

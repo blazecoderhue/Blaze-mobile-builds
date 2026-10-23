@@ -281,7 +281,7 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
         formSession = from
         _form.value = req
         if (!inForeground) Notifier.actionRequired(req.title, req.site)
-        // v0.30.5 (Luke: "the form wouldn't close until I force quit"): the task being stopped while the card was up
+        // v0.30.5 (Blazeinchue: "the form wouldn't close until I force quit"): the task being stopped while the card was up
         // cancelled this wait, and the clean-up below never ran, so the card stayed with a Cancel that answered nobody.
         // The clean-up is now in finally, and Cancel / Stop remove the card themselves.
         try {
@@ -1013,6 +1013,14 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
 
     fun stopAgent(bg: BgAgents.Bg) { sessions[bg.chat]?.stop() }
 
+    /** 0.45.19: stops the turn running in chat [id] (Blaze Phone's picture-in-picture Stop). False when nothing ran there. */
+    fun stopChat(id: String): Boolean {
+        val s = sessions[id] ?: return false
+        val was = s.mood != Mood.IDLE
+        s.stop(); refreshBusy()
+        return was
+    }
+
     /** "/agent <task>": the card goes in the open chat, and the result wakes it. */
     fun startAgentFromUser(task: String) {
         val s = cur
@@ -1681,7 +1689,7 @@ When you finish, say what you did in one short sentence.
         var autoStepId = -1L
 
         /**
-         * v0.28.4 (Luke's "Worked · 4 steps · 97m 45s" for 33 s of steps): when the turn in progress started. The work card
+         * v0.28.4 (Blazeinchue's "Worked · 4 steps · 97m 45s" for 33 s of steps): when the turn in progress started. The work card
          * used to time a turn from the message before its steps, so a Retry or a background agent's wake ran the clock
          * from a message sent long before. The first step of each turn now carries this ([ChatMessage.startAt]).
          */
@@ -1839,7 +1847,7 @@ When you finish, say what you did in one short sentence.
             // force (v0.24.0 /clear): an emptied thread is saved too, so cleared messages don't come back on restart.
             if (isPrivate) return   // v0.24.4: private chats are never written anywhere
             if (!force && msgs.none { it.role == Role.USER } && !(keep && msgs.isNotEmpty())) return
-            // v0.30.5 (Luke: "sometimes when you send a new message the app kind of glitches and then unfreezes"): the whole
+            // v0.30.5 (Blazeinchue: "sometimes when you send a new message the app kind of glitches and then unfreezes"): the whole
             // chat (every message, the full model history, pictures stripped by copying) was turned into JSON on the main
             // thread at every send, which grows with the one long main conversation. Only a cheap snapshot is taken here;
             // the JSON is built and written in the background, newest snapshot last (ioLock keeps saves in order).
@@ -2068,8 +2076,8 @@ When you finish, say what you did in one short sentence.
             val turnUser = users[0].id
             if (!routine && agentId == null && specialistId == null) Ack.local(shown)?.let { a ->
                 scope.launch {
-                    // A fast-lane command answers in a few hundred ms: its reply is the receipt, no ack in front of it.
-                    kotlinx.coroutines.delay(Ack.LOCAL_DELAY_MS)
+                    // 0.45.19: a task that finishes within Ack.FAST_MS (a single toggle) gets no ack, only its verified result.
+                    kotlinx.coroutines.delay(Ack.holdMs(gate.at, System.currentTimeMillis()))
                     if (job?.isActive == true) showAck(gate, a, turnUser, shown)
                 }
             }
@@ -2382,12 +2390,17 @@ When you finish, say what you did in one short sentence.
                 persist()
                 return
             }
-            val raw = try { duoCall(Duo.Who.HALO, req, roomTools(if (sched) Duo.SIDE_SCHEDULE_TOOLS else emptySet()), -1L, side = true) { live.show(it) } }
+            val raw = try { duoCall(Duo.Who.HALO, req, roomTools(if (sched) Duo.SIDE_SCHEDULE_TOOLS else emptySet()), -1L, side = true) {
+                // 0.45.19: a handoff line ("Passed to Blaze, let me know…") never shows, not even while it streams.
+                if (!Ack.isGeneric(it)) live.show(it) } }
                 catch (e: CancellationException) { live.end(""); throw e }
                 catch (e: Exception) { live.end(""); add(Role.ERROR, e.message ?: "Halo lost the connection."); return }
-            val shownText = duoVisible(raw.replace(Regex("(?i)\\[\\[\\s*relay\\s*\\]\\]"), ""), final = true)
+            val relay = Duo.isRelay(raw)
+            // 0.45.19: a relay is Blaze's job, so Halo's handoff line ("passing that straight to Blaze") is never kept: Blaze's
+            // answer is the one clean reply (it used to sit glued under Halo's name with "Done ✓").
+            val shownText = if (relay) "" else duoVisible(raw, final = true)
             live.end(shownText)
-            if (Duo.isRelay(raw)) {
+            if (relay) {
                 // For Blaze: it joins Blaze's running task at its next step (or starts Blaze's next turn).
                 synchronized(sideHist) { sideHist.remove(user) }
                 sideIds -= mid
@@ -3107,7 +3120,9 @@ When you finish, say what you did in one short sentence.
                             var ended = false
                             val got = kotlinx.coroutines.withTimeoutOrNull(minOf(budget, TurnDeadline.CLOUD_STEP_MS)) {
                                 CloudRuns.step(ct, r, tools, onText, { line -> scope.launch { if (mood != Mood.IDLE) status = line } },
-                                    { a -> val g = ackGate; val u = turnFrom; val said = lastUserText(); scope.launch { if (g != null) showAck(g, a, u, said) } }).also { ended = true }
+                                    { a -> val g = ackGate; val u = turnFrom; val said = lastUserText(); scope.launch {
+                                        // 0.45.19: the gateway's ack waits out Ack.FAST_MS too; a fast answer goes out alone.
+                                        if (g != null) { kotlinx.coroutines.delay(Ack.holdMs(g.at, System.currentTimeMillis())); if (job?.isActive == true) showAck(g, a, u, said) } } }).also { ended = true }
                             }
                             if (got != null) return got
                             if (!ended) { ct.off = true; LlmClient.lastCloudError = "cloud run: step over ${TurnDeadline.CLOUD_STEP_MS / 1000}s"; add(Role.STEP, TurnDeadline.CLOUD_SLOW) }
@@ -4570,6 +4585,8 @@ When you finish, say what you did in one short sentence.
                     agentId?.let { me -> Dispatch.phone.take(me) { h -> BgAgents.get(h)?.live == true }?.let {
                         return "Blaze Phone is in use by another agent right now. Use web_search / fetch_page for this step, or finish without it." } }
                     add(Role.STEP, com.blaze.assistant.browser.phone.PhoneBrowserTools.describe(name, args))
+                    // 0.45.19 fix 4: who drives Blaze Phone now, so the picture-in-picture Stop cancels exactly this turn.
+                    com.blaze.assistant.browser.phone.PhoneBrowser.own(id, agentId)
                     val drv = com.blaze.assistant.browser.phone.PhoneBrowser.Driver(app) { reason, site ->
                         if (!inForeground) Notifier.actionRequired("Take control: ${reason.take(50)}", site,
                             "Blaze needs you on Blaze Phone ($site): ${reason.take(80)}. Tap, then Take control.") }
@@ -4890,10 +4907,13 @@ When you finish, say what you did in one short sentence.
          */
         fun showAck(gate: Ack.Gate, a: String, turnUser: Long, said: String) {
             if (gate !== ackGate || streamId >= 0 || duoLive.isNotEmpty()) return
+            // 0.45.19: an ack that carries call text ("browser_open(...)") is never shown; nothing is better than code.
+            if (try { CallScan.has(a) || ToolLeak.forDisplay(a).trim() != a.trim() } catch (_: Throwable) { false }) return
             val after = msgs.dropWhile { it.id != turnUser }.drop(1)
             if (after.any { it.role == Role.BLAZE || it.role == Role.ERROR }) return
             if (!gate.take(a)) return
             gate.user = turnUser
+            gate.said = said
             val aid = ids.getAndIncrement()
             msgs = msgs + ChatMessage(aid, Role.BLAZE, a.trim(), meta = Ack.META)
             taskChip = Ack.chip(said)
@@ -4901,7 +4921,7 @@ When you finish, say what you did in one short sentence.
             TaskKeeper.started(app, TaskKeeper.Task(id, turnUser, said, System.currentTimeMillis()))
             if (!(this === cur && (inForeground || overlayOpen))) {
                 if (isPrivate) Notifier.reply("Blaze got your message in your private chat.", false, id)
-                else Notifier.reply(a.trim(), false, id)
+                else Notifier.ack(a.trim(), id)
             }
         }
 
@@ -4916,12 +4936,13 @@ When you finish, say what you did in one short sentence.
             if (!gate.acked) return
             TaskKeeper.finished(app, id, gate.user)
             val done = synchronized(turnDone) { turnDone.toList() }
-            val last = done.groupBy { it.name }.mapValues { it.value.last().status }
+            // 0.45.19: only actions count; a status check or a page read never makes "Done ✓".
+            val last = done.filterNot { Ack.isReadOnly(it.name) }.groupBy { it.name }.mapValues { it.value.last().status }
             val verified = last.count { it.value == ToolVerify.Status.VERIFIED }
             val unproven = last.count { it.value != ToolVerify.Status.VERIFIED }
             val r = msgs.lastOrNull() ?: return
             if (r.role != Role.BLAZE || r.meta == Ack.META) return
-            val t = Ack.receipt(r.text, verified, unproven, rewrote = false)
+            val t = Ack.receipt(r.text, verified, unproven, rewrote = false, asked = gate.said)
             if (t != r.text) msgs = msgs.map { if (it.id == r.id) it.copy(text = t) else it }
         }
 

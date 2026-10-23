@@ -19,7 +19,7 @@ class UpdateDownloadTest {
     private val data = ByteArray(300_000) { (it * 31 % 251).toByte() }
     private fun tmp(): File = Files.createTempDirectory("upd").toFile()
 
-    /** A stream that throws "unexpected end of stream" after [cut] bytes (Luke's error). */
+    /** A stream that throws "unexpected end of stream" after [cut] bytes (Blazeinchue's error). */
     private class Cut(private val src: InputStream, private var cut: Int) : InputStream() {
         override fun read(): Int { if (cut-- <= 0) throw IOException("unexpected end of stream"); return src.read() }
         override fun read(b: ByteArray, off: Int, len: Int): Int {

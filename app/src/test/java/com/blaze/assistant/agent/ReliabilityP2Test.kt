@@ -149,8 +149,8 @@ class ReliabilityP2Test {
         assertTrue(line, line.startsWith("\u26a0 Couldn't confirm: Wi-Fi on"))
         assertTrue(line.contains("\u2713 Sent to Mum on WhatsApp")); assertTrue(line.contains("\u2713 Alarm 07:00"))
         assertFalse(line.contains("web search", true))
-        // Every chip survives the "technical details hidden" filter.
-        assertEquals(line, ReplyChips.visible(line, false))
+        // 0.45.19: receipt chips no longer sit in the action row ("What I did" holds them).
+        assertEquals("", ReplyChips.visible(line, false))
         // Stored with the message and read back.
         val back = Receipt.fromJson(Receipt.toJson(log))
         assertEquals(4, back.size); assertEquals("Wi-Fi still reads off", back[3].evidence); assertEquals(Status.UNVERIFIED, back[3].status)

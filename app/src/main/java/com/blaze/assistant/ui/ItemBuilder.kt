@@ -60,7 +60,7 @@ internal class ItemBuilder {
         // ---- group positions: rows before the tail keep theirs, except the last one or two around the seam ----
         val from = maxOf(0, firstNew - 1)          // the first row whose position can change (depends on its next row)
         val w = maxOf(0, from - 1)                 // one row of context before it
-        val pos = Bubbles.positions(out.subList(w, out.size).map { it.side }, out.subList(w, out.size).map { it.at })
+        val pos = Bubbles.positions(out.subList(w, out.size).map { it.side }, out.subList(w, out.size).map { it.at }, whos = out.subList(w, out.size).map { it.who })
         for (i in from until out.size) {
             val p = pos[i - w]
             val it = out[i]

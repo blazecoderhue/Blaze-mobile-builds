@@ -76,7 +76,7 @@ object Views {
 
     // ---------------- v0.24.6: ask before switching ----------------
 
-    /** "Open in Design?": a chip in the chat that opens the view on one tap (Luke: Blaze asks, it doesn't jump). */
+    /** "Open in Design?": a chip in the chat that opens the view on one tap (Blazeinchue: Blaze asks, it doesn't jump). */
     data class Offer(val id: String, val target: String = "", val n: Long = System.nanoTime())
     val offer = MutableStateFlow<Offer?>(null)
 

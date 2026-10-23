@@ -176,7 +176,7 @@ fun MyVoiceCard(
         mineActive -> "Blaze speaks with your voice, made on this phone"
         else -> "Record yourself for about 15 seconds and Blaze talks like you"
     }, (mineActive || setupOpen) && !geminiActive && !geminiOpen, onPickMine)
-    Choice("Gemini voice", "Natural voices from Google, with your Gemini key", geminiActive || geminiOpen, onPickGemini)
+    Choice("Google voice", "Natural voices from Google, with your Google AI Studio key", geminiActive || geminiOpen, onPickGemini)
     if (geminiOpen) GeminiVoicePanel(active = geminiActive, onReady = onGeminiReady)
 
     if (setupOpen) {
@@ -290,15 +290,15 @@ fun GeminiVoicePanel(active: Boolean, onReady: () -> Unit) {
     }
     Column(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp).hairline(c.hair).padding(14.dp)) {
         if (!hasKey) {
-            Body("Paste your Gemini API key. You can get one free at aistudio.google.com. It stays on this phone and in your Blaze account.")
-            BlazeTextField(keyText, { keyText = it.trim() }, "Gemini API key", modifier = Modifier.fillMaxWidth().padding(top = 8.dp), mono = true)
+            Body("Paste your Google AI Studio key. You can get one free at aistudio.google.com. It stays on this phone and in your Blaze account.")
+            BlazeTextField(keyText, { keyText = it.trim() }, "Google AI Studio key", modifier = Modifier.fillMaxWidth().padding(top = 8.dp), mono = true)
             PillButton("Save key", primary = true, modifier = Modifier.padding(top = 8.dp), onClick = {
-                if (keyText.length < 20) { note = "That doesn't look like a Gemini key."; noteBad = true }
+                if (keyText.length < 20) { note = "That doesn't look like a Google AI Studio key."; noteBad = true }
                 else if (GeminiVoice.saveKey(keyText)) { hasKey = true; keyText = ""; note = ""; hear() }
                 else { note = "Couldn't save the key. Try again."; noteBad = true }
             })
         } else {
-            Body("Pick a voice. Speech is made by Google over the internet, with your own Gemini key.")
+            Body("Pick a voice. Speech is made by Google over the internet, with your own Google AI Studio key.")
             GeminiTts.VOICES.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     row.forEach { (v, word) ->
@@ -317,7 +317,7 @@ fun GeminiVoicePanel(active: Boolean, onReady: () -> Unit) {
             if (busy) { Body("Making a sample\u2026", modifier = Modifier.padding(top = 6.dp)); Bar(-1f) }
         }
         if (note.isNotEmpty()) Body(note, color = if (noteBad) c.accent else c.sub, modifier = Modifier.padding(top = 8.dp))
-        if (active) Body("If Gemini can't be reached, Blaze uses the phone voice and tells you.", modifier = Modifier.padding(top = 6.dp))
+        if (active) Body("If Google's voice can't be reached, Blaze uses the phone voice and tells you.", modifier = Modifier.padding(top = 6.dp))
     }
 }
 

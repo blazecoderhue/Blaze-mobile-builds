@@ -131,7 +131,7 @@ import kotlinx.coroutines.withContext
  * gestures (left half up/down = brightness, right half = volume, double-tap ±10 s; no swipe-seek since wave A),
  * fullscreen with rotation, picture-in-picture, speed, subtitle and audio-track choice, and resume where you left off.
  */
-class VideoActivity : ComponentActivity() {
+class VideoActivity : ComponentActivity(), com.blaze.assistant.ui.BackRule.ToChat {
     companion object {
         fun open(ctx: Context, tab: String = "") = ctx.startActivity(Intent(ctx, VideoActivity::class.java)
             .putExtra(MusicActivity.EXTRA_TAB, tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
@@ -589,6 +589,9 @@ class VideoActivity : ComponentActivity() {
     }
 
     /** Wave A item 26: Back from any level of Video lands on the agent chat; a playing video stays on as PiP. */
+    /** 0.45.19 fix 7 (BackRule): Back from any Video screen goes to the chat; a playing video stays in picture-in-picture. */
+    override fun backToChat() = leaveToChat()
+
     fun leaveToChat() {
         val pipOk = Build.VERSION.SDK_INT >= 26 && packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
         if (BackToChat.keepVideo(player.isPlaying && current.value != null, pipOk)) {

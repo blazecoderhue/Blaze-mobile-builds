@@ -260,7 +260,7 @@ class MusicService : MediaLibraryService() {
     private val retried = HashSet<String>()
 
     /**
-     * v0.30.5 (Luke: "The stream link expired or was refused"): a Store stream the server refuses (403 / 410) is asked
+     * v0.30.5 (Blazeinchue: "The stream link expired or was refused"): a Store stream the server refuses (403 / 410) is asked
      * for again once (the YouTube plug-in then tries its next client) and picks up where it stopped, instead of
      * leaving the error on screen.
      */

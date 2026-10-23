@@ -1,4 +1,4 @@
-Required Notice: Copyright (c) 2026 lacksonkapapahue (Blaze). All rights reserved except as granted below.
+Required Notice: Copyright (c) 2026 Blazeinchue (Blaze). All rights reserved except as granted below.
 
 Third-party components keep their own licences; see THIRD_PARTY_NOTICES.md.
 

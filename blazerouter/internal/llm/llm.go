@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
 )
 
 type ToolCall struct {
@@ -137,7 +137,7 @@ func Chat(ctx context.Context, p config.Provider, key, model string, msgs []Mess
 		req.Header.Set(k, v)
 	}
 	if p.ID == "openrouter" {
-		req.Header.Set("HTTP-Referer", "https://github.com/lacksonkapapahue/Blaze-dekstop")
+		req.Header.Set("HTTP-Referer", "https://github.com/blazeinchue/Blaze-dekstop")
 		req.Header.Set("X-Title", "Blaze Desktop")
 	}
 	resp, err := client.Do(req)

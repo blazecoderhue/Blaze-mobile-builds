@@ -32,10 +32,10 @@ class AckBackgroundTest {
     }
 
     @Test fun reminderAckNamesTheTimeAndNeverSaysDone() {
-        assertEquals("Got it, setting that reminder for 9:00 tomorrow. I'll confirm when it's set.", Ack.local("remind me to call mum at 9:00 tomorrow"))
-        assertEquals("Got it, setting that alarm for 6:30 am. I'll confirm when it's set.", Ack.local("set an alarm for 6:30 am"))
-        assertEquals("Got it, starting that timer. I'll confirm when it's running.", Ack.local("set a timer for 10 minutes"))
-        assertEquals("Got it, setting that reminder in 20 minutes. I'll confirm when it's set.", Ack.local("remind me in 20 minutes to check the oven"))
+        assertEquals("Setting a reminder for 9:00 tomorrow.", Ack.local("remind me to call mum at 9:00 tomorrow"))
+        assertEquals("Setting an alarm for 6:30 am.", Ack.local("set an alarm for 6:30 am"))
+        assertEquals("Starting a 10-minute timer.", Ack.local("set a timer for 10 minutes"))
+        assertEquals("Setting a reminder in 20 minutes.", Ack.local("remind me in 20 minutes to check the oven"))
         assertEquals("for Friday", Ack.whenPart("book a table on friday"))
     }
 
@@ -53,8 +53,8 @@ class AckBackgroundTest {
         for (bad in listOf("Done! Reminder set for 9.", "I've set your reminder for 9:00.", "Your alarm is set.", "All set \u2713",
             "Message sent successfully.", "I booked the table.", "The timer is now running and has been started. Completed.", "Reminder has been scheduled."))
             assertFalse(bad, Ack.safe(bad))
-        for (ok in listOf("Got it, setting that reminder for 9:00 tomorrow. I'll confirm when it's set.", "On it \u2014 I'll tell you once it's sent.",
-            "Looking into flights now. I'll message you when I have options."))
+        for (ok in listOf("Got it, setting that reminder for 9:00 tomorrow. I'll confirm when it's set.", "Sending it now. I'll tell you once it's sent.",
+            "Looking into flights to Lusaka."))
             assertTrue(ok, Ack.safe(ok))
         assertFalse(Ack.safe(""))
         assertFalse(Ack.safe("x".repeat(300)))
@@ -63,7 +63,7 @@ class AckBackgroundTest {
     @Test fun oneAckPerTurn() {
         val g = Ack.Gate()
         assertFalse(g.take("Done, reminder set."))   // unsafe: dropped, and the gate stays open
-        assertTrue(g.take("Got it, on it. I'll confirm when it's set."))
+        assertTrue(g.take("Setting a reminder for 9:00."))
         assertFalse(g.take("Halo here, I'll handle it."))   // Halo / the gateway after the local ack: dropped
         assertTrue(g.acked)
         val late = Ack.Gate(); late.finished = true

@@ -626,7 +626,7 @@ fun modeChip(work: String, approval: String): String {
 }
 
 /**
- * v0.24.1: Luke's reference composer. A fully rounded pill, a fill a step off the background with a thin outline,
+ * v0.24.1: Blazeinchue's reference composer. A fully rounded pill, a fill a step off the background with a thin outline,
  * + on the left, the mic on the right that turns into a round send arrow once there's text (a stop square while
  * Blaze works). The light-grey placeholder rotates through [hints] (on-device suggestions, ComposerHints) every ~3 s
  * with a gentle fade and slide; it stops while the field is focused or has text, and with reduced motion.

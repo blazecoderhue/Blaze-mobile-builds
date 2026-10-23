@@ -63,19 +63,19 @@ object GeminiTts {
         try { decode(java.util.Base64.getDecoder().decode(it.trim())) } catch (_: IllegalArgumentException) { null }
     }
 
-    const val NO_KEY = "Add your Gemini API key to use the Gemini voice."
+    const val NO_KEY = "Add your Google AI Studio key to use the Google voice."
 
     /** One plain sentence for a failed request; never a code or a model name. */
     fun friendlyError(code: Int, body: String): String {
         val b = body.lowercase()
         return when {
-            code == 0 -> "Couldn't reach Gemini. Check your connection."
-            "api_key_invalid" in b || "api key not valid" in b || (code == 400 && "key" in b) -> "Gemini didn't accept that API key. Check it and try again."
-            code == 401 || code == 403 -> "This Gemini key isn't allowed to make voices. Check the key in Google AI Studio."
-            code == 429 -> "Gemini voice is busy or used up for today. Try again later."
-            code == 404 -> "Gemini's voice model isn't available for this key right now."
-            code in 500..599 -> "Gemini is having trouble right now. Try again in a moment."
-            else -> "Gemini voice didn't work this time."
+            code == 0 -> "Couldn't reach Google's voice service. Check your connection."
+            "api_key_invalid" in b || "api key not valid" in b || (code == 400 && "key" in b) -> "Google didn't accept that key. Check it and try again."
+            code == 401 || code == 403 -> "This Google AI Studio key isn't allowed to make voices. Check the key in Google AI Studio."
+            code == 429 -> "The Google voice is busy or used up for today. Try again later."
+            code == 404 -> "The Google voice isn't available for this key right now."
+            code in 500..599 -> "Google's voice service is having trouble right now. Try again in a moment."
+            else -> "The Google voice didn't work this time."
         }
     }
 

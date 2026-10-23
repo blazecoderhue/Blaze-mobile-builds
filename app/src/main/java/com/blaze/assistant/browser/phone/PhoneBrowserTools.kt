@@ -60,11 +60,11 @@ object PhoneBrowserTools {
         "phone_open" -> "Opening ${hostish(a.optString("url"))} on Blaze Phone"
         "phone_read" -> "Reading Blaze Phone's page"
         "phone_act" -> when (a.optString("action")) {
-            "click" -> "Tapping ${a.optString("target").take(40)}"
+            "click" -> "Tapping " + readable(a.optString("target"), "on the page")
             "type" -> "Typing on Blaze Phone"
             "key" -> "Pressing ${a.optString("key").ifBlank { "a key" }}"
             "scroll" -> "Scrolling Blaze Phone"
-            "select" -> "Choosing ${a.optString("option").take(40)}"
+            "select" -> "Choosing " + readable(a.optString("option"), "an option")
             "navigate" -> "Going to ${hostish(a.optString("text"))}"
             "fill_login" -> "Filling your saved login"
             else -> a.optString("action").replaceFirstChar { it.uppercase() } + " on Blaze Phone"
@@ -73,6 +73,19 @@ object PhoneBrowserTools {
         "phone_wait" -> "Waiting for the page"
         "phone_handoff" -> "Asking you to take control"
         else -> "Checking Blaze Phone"
+    }
+
+    /**
+     * 0.45.19 (phone 10:07 "Tapping e61"): the page's element refs (e61, ref=e12, [e3]) and CSS / XPath selectors never
+     * reach the status line; a visible label does ("Reserve Now"). Pure.
+     */
+    fun readable(target: String, fallback: String): String {
+        val t = target.trim().trim('"', '\'')
+        if (t.isEmpty()) return fallback
+        val ref = Regex("^\\[?(ref\\s*[=:]\\s*)?#?e\\d+\\]?$", RegexOption.IGNORE_CASE)
+        val selector = Regex("^(//|/html|[#.\\[]|\\w+\\[|\\w+[#.][\\w-]+)|[>~]\\s|:nth-|::|=\\s*['\"]")
+        if (ref.matches(t) || selector.containsMatchIn(t) || t.length > 60) return fallback
+        return t.take(40)
     }
 
     private fun hostish(u: String) = u.trim().removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore('/').take(40)
@@ -127,6 +140,7 @@ object PhoneBrowserTools {
             "click" -> {
                 if (target.isEmpty()) return "click needs a target (an id like e12, or its words)."
                 val t = d.locate(target, false) ?: return "No element \u201c${target.take(40)}\u201d on the page now. phone_read for fresh ids."
+                if (t.label.isNotBlank()) d.step("Tapping \u201c${t.label.take(40)}\u201d")
                 val card = d.focusInfo().card
                 when (PhonePolicy.gate("click", t.label, t.node(), card)) {
                     PhonePolicy.Gate.CONFIRM -> if (!confirm("Tap \u201c${t.label.take(40)}\u201d on $site?", "On Blaze Phone. This looks like it books, pays, sends or submits something.", "Tap")) return refused(t.label)

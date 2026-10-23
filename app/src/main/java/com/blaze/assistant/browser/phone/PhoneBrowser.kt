@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -107,7 +108,34 @@ object PhoneBrowser {
         PhonePolicy.config(mi.totalMem, try { am.isLowRamDevice } catch (_: Throwable) { false })
     }.also { cfg = it }
 
-    private fun set(f: (Live) -> Live) { _live.value = f(_live.value) }
+    // 0.45.19 fix 9: atomic. Frames bump frameNo from the reader thread while the main thread changes the mode; a plain
+    // read-modify-write could drop "You're in control" (or a step) under a frame that landed in between.
+    private fun set(f: (Live) -> Live) { _live.update(f) }
+
+    /** The chat (and background agent, if any) whose turn drives Blaze Phone now (picture-in-picture Stop cancels it). */
+    @Volatile var ownerChat: String? = null
+        private set
+    @Volatile var ownerAgent: String? = null
+        private set
+    fun own(chat: String, agent: String?) { ownerChat = chat; ownerAgent = agent }
+
+    /**
+     * Stop from the picture-in-picture window (or anywhere): cancels the turn that drives Blaze Phone (its background
+     * agent when it is one), ends any wait for Hand back, and says so on the tile. The page stays for the user.
+     * [stopChat] / [cancelAgent] are Agent.stopChat / BgAgents.cancel (passed in so this stays testable). True when a
+     * running turn was stopped.
+     */
+    fun stopTask(stopChat: (String) -> Boolean, cancelAgent: (String) -> Unit): Boolean {
+        val chat = ownerChat; val agent = ownerAgent
+        var stopped = false
+        if (agent != null) { cancelAgent(agent); stopped = true }
+        if (chat != null) stopped = stopChat(chat) || stopped
+        ownerChat = null; ownerAgent = null
+        handBack?.cancel(); handBack = null
+        set { it.copy(step = "Stopped", reason = null, agentWaiting = false, at = System.currentTimeMillis(),
+            mode = if (it.mode == PhonePolicy.Mode.WAITING) PhonePolicy.Mode.AGENT else it.mode) }
+        return stopped
+    }
     fun step(what: String) { set { it.copy(step = what, at = System.currentTimeMillis()) } }
     private fun touch() { lastActive = System.currentTimeMillis(); surface?.actedAt = lastActive; scheduleIdle() }
 
@@ -180,6 +208,7 @@ object PhoneBrowser {
         surface?.release(); surface = null
         frame = null
         handBack?.complete(Unit); handBack = null
+        ownerChat = null; ownerAgent = null
         _live.value = Live()
     }
 
@@ -261,10 +290,17 @@ object PhoneBrowser {
     /** While the user drives, Blaze waits for Hand back (up to [ms]); true when it may act. */
     private suspend fun waitForUser(ms: Long = 10 * 60_000L): Boolean {
         if (_live.value.mode != PhonePolicy.Mode.USER && _live.value.mode != PhonePolicy.Mode.WAITING) return true
-        val d = handBack ?: CompletableDeferred<Unit>().also { handBack = it }
+        val d = handBack?.takeIf { it.isActive } ?: CompletableDeferred<Unit>().also { handBack = it }
         set { it.copy(agentWaiting = true) }
-        val r = withTimeoutOrNull(ms) { d.await() } != null
+        // 0.45.19 fix 9: Stop (or a cancelled turn) used to leave agentWaiting = true and a dead handBack behind, so the
+        // next Hand back thought an agent was still waiting and never freed the WebView.
+        val r = try { withTimeoutOrNull(ms) { d.await() } != null } catch (e: kotlinx.coroutines.CancellationException) {
+            if (handBack === d) handBack = null
+            set { it.copy(agentWaiting = false) }
+            throw e
+        }
         set { it.copy(agentWaiting = false) }
+        if (handBack === d && !r) handBack = null
         return r && _live.value.mode == PhonePolicy.Mode.AGENT
     }
 
@@ -553,6 +589,9 @@ object PhoneBrowser {
         w.loadUrl(url); touch()
     }
 
+    /** A Blaze Phone screen is going away: the WebView's context (dialogs, pickers) goes back to the app. Main thread. */
+    fun forget(activity: Context) { if (wrap?.baseContext === activity) wrap?.baseContext = app }
+
     /** The WebView the user drives (after [takeControl]), for the activity to host. */
     fun webView(): WebView? = web
 
@@ -624,7 +663,7 @@ object PhoneBrowser {
     }
 
     /** Live-view watchers (the chat tile, the full screen): frames are only made while someone watches. */
-    fun watch(on: Boolean) { watchers = (watchers + if (on) 1 else -1).coerceAtLeast(0); surface?.watching = watchers }
+    @Synchronized fun watch(on: Boolean) { watchers = (watchers + if (on) 1 else -1).coerceAtLeast(0); surface?.watching = watchers }
 
     fun hasPage(): Boolean = web != null
     fun site(): String = session?.site.orEmpty()

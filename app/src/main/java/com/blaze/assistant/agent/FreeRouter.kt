@@ -303,7 +303,7 @@ object FreeRouter {
     /** What the last failed Auto turn ran into, model by model (diagnostics). */
     @Volatile var lastFailures: List<String> = emptyList()
 
-    /** The message Luke sees when no free model could answer: short, plain, says when the next one frees up. */
+    /** The message Blazeinchue sees when no free model could answer: short, plain, says when the next one frees up. */
     fun friendly(attempts: Int, moreLeft: Boolean, soonest: Pair<String, Long>?, hadErrors: Boolean): String = when {
         moreLeft -> "I tried $attempts free models and none answered this time. Say \u201ctry again\u201d and I'll move on to the next ones."
         soonest != null -> "All your free models are busy right now. The next one (${soonest.first.take(48)}) frees up in ${fmt(soonest.second)}. " +

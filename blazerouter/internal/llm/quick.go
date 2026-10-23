@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
 )
 
 // QuickTargets orders the usable models for a tiny call: free-tier ones first, then

@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
-	"github.com/lacksonkapapahue/blaze-desktop/internal/router"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/router"
 )
 
 var version = "dev"

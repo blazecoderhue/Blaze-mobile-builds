@@ -55,7 +55,7 @@ class PromptCacheBenchTest {
         val prof = PromptProfile.plan(false, userText, groups, viewRouted = viewRouted)
         return PromptParts.build {
             s("persona", Personas.byId("blaze").prompt + " ")
-            s("name", "The user's name is Lackson. ")
+            s("name", "The user's name is Sam. ")
             s("names", GreetName.RULE)   // v0.45.9
             s("lang", ReplyLanguage.line("auto"))   // v0.45.7
             slow("connectors", "\nConnected accounts you can use with tools: Gmail (mail), Google Calendar (events), Spotify (music).\n")

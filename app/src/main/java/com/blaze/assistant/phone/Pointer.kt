@@ -35,7 +35,7 @@ object Pointer {
     const val ACCENT = 0xFF1F4BD8.toInt()
 
     /**
-     * v0.24.4 (Luke): the pointer is always shown while Blaze drives the phone; agent taps can't hide it. The old
+     * v0.24.4 (Blazeinchue): the pointer is always shown while Blaze drives the phone; agent taps can't hide it. The old
      * `show_pointer` pref is kept (backward compatible) but no longer read for agent gestures.
      */
     const val enabled: Boolean = true

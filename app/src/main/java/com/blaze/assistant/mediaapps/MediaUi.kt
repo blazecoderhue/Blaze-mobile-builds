@@ -305,7 +305,7 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
     val setup = remember(src?.id, setupTick) { src?.setupNeeded() }
     val ready = remember(kind, setupTick) { sources.filter { it.setupNeeded() == null } }
 
-    // v0.30.5 (Luke: "already scrollable ideas rather than a blank search in case the user isn't feeling inspired"):
+    // v0.30.5 (Blazeinchue: "already scrollable ideas rather than a blank search in case the user isn't feeling inspired"):
     // ideas from what they play and download (Taste), then starters; an empty box shows the first one's results.
     // Wave A 27-28: channels (video) / genres (music) from what they play, "All" first and selected by default.
     val ideas = remember(kind) { Taste.chips(ctx, kind) }
@@ -595,7 +595,7 @@ fun JamendoSetup(text: String, onSaved: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         MText(text, 12.5.sp, c.sub, maxLines = 5)
         Spacer(Modifier.height(10.dp))
-        // v0.30.5 (Luke: "a simple button to take them where they have to go, or simply asking Blaze to get it"):
+        // v0.30.5 (Blazeinchue: "a simple button to take them where they have to go, or simply asking Blaze to get it"):
         // Blaze can do it (its browser + the jamendo_setup tool), or the dev portal opens in the browser.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PillButton("Ask Blaze to set it up", primary = true) {

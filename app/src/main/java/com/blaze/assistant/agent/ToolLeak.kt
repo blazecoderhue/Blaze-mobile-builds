@@ -4,9 +4,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * v0.28.1: tool calls a model wrote as text ("leaked") instead of calling the tool. Seen on Luke's phone:
+ * v0.28.1: tool calls a model wrote as text ("leaked") instead of calling the tool. Seen on Blazeinchue's phone:
  *  - a bubble that only says `[/find_tool need="stock tracking"]`
- *  - `[github_open repo="LacksonKapapa/Blaze-Agent"]`
+ *  - `[github_open repo="Blazeinchue/Blaze-Agent"]`
  *  - a reply starting `[/blazer_save kind=features text="## App ...` (cut off, never closed)
  *
  * [find] parses them (bracketed `[/name k="v" …]` / `[name k=v …]`, `<tool_call>name k="v"</tool_call>`, `<tool_call>{json}`,
@@ -122,7 +122,7 @@ object ToolLeak {
 
     /**
      * v0.28.3: what the screen shows for a saved reply or chat preview. Replies saved before v0.28.1 can still hold raw
-     * leaked calls (Luke's `[github_open repo="LacksonKapapa/Blaze-Agent"]` at 15:55, shown again after the update),
+     * leaked calls (Blazeinchue's `[github_open repo="Blazeinchue/Blaze-Agent"]` at 15:55, shown again after the update),
      * so they're stripped when drawn too. Text with no leak comes back unchanged (byte for byte).
      */
     fun forDisplay(text: String): String {
@@ -158,10 +158,10 @@ object ToolLeak {
         "blazecli" to "https://gitlab.com/blazeinchue/Blaze-cli",
     )
 
-    /** A guessed owner for Blaze's repos ("LacksonKapapa", "luckson-kapapa", any "kapapa" spelling in any case, "blaze", "blazeinchue"). */
+    /** A guessed owner for Blaze's repos (any "blazeinchue" spelling in any case, "blaze-inchue", "blaze", "blazeapp"). */
     fun blazeOwner(owner: String): Boolean {
         val k = key(owner)
-        return k.contains("kapapa") || k == "blazeinchue" || k.startsWith("lackson") || k.startsWith("luckson") || k == "blaze" || k == "blazeapp" || k == "luke"
+        return k.startsWith("blazeinc") || k.startsWith("blazinchue") || k == "blaze" || k == "blazeapp" || k == "blazehq"
     }
 
     /** A GitHub URL for `github_open`-style args: url, else repo ("owner/name"; a Blaze-agent spelling → the real repo). */
@@ -170,7 +170,7 @@ object ToolLeak {
         val repo = args.optString("repo").ifBlank { args.optString("repository").ifBlank { args.optString("name") } }.trim().trim('/')
             .removePrefix("https://").removePrefix("http://").removePrefix("www.").removePrefix("github.com/").removeSuffix(".git")
         if (repo.isBlank()) return BLAZE_REPO_URL
-        // Any owner (or none) with a Blaze repo name: "LacksonKapapa/Blaze-Agent", "blaze-agent", "BLAZE-DESKTOP".
+        // Any owner (or none) with a Blaze repo name: "Blazeinchue/Blaze-Agent", "blaze-agent", "BLAZE-DESKTOP".
         BLAZE_REPOS[key(repo.substringAfterLast('/'))]?.let { return it }
         return if (Regex("""^[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+$""").matches(repo)) "https://github.com/$repo" else BLAZE_REPO_URL
     }
@@ -178,7 +178,7 @@ object ToolLeak {
     private val ghUrl = Regex("""^(?:https?://)?(?:www\.)?github\.com/([^/?#\s]+)/([^/?#\s]+)(.*)$""", RegexOption.IGNORE_CASE)
 
     /**
-     * v0.28.4 (Luke's screenshot: Blaze opened github.com/LacksonKapapa/Blaze-Agent, said it doesn't exist and sent him to
+     * v0.28.4 (Blazeinchue's screenshot: Blaze opened github.com/Blazeinchue/Blaze-Agent, said it doesn't exist and sent him to
      * a stranger's profile): a github.com URL to a Blaze repo under a guessed owner or the wrong case becomes the real
      * one, keeping the rest of the path (/releases, /tree/apk …). Other URLs are returned unchanged.
      */

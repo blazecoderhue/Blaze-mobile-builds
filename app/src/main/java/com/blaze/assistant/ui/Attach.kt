@@ -223,7 +223,7 @@ fun ImagePreview(path: String, onDismiss: () -> Unit) {
 
 /**
  * Your sent message with pictures. v0.30.5: the pictures stand on their own (rounded, right-aligned, no bubble around
- * them; Luke: "images should not be in the blue bubble thingy"), tap to preview; the words get their own normal bubble
+ * them; Blazeinchue: "images should not be in the blue bubble thingy"), tap to preview; the words get their own normal bubble
  * underneath, and non-picture files sit as icon chips below. Old messages without thumbnails show the file chips only.
  */
 @Composable

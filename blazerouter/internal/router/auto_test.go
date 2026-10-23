@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Every OmniRoute auto/* preset Luke uses resolves, plans and is listed in /v1/models.
+// Every OmniRoute auto/* preset Blazeinchue uses resolves, plans and is listed in /v1/models.
 var omniPresets = strings.Fields(`auto/best-chaos auto/best-chat auto/best-coding auto/best-coding-fast auto/best-fast
 auto/best-free auto/best-reasoning auto/best-vision auto/chaos auto/chat auto/cheap auto/claude-opus auto/claude-sonnet
 auto/coding auto/fast auto/lkgp auto/multimodal auto/offline auto/pro-chat auto/pro-coding auto/pro-fast auto/pro-reasoning
