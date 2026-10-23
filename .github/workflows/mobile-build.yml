@@ -23,7 +23,7 @@ env:
   # Kotlin JVM backend overflows the default thread stack on the big agent coroutines (StackOverflowError in run 39836794933)
 
 jobs:
-  # Blaze Engine branches (app/engine-*): compile + JVM tests of :blaze-engine, and prove :app still compiles. No APK, no signing.
+  # Blaze Kiln branches (app/engine-*): compile + JVM tests of :kiln, and prove :app still compiles. No APK, no signing.
   engine:
     if: ${{ startsWith(github.ref_name, 'app/engine') }}
     runs-on: ubuntu-latest
@@ -39,8 +39,8 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-34" "build-tools;34.0.0" > /dev/null
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-      - name: Engine compile + unit tests
-        run: set -o pipefail; ./gradlew :blaze-engine:assembleRelease :blaze-engine:testDebugUnitTest --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx4g" 2>&1 | tee engine.log
+      - name: Kiln compile + unit tests
+        run: set -o pipefail; ./gradlew :kiln:assembleRelease :kiln:testDebugUnitTest --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx4g" 2>&1 | tee engine.log
       - name: App still compiles
         if: always()
         run: set -o pipefail; ./gradlew :app:compileDebugKotlin --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process -Pkotlin.jvm.target.validation.mode=warning 2>&1 | tee app-compile.log
@@ -50,27 +50,27 @@ jobs:
           python3 - > units.txt <<'PY'
           import glob, xml.etree.ElementTree as ET
           t=f=e=s=0; bad=[]
-          for p in glob.glob('blaze-engine/build/test-results/testDebugUnitTest/*.xml'):
+          for p in glob.glob('kiln/build/test-results/testDebugUnitTest/*.xml'):
               r=ET.parse(p).getroot()
               t+=int(r.get('tests',0)); f+=int(r.get('failures',0)); e+=int(r.get('errors',0)); s+=int(r.get('skipped',0))
               for c in r.iter('testcase'):
                   x=c.find('failure') if c.find('failure') is not None else c.find('error')
                   if x is not None: bad.append(c.get('classname')+'.'+c.get('name')+' :: '+(x.get('message') or '')[:300])
-          print(f"ENGINE UNITS tests={t} failures={f} errors={e} skipped={s}")
+          print(f"KILN UNITS tests={t} failures={f} errors={e} skipped={s}")
           for b in bad: print("FAIL", b)
           PY
           cat units.txt | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: engine
+          name: kiln
           retention-days: 3
           path: |
             engine.log
             app-compile.log
             units.txt
-            blaze-engine/build/test-results/testDebugUnitTest/*.xml
-            blaze-engine/build/outputs/aar/
+            kiln/build/test-results/testDebugUnitTest/*.xml
+            kiln/build/outputs/aar/
 
   apk:
     if: ${{ !startsWith(github.ref_name, 'app/engine') }}

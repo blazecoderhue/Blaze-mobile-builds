@@ -1,4 +1,4 @@
-# Blaze Engine dependencies (allowed: Apache-2.0, MIT, BSD only)
+# Blaze Kiln dependencies (allowed: Apache-2.0, MIT, BSD only)
 
 Checked 2026-10-23 against each project's LICENSE file (GitHub licence API + the file text).
 
@@ -12,7 +12,7 @@ Checked 2026-10-23 against each project's LICENSE file (GitHub licence API + the
 | AndroidHiddenApiBypass | org.lsposed.hiddenapibypass:hiddenapibypass:6.1 | Apache-2.0 | https://github.com/LSPosed/AndroidHiddenApiBypass/blob/main/LICENSE | non-SDK access on API 28+ (only through `runtime/HiddenApi`) | M1 runtime |
 | ByteHook (bhook) | com.bytedance:bytehook | MIT | https://github.com/bytedance/bhook/blob/main/LICENSE | PLT hooks for native path redirection | M3 (planned) |
 
-Test runner: the app's own tests use JUnit 4 (EPL-1.0). The engine does NOT use JUnit, so that every engine dependency,
+Test runner: the app's own tests use JUnit 4 (EPL-1.0). Kiln does NOT use JUnit, so that every Kiln dependency,
 test scope included, is Apache-2.0/MIT/BSD. TestNG's optional deps (Guice, SnakeYAML) are not pulled.
 
 ## Checked and REJECTED (do not add)
@@ -21,7 +21,7 @@ test scope included, is Apache-2.0/MIT/BSD. TestNG's optional deps (Guice, Snake
 | Pine (canyie/pine) | Anti-996 | not Apache/MIT/BSD |
 | SandHook (asLody/SandHook) | Anti-996 | not allowed |
 | YAHFA | GPL-3.0 | copyleft |
-| JUnit 4 (for engine tests) | EPL-1.0 | not on the allowed list; TestNG used instead |
+| JUnit 4 (for Kiln tests) | EPL-1.0 | not on the allowed list; TestNG used instead |
 | Any VirtualApp/BlackBox-family/DroidPlugin/VirtualAPK/Shelter/VirtualXposed code | GPL/LGPL/unlicensed | forbidden by CLEANROOM_RULES.md |
 
 ## Checked, allowed but not planned
