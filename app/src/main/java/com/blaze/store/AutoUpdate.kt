@@ -19,6 +19,7 @@ import com.blaze.store.data.*
 import com.blaze.store.platform.AppTracker
 import com.blaze.store.platform.DlStatus
 import com.blaze.store.platform.Downloads
+import com.blaze.store.platform.VtGuard
 import com.blaze.store.ui.Store
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -38,6 +43,28 @@ import java.util.concurrent.ConcurrentHashMap
  * same package, then install it over the existing app. Root and Shizuku install anything; without them Android 12+ installs
  * updates silently for apps Blaze Store installed. Whatever can't finish here is logged, kept ready to install, and reported on the next start.
  */
+/** Blaze Store's own update channel: the "store" entry of Blaze's versions.json (no GitHub releases). */
+data class StoreRelease(val version: String, val url: String, val sha256: String? = null, val notes: String? = null)
+
+object SelfUpdate {
+    const val VERSIONS_URL = "https://blazeinchue.pages.dev/versions.json"
+    const val KEY = "store"
+
+    /** {"store": {"version": "0.1.0", "url": "https://blazeinchue.pages.dev/dl/store/v0.1.0", "sha256": "...", "notes": "..."}} */
+    fun parse(text: String): StoreRelease? = runCatching {
+        val o = json.parseToJsonElement(text).jsonObject[KEY] as? JsonObject ?: return null
+        fun s(k: String) = (o[k] as? JsonPrimitive)?.contentOrNull?.trim()?.ifEmpty { null }
+        val v = s("version") ?: return null; val u = s("url")?.takeIf { it.startsWith("https://") } ?: return null
+        StoreRelease(v, u, s("sha256")?.lowercase(), s("notes"))
+    }.getOrNull()
+
+    suspend fun fetch(): StoreRelease? = runCatching { parse(Net.retry("$VERSIONS_URL?t=${System.currentTimeMillis()}", 2, noStore = true)) }.getOrNull()
+
+    /** versions.json wins over whatever the catalog config says about the store's own version and download. */
+    fun apply(c: StoreConfig, r: StoreRelease?): StoreConfig =
+        if (r == null) c else c.copy(latestStoreVersion = r.version, storeDownloadUrl = r.url, storeSha256 = r.sha256 ?: c.storeSha256)
+}
+
 object AutoUpdate {
     private const val JOB_ID = 7340
     private const val CHANNEL = "blaze_updates"
@@ -83,7 +110,7 @@ object AutoUpdate {
     }
 
     /** Catalog for this pass: fresh when the network allows, otherwise the last one the store cached. */
-    private suspend fun catalog(ctx: Context, s: Settings): List<AppItem> = withContext(Dispatchers.IO) {
+    internal suspend fun catalog(ctx: Context, s: Settings): List<AppItem> = withContext(Dispatchers.IO) {
         val repo = Repository(ctx)
         val fresh = runCatching {
             val r = repo.loadCatalog(s, false); val m = CatalogProcessor.parseMirror(r.mirror)
@@ -114,6 +141,9 @@ object AutoUpdate {
         val now = System.currentTimeMillis()
         Store.data.update { if (app.id in it.readyToInstall) it else it.completeDownload(app.id, name, now) }
         if (!s.autoInstall) { notifyReady(ctx, app, name); return null }
+        // VirusTotal before every install; without a verdict the update waits in the notification for the user
+        val vt = VtGuard.check(f, s.virusTotalApiKey)
+        if (!vt.allowsInstall) { notifyReady(ctx, app, name, vt.message); return result(false, vt.message) }
 
         val error = install(ctx, tracker, s, f, actual)
         if (error != null) { notifyReady(ctx, app, name, error); return result(false, error) }

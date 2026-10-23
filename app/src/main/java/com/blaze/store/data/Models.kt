@@ -76,6 +76,8 @@ val STREAMS = listOf("Stable", "Beta", "Alpha", "Nightly")
     val minStoreVersion: String? = null,
     val latestStoreVersion: String? = null,
     val storeDownloadUrl: String? = null,
+    /** SHA-256 of the Blaze Store APK at [storeDownloadUrl], from versions.json. */
+    val storeSha256: String? = null,
     val socials: SocialLinks? = null,
     val donation: DonationConfig? = null,
     val devProfile: DevProfile? = null,

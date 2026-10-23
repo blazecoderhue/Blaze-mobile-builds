@@ -458,7 +458,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun forcedInstall() = viewModelScope.launch {
         val sn = forcedSnapshot() ?: run { fError = "Update package metadata is missing. Retry the download, then install again."; return@launch }
-        fError = ""; fText = "Opening installer..."
+        fError = ""
+        // Same rule as every install: VirusTotal first. A self-update whose SHA-256 matches the one Blaze publishes in versions.json is ours.
+        val f = Downloads.file(sn.downloadFileName)
+        val pinned = config?.storeSha256?.lowercase()?.takeIf { it.length == 64 }
+        val ours = f != null && f.exists() && pinned != null && withContext(Dispatchers.IO) { VtGuard.sha256(f) } == pinned
+        if (!ours && f != null && f.exists()) {
+            fText = "Checking the update with VirusTotal..."
+            val r = VtGuard.check(f, s.virusTotalApiKey)
+            if (!r.allowsInstall) { fError = r.message; fText = ""; haptic(H.WARNING); return@launch }
+        }
+        fText = "Opening installer..."
         if (!tracker.canRequestInstalls()) { fError = "Grant install permission, then tap Install Now again."; runCatching { ctx.startActivity(tracker.installSettingsIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }; return@launch }
         fStatus = "installing"; snap { it.copy(status = "installing") }
         try {
@@ -606,8 +616,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // endregion
 
     // region install + verification
+    /** Files the user chose to install without a VirusTotal verdict (no key yet, or VirusTotal unreachable); each entry is used once. */
+    private val vtSkip = mutableSetOf<String>()
+
+    /** The VirusTotal check that runs before every install. False = stop: flagged, or waiting for the user to decide. */
+    private suspend fun vtCleared(app: AppItem, file: String): Boolean {
+        if (vtSkip.remove(file)) return true
+        val f = Downloads.file(file)?.takeIf { it.exists() && it.length() > 0 } ?: return true // the installer reports the missing file
+        scanningId = app.id
+        val r = try { VtGuard.check(f, s.virusTotalApiKey) } finally { scanningId = null }
+        return when (r.gate) {
+            VtGate.CLEAN -> true
+            VtGate.FLAGGED -> { error("${app.name}: ${r.message}"); haptic(H.ERROR); false }
+            else -> { toast(r.message, 10_000, "Install anyway") { vtSkip += file; installFile(app, file, true) }; false }
+        }
+    }
+
     fun installFile(app: AppItem, file: String, regular: Boolean = false): kotlinx.coroutines.Job = viewModelScope.launch {
         val k = normalizePackageName(app.packageName)
+        if (!vtCleared(app, file)) return@launch
         val meta = versionMetaFromFileName(app, file, s.streamOf(app.id))
         // Direct install runs as the shell user (no 24-hour wait, no "unknown apps" permission). When adbd is unreachable the
         // user picks the regular installer explicitly: silently falling back lands on the very wait this setting exists to skip.

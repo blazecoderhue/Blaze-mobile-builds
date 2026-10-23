@@ -88,7 +88,7 @@ class Repository(private val ctx: Context) {
         } else {
             for (i in Defaults.CONFIG_URLS.indices) {
                 runCatching {
-                    val cfg = CatalogProcessor.parseConfig(Net.retry("${Defaults.CONFIG_URLS[i]}?t=$ts", 1, noStore = true))
+                    val cfg = com.blaze.store.SelfUpdate.apply(CatalogProcessor.parseConfig(Net.retry("${Defaults.CONFIG_URLS[i]}?t=$ts", 1, noStore = true)), com.blaze.store.SelfUpdate.fetch())
                     val (apps, mirror) = fetchSet(cfg, Defaults.APPS_URLS[i], appsTs)
                     return CatalogLoad(apps, mirror, cfg, Defaults.MIRROR_LABELS[i])
                 }
