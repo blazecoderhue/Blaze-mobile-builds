@@ -9,7 +9,7 @@ Checked 2026-10-23 against each project's LICENSE file (GitHub licence API + the
 | (TestNG transitive) JCommander 1.82 | com.beust:jcommander | Apache-2.0 | https://github.com/cbeust/jcommander/blob/master/license.txt | test only | M1 |
 | (TestNG transitive) SLF4J API 1.7.36 | org.slf4j:slf4j-api | MIT | https://www.slf4j.org/license.html | test only | M1 |
 | (TestNG transitive, runtime) jQuery webjar 3.7.1 | org.webjars:jquery | MIT | https://github.com/jquery/jquery/blob/main/LICENSE.txt | TestNG HTML report, test only | M1 |
-| AndroidHiddenApiBypass | org.lsposed.hiddenapibypass:hiddenapibypass:6.1 | Apache-2.0 | https://github.com/LSPosed/AndroidHiddenApiBypass/blob/main/LICENSE | non-SDK access on API 28+ (only through `runtime/HiddenApi`) | M1 runtime (added when the runtime code lands) |
+| AndroidHiddenApiBypass | org.lsposed.hiddenapibypass:hiddenapibypass:6.1 | Apache-2.0 | https://github.com/LSPosed/AndroidHiddenApiBypass/blob/main/LICENSE | non-SDK access on API 28+ (only through `runtime/HiddenApi`) | M1 runtime |
 | ByteHook (bhook) | com.bytedance:bytehook | MIT | https://github.com/bytedance/bhook/blob/main/LICENSE | PLT hooks for native path redirection | M3 (planned) |
 
 Test runner: the app's own tests use JUnit 4 (EPL-1.0). The engine does NOT use JUnit, so that every engine dependency,

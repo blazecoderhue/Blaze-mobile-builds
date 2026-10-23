@@ -21,6 +21,8 @@ android {
 }
 
 dependencies {
+    // Non-SDK access on API 28+ (runtime/HiddenApi only). Apache-2.0, ENGINE_DEPS.md.
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
     // Test only. Every engine dependency must be Apache-2.0/MIT/BSD (ENGINE_DEPS.md).
     testImplementation("org.testng:testng:7.10.2")
 }

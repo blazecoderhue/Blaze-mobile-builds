@@ -90,17 +90,18 @@ class ApkInspectorTest {
         val noDex = ApkInspector.inspect(TestAxml.apk(tmp(), "nodex.apk", TestAxml.simpleGuest(), emptyMap()), phone)
         assertTrue(Blocker.NO_CODE in noDex.blockers)
 
-        val split = ApkInspector.inspect(TestAxml.apk(tmp(), "split.apk", TestAxml.simpleGuest(extraAppAttrs = emptyList()).let {
-            // isSplitRequired lives on <manifest>; rebuild with it
-            TestAxml.write(TestAxml.e("manifest", TestAxml.plain("package", "org.example.split"),
-                TestAxml.bool("isSplitRequired", 0x01010591, true),
-                children = listOf(TestAxml.e("application", children = listOf(
-                    TestAxml.e("activity", TestAxml.str("name", AndroidAttr.NAME, ".Main"), children = listOf(
-                        TestAxml.e("intent-filter", children = listOf(
-                            TestAxml.e("action", TestAxml.str("name", AndroidAttr.NAME, "android.intent.action.MAIN")),
-                            TestAxml.e("category", TestAxml.str("name", AndroidAttr.NAME, "android.intent.category.LAUNCHER")),
-                        ))))))))))
-        }), phone)
+        val launcherFilter = TestAxml.e("intent-filter", children = listOf(
+            TestAxml.e("action", TestAxml.str("name", AndroidAttr.NAME, "android.intent.action.MAIN")),
+            TestAxml.e("category", TestAxml.str("name", AndroidAttr.NAME, "android.intent.category.LAUNCHER")),
+        ))
+        val activity = TestAxml.e("activity", TestAxml.str("name", AndroidAttr.NAME, ".Main"), children = listOf(launcherFilter))
+        val application = TestAxml.e("application", children = listOf(activity))
+        // isSplitRequired lives on <manifest>
+        val splitManifest = TestAxml.write(TestAxml.e("manifest",
+            TestAxml.plain("package", "org.example.split"),
+            TestAxml.bool("isSplitRequired", 0x01010591, true),
+            children = listOf(application)))
+        val split = ApkInspector.inspect(TestAxml.apk(tmp(), "split.apk", splitManifest), phone)
         assertTrue(Blocker.SPLIT_REQUIRED in split.blockers, "blockers=${split.blockers} flags=${split.manifest?.flags}")
     }
 

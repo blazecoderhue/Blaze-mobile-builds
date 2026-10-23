@@ -1,3 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Blaze Engine. Slot components are added with the runtime (ENGINE_DESIGN.md 1.1). -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<!-- Blaze Engine host stubs (ENGINE_DESIGN.md 1.1). M1: guest process :g0 only. Merges into the app only when :app
+     depends on :blaze-engine, which it does not yet. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <provider android:name="com.blaze.engine.slot.P0" android:process=":g0" android:exported="false"
+            android:authorities="${applicationId}.engine.p0" android:initOrder="1000" />
+        <activity android:name="com.blaze.engine.slot.A0_0_0" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_1" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_2" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_3" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_4" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_5" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_6" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_7" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_8" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_9" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_10" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_0_11" android:process=":g0" android:exported="false"
+            android:launchMode="standard" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_1_0" android:process=":g0" android:exported="false"
+            android:launchMode="singleTop" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_1_1" android:process=":g0" android:exported="false"
+            android:launchMode="singleTop" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_1_2" android:process=":g0" android:exported="false"
+            android:launchMode="singleTop" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_1_3" android:process=":g0" android:exported="false"
+            android:launchMode="singleTop" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_2_0" android:process=":g0" android:exported="false"
+            android:launchMode="singleTask" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_2_1" android:process=":g0" android:exported="false"
+            android:launchMode="singleTask" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_2_2" android:process=":g0" android:exported="false"
+            android:launchMode="singleTask" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_2_3" android:process=":g0" android:exported="false"
+            android:launchMode="singleTask" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_3_0" android:process=":g0" android:exported="false"
+            android:launchMode="singleInstance" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+        <activity android:name="com.blaze.engine.slot.A0_3_1" android:process=":g0" android:exported="false"
+            android:launchMode="singleInstance" android:taskAffinity="com.blaze.engine.task.g0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
+    </application>
+</manifest>
