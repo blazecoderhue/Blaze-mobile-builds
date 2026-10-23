@@ -52,7 +52,7 @@ class PhonePerfTest {
                 SimPage.El("e75", "button", "Book", type = "submit", visible = false))
             form[4].onClick = { val v = form[4].value; p.at(p.rnd.nextLong(50, 201)) { d.text = d.text + "\nPrice for $v: 150"; p.changed("dom") } }
             d.els += form
-            d.els += SimPage.El("e5", "button", "Book this room", onClick = {
+            d.els += SimPage.El("e65", "button", "Book this room", onClick = {
                 p.changed("netstart")
                 p.at(p.rnd.nextLong(100, 601)) {
                     p.changed("netend")
@@ -134,7 +134,7 @@ class PhonePerfTest {
         ActCase("act-link-navigates", "https://shop.example/list?page=1", {}, """{"action":"click","target":"e250"}""") { _, o -> o.contains("Page 2 of results") },
         ActCase("act-button-fetches", "https://automationintesting.online/", {}, """{"action":"click","target":"Book this room"}""") { _, o -> o.contains("Firstname") },
         ActCase("act-type", "https://the-internet.herokuapp.com/login", {}, """{"action":"type","target":"Username","text":"tomsmith"}""") { p, o -> o.startsWith("Typed") && p.el("e1")?.value == "tomsmith" },
-        ActCase("act-select", "https://automationintesting.online/", { p -> p.el("e5")?.onClick?.invoke() }, """{"action":"select","target":"Room type","option":"Double"}""") { p, o -> o.startsWith("Selected") && p.el("e74")?.value == "Double" },
+        ActCase("act-select", "https://automationintesting.online/", { p -> p.el("e65")?.onClick?.invoke() }, """{"action":"select","target":"Room type","option":"Double"}""") { p, o -> o.startsWith("Selected") && p.el("e74")?.value == "Double" },
         ActCase("act-submit-signs-in", "https://the-internet.herokuapp.com/login", { p -> p.el("e1")?.value = "tomsmith" },
             """{"action":"type","target":"Password","text":"SuperSecretPassword!","submit":true}""") { _, o -> o.contains("You logged into a secure area") },
     )
