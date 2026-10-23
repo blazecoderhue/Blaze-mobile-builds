@@ -42,18 +42,19 @@ class ScreenReadBench {
         val a1 = FakeAccess(ipcUs * 1000); val r1 = make(); val tree = ScreenTree(a1)
         val pool = Executors.newFixedThreadPool(4)
         try {
-            tree.read(r1, 0, pool)
+            var shown = tree.read(r1, 0, pool).map { it.first }
             a1.fetches.set(0)
-            val nodes = r1.all()
             val after = (1..reads).map { i ->
+                // events come from views on screen: the changed nodes are ones the read shows
                 repeat(1 + rnd.nextInt(3)) {
-                    val n = nodes[rnd.nextInt(nodes.size)]
+                    val n = shown[rnd.nextInt(shown.size)]
                     if (n.checkable) n.checked = !n.checked else n.text = if (n.text.isEmpty()) n.text else n.text + "."
                     tree.onContentChanged(n.key)
                 }
                 val t = System.nanoTime()
                 val items = tree.read(r1, i * 2_000L, pool)
                 items.joinToString("\n") { it.second }.length
+                shown = items.map { it.first }
                 ms(System.nanoTime() - t)
             }
             return Row(name, ipcUs, pct(before, .5), pct(before, .95), pct(after, .5), pct(after, .95), fb, a1.fetches.get() / reads)

@@ -9,8 +9,9 @@ package com.blaze.assistant.phone
  *
  * Now the walk is kept per subtree, keyed by the node's identity (window + accessibility node id). Accessibility
  * events mark only their source's subtree (and its ancestors) dirty: TYPE_WINDOW_CONTENT_CHANGED / VIEW_SCROLLED /
- * VIEW_TEXT_CHANGED / VIEW_SELECTED… re-walk just that subtree; TYPE_WINDOW_STATE_CHANGED, an event without a source,
- * another window, or too many events since the last read re-walk everything. A read splices the clean subtrees' lines
+ * VIEW_TEXT_CHANGED / VIEW_SELECTED… re-walk just that subtree; TYPE_WINDOW_STATE_CHANGED, an event without a source
+ * or too many events since the last read re-walk everything; events of other windows and of nodes outside the output
+ * are ignored. A read splices the clean subtrees' lines
  * from the cache and only touches the dirty path. A cold walk of a big window may fetch the root's subtrees in parallel
  * (per-thread accessibility clients make that safe on Android 8+; [parallel] is a kill switch).
  *
@@ -104,8 +105,12 @@ class ScreenTree<N : Any>(private val a: Access<N>) {
     fun onContentChanged(source: Long?) {
         synchronized(lock) {
             if (allDirty) return
-            // unknown source, a node this cache never walked (cut by the item cap), or too many events: everything
-            if (source == null || ++tracked > MAX_TRACKED || (source != rootKey && source !in parentOf)) { allDirty = true; return }
+            // no source or too many events: everything
+            if (source == null || ++tracked > MAX_TRACKED) { allDirty = true; return }
+            // a node this cache never walked sits in a part that isn't in the output (inside an invisible node, past the
+            // 200-element cap, deeper than the depth limit): it can't change the read. A node that is added sends its
+            // parent's subtree change, and a cut part is walked afresh as soon as the output has room for it.
+            if (source != rootKey && source !in parentOf) { tracked--; return }
             deep.add(source)
             var k: Long? = source
             var hops = 0

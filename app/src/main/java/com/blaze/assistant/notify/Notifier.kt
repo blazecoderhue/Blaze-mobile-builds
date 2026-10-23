@@ -322,7 +322,7 @@ object Notifier {
         // Kept in the Heads-ups chat (even when notifications are off) so a reply has the context (v0.8.0).
         val chatId = try { Agent.recordHeadsUp(text) } catch (_: Exception) { null }
         if (!::app.isInitialized || !allowed()) return
-        val extra = if (suggest.isBlank()) emptyList() else {
+        val extra: List<NotificationCompat.Action> = if (suggest.isBlank()) emptyList() else {
             val pi = PendingIntent.getBroadcast(app, ("do" + suggest).hashCode(), Intent(app, ActionReceiver::class.java).setAction(ActionReceiver.DO)
                 .putExtra("prompt", suggest).putExtra(ActionReceiver.EXTRA_CHAT, chatId).putExtra(ActionReceiver.EXTRA_CONTEXT, text),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -339,7 +339,15 @@ object Notifier {
         // No inline Reply: the turn that asked is waiting on the answer in the app (tap opens it, as before).
         post(q, BlazeThread.Kind.QUESTION, tap = openApp(), reply = false)
     }
-    fun clearQuestion() { try { needs(""); NotificationManagerCompat.from(app).cancel(ID_QUESTION) } catch (_: Exception) { } }
+    fun clearQuestion() {
+        try {
+            needs("")
+            NotificationManagerCompat.from(app).cancel(ID_QUESTION)
+            // 0.45.19: the question was a line in the Blaze thread: once answered, it leaves the shade
+            val wasLast = synchronized(thread) { (thread.lastOrNull()?.kind == BlazeThread.Kind.QUESTION).also { if (it) thread.removeLast() } }
+            if (wasLast) NotificationManagerCompat.from(app).cancel(BlazeThread.NOTIF_ID)
+        } catch (_: Exception) { }
+    }
 
     fun clearReplies() = try { NotificationManagerCompat.from(app).cancel(BlazeThread.NOTIF_ID); NotificationManagerCompat.from(app).cancel(ID_PROACTIVE) } catch (_: Throwable) { }
 

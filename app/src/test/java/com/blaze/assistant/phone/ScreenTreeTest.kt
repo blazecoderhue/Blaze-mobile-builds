@@ -38,9 +38,10 @@ class ScreenTreeTest {
         t.onContentChanged(sw.key)
         val before = a.fetches.get()
         val got = t.read(root, 10).map { it.second }
-        assertEquals(legacy(a, root), got)
         val used = a.fetches.get() - before
-        assertTrue("touched $used fetches for one switch", used in 1..20)
+        assertEquals(legacy(a, root), got)
+        // the path root -> list (29 rows fetched once) -> the row -> the switch, not the ~300-node page
+        assertTrue("touched $used fetches for one switch", used in 1..60)
     }
 
     @Test fun randomEditsStayIdenticalToFullWalk() {
