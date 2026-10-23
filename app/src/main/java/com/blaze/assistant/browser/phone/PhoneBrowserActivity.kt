@@ -68,7 +68,7 @@ import com.blaze.assistant.ui.Type
 /**
  * 0.45.19 Blaze Phone full screen. Watching: Blaze's screen, live, with the step it's on and "Take control". In control:
  * the real page (the same WebView, moved here, fully interactive with the keyboard), a clear "Blaze paused, you're in
- * control" bar and only "Hand back" (fix 6: "Done" is gone; closing the screen hands back too). Back goes to the chat
+ * control" bar and only "Hand back" (fix 6: the old Done button is gone; closing the screen hands back too). Back goes to the chat
  * (fix 7, BackRule: handing back first when the user has control). Leaving Blaze while Blaze works turns this screen
  * into picture-in-picture showing only the live view (fix 4).
  */
