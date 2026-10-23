@@ -70,6 +70,7 @@ fun AccountPage(onOpen: (String) -> Unit = {}) {
         CloudSyncRow { onOpen("sync") }
         Spacer(Modifier.height(8.dp))
         PlanRow { onOpen("plan") }
+        UsageSection { onOpen("plan") }
         Spacer(Modifier.height(12.dp))
         val keyStatus by KeySync.status.collectAsState()
         var syncing by remember { mutableStateOf(false) }
@@ -352,4 +353,47 @@ private fun SecuritySection(u: BlazeAccount.User, features: Map<String, Boolean>
         }
     }
     if (msg.isNotEmpty()) Note(msg, top = 8)
+}
+
+/**
+ * v0.45.18: the plan, this month's limits and what's left, the parallel cap and the reset date, all from the server
+ * (GET /v1/entitlements). The upgrade nudge shows only near a limit.
+ */
+@Composable
+private fun UsageSection(onPlan: () -> Unit) {
+    val c = LocalBlaze.current.mono
+    val ctx = LocalContext.current
+    val s by com.blaze.assistant.connect.Entitlements.snap.collectAsState()
+    var tried by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { withContext(Dispatchers.IO) { com.blaze.assistant.connect.Entitlements.refresh(ctx) }; tried = true }
+    val snap = s
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp).hairline(c.hair).padding(16.dp)) {
+        Text("This month", style = TextStyle(fontFamily = Type.Display, fontWeight = FontWeight.Medium, fontSize = 17.sp, color = c.ink))
+        if (snap == null) {
+            Text(if (tried) "Can't load your limits right now." else "Loading your limits\u2026", style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.sub))
+            return@Column
+        }
+        Text(com.blaze.assistant.connect.Billing.planName(snap.plan) + " plan", style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.sub))
+        Spacer(Modifier.height(8.dp))
+        snap.song?.let { UsageLine("Songs", com.blaze.assistant.connect.Entitlements.line(it), com.blaze.assistant.connect.Entitlements.near(it)) }
+        snap.video?.let { UsageLine("Videos", com.blaze.assistant.connect.Entitlements.line(it), com.blaze.assistant.connect.Entitlements.near(it)) }
+        val par = com.blaze.assistant.connect.Entitlements.parallelLine(snap)
+        if (par.isNotBlank()) UsageLine("At once", par, false)
+        val reset = com.blaze.assistant.connect.Entitlements.resetLine(snap.resetAtMs)
+        if (reset.isNotBlank()) Label(reset, color = c.weak, size = 9.sp, modifier = Modifier.padding(top = 6.dp))
+        val nudge = com.blaze.assistant.connect.Entitlements.nudge(snap)
+        if (nudge.isNotBlank()) {
+            Text(nudge, modifier = Modifier.padding(top = 10.dp), style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.body))
+            ActionText("See plans", color = c.accent, size = 10.sp, modifier = Modifier.clickable(onClick = onPlan).padding(vertical = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun UsageLine(label: String, value: String, warn: Boolean) {
+    val c = LocalBlaze.current.mono
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), style = TextStyle(fontFamily = Type.Sans, fontSize = 14.sp, color = c.body))
+        Text(value, style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = if (warn) c.accent else c.ink))
+    }
 }

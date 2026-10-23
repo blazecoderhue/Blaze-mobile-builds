@@ -157,6 +157,7 @@ class MainActivity : FragmentActivity() {
         com.blaze.assistant.voice.WakeWordService.start(this)
         com.blaze.assistant.connect.CloudSync.foreground(true)   // v0.40.0: a round now and every minute while open (when on)
         com.blaze.assistant.agent.LlmClient.prewarm()   // v0.45.1: DNS + TLS to Blaze Cloud while the user reads / types (once a minute at most)
+        kotlin.concurrent.thread(isDaemon = true, name = "entitlements") { runCatching { com.blaze.assistant.connect.Entitlements.refresh(applicationContext) } }   // v0.45.18: plan + limits, when stale
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)

@@ -40,6 +40,7 @@ data class DlJob(
     val licence: String = "",
     val fileTitle: String = "",       // one track of an album item
     val subs: String = "",            // wave A 25: JSON (Subs.indexJson) of caption tracks saved with the video for offline
+    val counted: Boolean = false,     // v0.45.18: POST /v1/downloads/consume said yes (counted once, never again on retry)
 ) {
     val total: Long get() = parts.sumOf { it.total }
     val done: Long get() = parts.sumOf { it.done.coerceAtMost(if (it.total > 0) it.total else Long.MAX_VALUE) }
@@ -129,7 +130,7 @@ object DlLogic {
     // ---- JSON ----
     fun toJson(j: DlJob): JSONObject = JSONObject().put("id", j.id).put("vid", j.videoId).put("kind", j.kind).put("title", j.title)
         .put("ch", j.channel).put("dur", j.durationSec).put("thumb", j.thumb).put("q", j.quality).put("cid", j.choiceId).put("ext", j.ext)
-        .put("src", j.source).put("lic", j.licence).put("ft", j.fileTitle).put("st", j.status.name).put("att", j.attempts).put("err", j.error).put("next", j.nextTryAt).put("at", j.createdAt).put("out", j.outUri).put("subs", j.subs)
+        .put("src", j.source).put("lic", j.licence).put("ft", j.fileTitle).put("st", j.status.name).put("att", j.attempts).put("err", j.error).put("next", j.nextTryAt).put("at", j.createdAt).put("out", j.outUri).put("subs", j.subs).put("cnt", j.counted)
         .put("parts", JSONArray().also { a -> j.parts.forEach { p -> a.put(JSONObject().put("key", p.key).put("url", p.url).put("total", p.total).put("done", p.done).put("c", p.container)) } })
 
     fun fromJson(o: JSONObject): DlJob {
@@ -138,7 +139,9 @@ object DlLogic {
         return DlJob(o.optString("id"), o.optString("vid"), o.optString("kind"), o.optString("title"), o.optString("ch"), o.optInt("dur"),
             o.optString("thumb"), o.optString("q"), o.optString("cid"), o.optString("ext"), parts,
             runCatching { DlStatus.valueOf(o.optString("st")) }.getOrDefault(DlStatus.QUEUED), o.optInt("att"), o.optString("err"),
-            o.optLong("next"), o.optLong("at"), o.optString("out"), o.optString("src", "youtube"), o.optString("lic"), o.optString("ft"), o.optString("subs"))
+            o.optLong("next"), o.optLong("at"), o.optString("out"), o.optString("src", "youtube"), o.optString("lic"), o.optString("ft"), o.optString("subs"),
+            // v0.45.18: a job saved by an older app that already has bytes was started before counting existed; don't charge it now.
+            if (o.has("cnt")) o.optBoolean("cnt") else parts.any { it.done > 0 })
     }
 
     fun listToJson(jobs: List<DlJob>): String = JSONArray().also { a -> jobs.forEach { a.put(toJson(it)) } }.toString()

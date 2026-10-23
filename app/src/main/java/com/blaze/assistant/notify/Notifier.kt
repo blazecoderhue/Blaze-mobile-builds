@@ -118,8 +118,16 @@ object Notifier {
         try { NotificationManagerCompat.from(app).notify(ID_WORK, b.build()) } catch (_: SecurityException) { }
     }
 
-    /** Agent work in progress. [step] is the latest step, e.g. "Opening YouTube". */
-    fun working(step: String) { stBusy = true; stStep = step; refresh() }
+    /**
+     * Agent work in progress. Ack-and-background (HQ 22 Oct 20:36): Blaze no longer posts a "thinking / working"
+     * notification; the ack and the Done / failed message arrive as text-style notifications ([reply]) instead.
+     * Kept as a no-op so old callers compile; [WORKING_NOTE] guards it (AckTest).
+     */
+    @Suppress("UNUSED_PARAMETER")
+    fun working(step: String) { if (WORKING_NOTE) { stBusy = true; stStep = step; refresh() } }
+
+    /** False: no working notification is ever shown for agent work. */
+    const val WORKING_NOTE = false
 
     /** Agent work finished or stopped (an update download, if any, keeps showing). */
     fun doneWorking() { stBusy = false; stStep = ""; stNeeds = ""; refresh() }
@@ -131,7 +139,7 @@ object Notifier {
     fun update(pct: Int?, label: String = "") { stUpdatePct = pct; stUpdateLabel = label; refresh() }
 
     /** The app came to the front (true) or went to the background (false). */
-    fun visible(v: Boolean) { appVisible = v; refresh() }
+    fun visible(v: Boolean) { appVisible = v; if (v) clearThread(); refresh() }
 
     /** Stop: cancels agent work and any update download, then clears the line. */
     fun stopEverything() {
@@ -154,10 +162,45 @@ object Notifier {
     /** Test hook: reset the status state. */
     internal fun resetStatus() { stBusy = false; stStep = ""; stNeeds = ""; stUpdatePct = null; stUpdateLabel = ""; appVisible = false }
 
-    /** Blaze's reply, with an inline Reply box. */
+    /** The last few lines Blaze sent while you were away (one conversation thread in the shade), cleared on open. */
+    private val thread = ArrayDeque<Pair<Long, String>>()
+
+    /** Called when the user opens Blaze or the notification is dismissed: the next text starts a fresh thread. */
+    fun clearThread() = synchronized(thread) { thread.clear() }
+
+    /**
+     * Blaze's message (its ack, its reply, its Done ✓ or an honest failure) as a text from Blaze: MessagingStyle,
+     * with an inline Reply box. Ack-and-background (HQ 22 Oct 20:36).
+     */
     fun reply(raw: String, isError: Boolean, chatId: String? = null) {
         val text = com.blaze.assistant.ui.Md.plain(raw)
         if (!allowed()) return
+        val now = System.currentTimeMillis()
+        val lines = synchronized(thread) {
+            thread.addLast(now to text.take(1000)); while (thread.size > MessageThread.KEEP) thread.removeFirst(); thread.toList()
+        }
+        val blaze = androidx.core.app.Person.Builder().setName("Blaze").setKey("blaze").setBot(true).build()
+        val me = androidx.core.app.Person.Builder().setName("You").setKey("me").build()
+        val style = NotificationCompat.MessagingStyle(me)
+        lines.forEach { (at, t) -> style.addMessage(t, at, blaze) }
+        val inputM = RemoteInput.Builder(KEY_REPLY).setLabel("Reply to Blaze").build()
+        val replyM = NotificationCompat.Action.Builder(0, "Reply", replyIntent(7101, chatId, if (chatId == null) text else null))
+            .addRemoteInput(inputM).setAllowGeneratedReplies(true)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build()
+        val nm = NotificationCompat.Builder(app, CH_REPLY)
+            .setSmallIcon(R.drawable.ic_stat_blaze)
+            .setColor(ACCENT)
+            .setStyle(style)
+            .setContentTitle(if (isError) MessageThread.FAILED_TITLE else "Blaze")
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(false)
+            .setContentIntent(openChat(chatId))
+            .addAction(replyM)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+        try { NotificationManagerCompat.from(app).notify(ID_REPLY, nm); return } catch (_: SecurityException) { return } catch (_: Throwable) { }
         val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply to Blaze").build()
         val replyAction = NotificationCompat.Action.Builder(0, "Reply", replyIntent(7101, chatId, if (chatId == null) text else null))
             .addRemoteInput(input).setAllowGeneratedReplies(true).build()

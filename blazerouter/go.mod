@@ -1,6 +1,6 @@
 module github.com/lacksonkapapahue/blaze-desktop
 
-go 1.26.0
+go 1.26.10
 
 require github.com/zalando/go-keyring v0.2.8
 

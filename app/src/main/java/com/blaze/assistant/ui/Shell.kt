@@ -551,6 +551,27 @@ fun SimpleWorkHint(text: String) {
     }
 }
 
+/**
+ * Ack-and-background (HQ 22 Oct): the small chip an acknowledged task shows in the chat while it runs in the background
+ * ("Reminder · in progress"), in place of the "Blaze is thinking" line. One line, ellipsised, fits 360 dp.
+ */
+@Composable
+fun TaskChip(text: String) {
+    val c = LocalBlaze.current
+    val pulse = rememberInfiniteTransition(label = "tc").animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "a").value
+    Row(Modifier.padding(start = 4.dp, end = 28.dp, top = 4.dp, bottom = 2.dp)
+        .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+        .background(c.weak.copy(alpha = 0.12f))
+        .padding(horizontal = 10.dp, vertical = 4.dp)
+        .semantics { contentDescription = text },
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(5.dp).alpha(pulse).clip(CircleShape).background(c.weak))
+        Spacer(Modifier.width(6.dp))
+        Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = TextStyle(fontFamily = Type.Sans, fontSize = 12.sp, color = c.sub))
+    }
+}
+
 // ---------------------------------------------------------------- composer
 
 /** What the + menu offers. [id] is handled by the screen. */

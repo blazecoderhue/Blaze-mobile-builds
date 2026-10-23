@@ -65,6 +65,26 @@ object CloudRuns {
         else -> null
     }
 
+    /** A frame's data as a run event; the SSE event name fills a missing "type", and a non-JSON `ack` is its text. */
+    fun frameEvent(f: Frame): JSONObject {
+        val o = try { JSONObject(f.data) } catch (e: org.json.JSONException) {
+            if (f.event == "ack" && f.data.isNotBlank()) JSONObject().put("text", f.data.trim()) else throw e
+        }
+        if (!o.has("type") && f.event.isNotBlank() && f.event != "message") o.put("type", f.event)
+        return o
+    }
+
+    /** The text of an `ack` event: `text` (or `message`), trimmed; "" when absent. */
+    fun ackText(ev: JSONObject): String {
+        // Gateway 0.8.38 contract (files/from-site/RUNS_ACK_CONTRACT.md): {ack:{intent,line,details}} on the 202 / `run`
+        // frame and as event #2; older drafts used text / message. A null ack (greeting, plain question) = "".
+        ev.optJSONObject("ack")?.let { a -> return a.optString("line").trim() }
+        return ev.optString("line").ifBlank { ev.optString("text") }.ifBlank { ev.optString("message") }.trim()
+    }
+
+    /** The user's IANA zone, sent on every create (contract §1: exact times are never assumed). */
+    @Volatile var tz: () -> String = { try { java.util.TimeZone.getDefault().id } catch (_: Throwable) { "" } }
+
     /** Thrown when this step should go the old way (LlmClient.complete). Never shown to anyone. */
     class Fallback(val why: String) : Exception(why)
 
@@ -174,6 +194,7 @@ object CloudRuns {
     /** POST /v1/runs body. */
     fun createBody(clientId: String, messages: JSONArray, tools: JSONArray?, task: String): JSONObject = JSONObject()
         .put("client_msg_id", clientId).put("messages", messages).put("task", task).apply {
+            tz().takeIf { it.isNotBlank() }?.let { put("tz", it) }
             // v0.45.5 (#1, gateway 0.6.9): schemas are dropped on a plain turn, so a greeting can't come back as a tool call.
             // 0.45.15 (device /phoneqa 21 Oct 22:40, 10/55): a run sent tool_choice "auto" + blaze_tools "auto" every time, so
             // the named tool (ToolTruth.choice) never reached the phone's real route and codestral wrote its calls as text.
@@ -237,6 +258,11 @@ object CloudRuns {
         var model = ""
         var errorCode = ""
         var errorMessage = ""
+        /** Contract §3 `failed{reason, try}`: the honest words for the person. */
+        var failReason = ""
+        var failTry = ""
+        /** The run's `ack` text (one per run; later ones are ignored). */
+        var ack: String? = null
 
         /** A new model call of the agent starts: the earlier steps' text and calls are done with. */
         fun window() { texts.clear(); calls = null; callsStep = -1; reply = null }
@@ -257,6 +283,8 @@ object CloudRuns {
                 "tool_calls" -> if (ev.optString("where", "device") == "device") { calls = ev.optJSONArray("calls"); callsStep = ev.optInt("step", -1) }
                 "done" -> { reply = ev.optString("reply"); provider = ev.optString("provider"); model = ev.optString("model") }
                 "error" -> { errorCode = ev.optString("code"); errorMessage = ev.optString("message") }
+                "failed" -> { errorCode = ev.optString("code").ifBlank { errorCode }; failReason = ev.optString("reason"); failTry = ev.optString("try") }
+                "ack" -> if (ack == null) ack = ackText(ev)
             }
             return true
         }
@@ -378,6 +406,8 @@ object CloudRuns {
         @Volatile var streaming = false
         /** Something sent this turn the old way: the rest of the turn stays local. */
         @Volatile var off = false
+        /** This turn already passed a gateway ack on (one per turn, across its runs). */
+        @Volatile var acked = false
         /** The client id of the run being made now (kept for an idempotent resend). */
         var cid = ""
         fun nextId(): String { cid = "$base:${++n}"; return cid }
@@ -407,6 +437,8 @@ object CloudRuns {
         fun status(line: String) {}
         /** Something arrived (or the client is still waiting on purpose): keeps the agent's silence watchdog quiet. */
         fun beat() {}
+        /** The gateway's instant acknowledgment (`ack{text}`, gateway contract from Site): shown once, never a "done". */
+        fun ack(text: String) {}
     }
 
     /** Runs owned by a live turn (the restart / reconnect pick-up leaves them alone). */
@@ -606,6 +638,7 @@ object CloudRuns {
             when (type) {
                 "delta", "reset" -> { t.streaming = true; ev.text(t.red.text) }
                 "status" -> line(t.red.status, t.red.retryInMs)?.let { ev.status(it) }
+                "ack" -> t.red.ack?.takeIf { it.isNotBlank() && !t.acked }?.let { t.acked = true; ev.ack(it) }
             }
             val id = t.runId ?: return
             // Every event but a text piece is saved at once; text pieces at most once a second.
@@ -615,12 +648,20 @@ object CloudRuns {
             }
         }
 
+        /** Contract §1: the 202 / `run` frame carries the ack before any model ran; shown at once, once per turn. */
+        private fun headAck(t: Turn, o: JSONObject, ev: Events) {
+            if (t.acked) return
+            val a = ackText(o)
+            if (a.isNotBlank()) { t.acked = true; ev.ack(a) }
+        }
+
         /** Reads one SSE answer. The end status, or null when it stopped without one (reconnect). */
         private suspend fun read(t: Turn, r: Response, ev: Events): String? {
             if (!r.contentType.contains("event-stream", true)) {
                 // A plain JSON answer (202 {run_id}): note the run, then follow its stream.
                 val o = try { JSONObject(io { r.text() }) } catch (_: Exception) { JSONObject() }
                 o.optString("run_id").takeIf { it.isNotBlank() && t.runId == null }?.let { register(t, it) }
+                headAck(t, o, ev)
                 return null
             }
             return coroutineScope {
@@ -635,11 +676,13 @@ object CloudRuns {
                             "run" -> {
                                 val o = try { JSONObject(f.data) } catch (_: Exception) { continue }
                                 o.optString("run_id").takeIf { it.isNotBlank() && t.runId == null }?.let { register(t, it) }
+                                headAck(t, o, ev)
                                 // Results that had already landed: this stream starts at the run's newest event; read from ours.
                                 if (o.optBoolean("already")) break
                             }
                             "end" -> end = try { JSONObject(f.data).optString("status") } catch (_: Exception) { "" }.ifEmpty { "done" }
-                            else -> try { apply(t, JSONObject(f.data), ev) } catch (_: org.json.JSONException) { }
+                            // An `event: ack` frame may carry no "type" (or plain text): the frame's name is its type.
+                            else -> try { apply(t, frameEvent(f), ev) } catch (_: org.json.JSONException) { }
                         }
                     }
                     end
@@ -677,7 +720,11 @@ object CloudRuns {
                     var code = t.red.errorCode
                     if (code.isBlank()) code = view(id)?.optJSONObject("error")?.optString("code").orEmpty()
                     forget(id, true); t.runId = null
-                    throw failure(code) ?: Fallback("failed $code")
+                    val known = failure(code)
+                    // Contract §3: a busy / quota failure says it in the gateway's honest words, with what to do next.
+                    if (known != null && t.red.failReason.isNotBlank())
+                        throw LlmClient.LlmException(listOf(t.red.failReason, t.red.failTry).filter { it.isNotBlank() }.joinToString(" "), known.code)
+                    throw known ?: Fallback("failed $code")
                 }
                 "cancelled" -> { forget(id, true); t.runId = null; throw LlmClient.LlmException(STOPPED, 0) }
                 else -> { cancel(id); t.runId = null; throw Fallback("status $status") }
@@ -735,7 +782,8 @@ object CloudRuns {
      * One agent model call through [t] (see [Client.complete]) with the same request clean-up and task hint as
      * LlmClient. Null = do this call locally (the rest of the turn too).
      */
-    suspend fun step(t: Turn, messages: JSONArray, tools: JSONArray?, onText: ((String) -> Unit)?, onStatus: (String) -> Unit): JSONObject? {
+    suspend fun step(t: Turn, messages: JSONArray, tools: JSONArray?, onText: ((String) -> Unit)?, onStatus: (String) -> Unit,
+                     onAck: (String) -> Unit = {}): JSONObject? {
         if (t.off) return null
         val clean = withContext(Dispatchers.Default) { try { ToolCalls.clean(messages) } catch (_: Exception) { messages } }
         val sendTools = tools?.takeIf { it.length() > 0 }?.let { try { ToolCalls.adapt(it, Providers.GATEWAY, Cloud.MODEL) } catch (_: Exception) { it } }
@@ -754,6 +802,7 @@ object CloudRuns {
                     onText?.invoke(tx)
                 }
                 override fun status(line: String) = onStatus(line)
+                override fun ack(text: String) = onAck(text)
                 override fun beat() { LlmClient.lastChunkAt = System.currentTimeMillis() }
             }).also { LlmClient.lastRoute = "Blaze Cloud · run" + (if (LlmClient.lastServedBy.isNotBlank()) " · ${LlmClient.lastServedBy}" else "") }
         } catch (f: Fallback) {

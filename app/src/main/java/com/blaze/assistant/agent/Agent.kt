@@ -130,6 +130,9 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
     /** What Blaze is doing right now, in plain words ("Searching the web for …"); "" when idle. Never a command. */
     private val _status = MutableStateFlow("")
     val status: StateFlow<String> = _status
+    /** Ack-and-background: the task chip's label while an acknowledged task runs on the chat on screen ("" = none). */
+    private val _taskChip = MutableStateFlow("")
+    val taskChip: StateFlow<String> = _taskChip
     /**
      * v0.31.0: the id of the reply that is streaming in right now on the chat on screen (-1 = none). The thread draws the
      * water droplet riding that reply's last word and the soft fade on its newest words while this matches.
@@ -341,6 +344,7 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
         _mood.value = s.mood
         _thinking.value = s.thinking
         _status.value = s.status
+        _taskChip.value = s.taskChip
         _streamingId.value = s.streamId
         _duoLive.value = s.duoLive
         _rooms.value = s.rooms
@@ -438,7 +442,40 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
                     }
                 }
             } catch (e: CancellationException) { throw e } catch (_: Throwable) {
-            } finally { pickingUp.set(false) }
+            } finally { pickingUp.set(false); settleTasks() }
+        }
+    }
+
+    /** Ack-and-background: true while any chat's turn (an acknowledged task included) is still running. */
+    fun anyTaskRunning(): Boolean = sessions.values.any { it.job?.isActive == true }
+
+    private val settling = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Ack-and-background: settles acknowledged tasks left from before a restart ([TaskKeeper.Ledger]). One that got its
+     * reply is crossed off; one whose Cloud run is still being followed waits; any other gets one honest line (and the
+     * text-style notification), never a "done".
+     */
+    fun settleTasks() {
+        if (!::app.isInitialized || !settling.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                val led = TaskKeeper.ledger(app)
+                val pending = try { CloudRuns.client().store.all().map { it.chat }.toSet() } catch (_: Throwable) { emptySet() }
+                for (t in led.all()) {
+                    val s = load(t.chat)
+                    if (s == null) { led.remove(t.chat, t.user); continue }
+                    if (s.job?.isActive == true) continue
+                    val after = s.msgs.dropWhile { it.id != t.user }.drop(1)
+                    val answered = after.any { (it.role == Role.BLAZE && it.meta != Ack.META) || it.role == Role.ERROR }
+                    when (TaskKeeper.verdict(t, answered, t.chat in pending, System.currentTimeMillis())) {
+                        TaskKeeper.Verdict.WAIT -> Unit
+                        TaskKeeper.Verdict.REPORT -> { s.add(Role.ERROR, TaskKeeper.stoppedLine(t.said)); s.persist(); s.announce(); led.remove(t.chat, t.user) }
+                        else -> led.remove(t.chat, t.user)
+                    }
+                }
+            } catch (e: CancellationException) { throw e } catch (_: Throwable) {
+            } finally { settling.set(false) }
         }
     }
 
@@ -1498,6 +1535,12 @@ When you finish, say what you did in one short sentence.
                 if (v == Mood.IDLE && streamId >= 0) streamId = -1L   // v0.31.0: a stopped / failed turn never leaves a live droplet
                 if (v == Mood.IDLE) { status = ""; focus = emptySet() } else if (status.isBlank()) status = Friendly.between(null)
             }
+        /** Ack-and-background (HQ 22 Oct): this turn's one ack ([Ack.Gate]); null between turns. */
+        @Volatile var ackGate: Ack.Gate? = null
+        private var _taskChip = ""
+        var taskChip: String
+            get() = _taskChip
+            set(v) { _taskChip = v; if (this === cur) Agent._taskChip.value = v }
         private var _status = ""
         /** The plain-words status line for this chat (see [Agent.status]). */
         var status: String
@@ -2016,6 +2059,17 @@ When you finish, say what you did in one short sentence.
             mood = Mood.THINKING
             LlmClient.prewarm()   // speed plan step 10: open the connection while the fast lane checks
             if (!routine && ack) com.blaze.assistant.device.Haptics.tick(app)
+            // Ack now, work in the background (HQ 22 Oct 20:35): one plain message from Blaze within a second, never "done".
+            val gate = Ack.Gate().also { ackGate = it }
+            taskChip = ""
+            val turnUser = users[0].id
+            if (!routine && agentId == null && specialistId == null) Ack.local(shown)?.let { a ->
+                scope.launch {
+                    // A fast-lane command answers in a few hundred ms: its reply is the receipt, no ack in front of it.
+                    kotlinx.coroutines.delay(Ack.LOCAL_DELAY_MS)
+                    if (job?.isActive == true) showAck(gate, a, turnUser, shown)
+                }
+            }
             if (byVoice && !routine) scope.launch {
                 // No-hang voice without words: v0.41.0 speaks only the final reply, never "On it." or the work steps
                 // ("Looking at your series"). A soft tick after a second, then one every 9 s of long work.
@@ -2447,6 +2501,7 @@ When you finish, say what you did in one short sentence.
                 if (room >= 0 && msgs.firstOrNull { it.id == room }?.meta?.let { Duo.cardState(it) } == Duo.LIVE) setCard(room, Duo.cardMeta(Duo.STOPPED))
                 voice = Duo.Who.BLAZE; roomSink = -1L
                 duoLive = emptySet(); streamId = -1L
+                ackGate?.let { g -> g.finished = true; if (g.acked) TaskKeeper.finished(app, id, g.user) }; taskChip = ""
                 mood = Mood.IDLE
                 persist(); announce()
             }
@@ -3045,7 +3100,8 @@ When you finish, say what you did in one short sentence.
                         if (ct != null && !ct.off) {
                             var ended = false
                             val got = kotlinx.coroutines.withTimeoutOrNull(minOf(budget, TurnDeadline.CLOUD_STEP_MS)) {
-                                CloudRuns.step(ct, r, tools, onText) { line -> scope.launch { if (mood != Mood.IDLE) status = line } }.also { ended = true }
+                                CloudRuns.step(ct, r, tools, onText, { line -> scope.launch { if (mood != Mood.IDLE) status = line } },
+                                    { a -> val g = ackGate; val u = turnFrom; val said = lastUserText(); scope.launch { if (g != null) showAck(g, a, u, said) } }).also { ended = true }
                             }
                             if (got != null) return got
                             if (!ended) { ct.off = true; LlmClient.lastCloudError = "cloud run: step over ${TurnDeadline.CLOUD_STEP_MS / 1000}s"; add(Role.STEP, TurnDeadline.CLOUD_SLOW) }
@@ -3666,7 +3722,7 @@ When you finish, say what you did in one short sentence.
                 liveGate = null
                 // v0.45.6: a turn never ends silently (stop, timeout, tool failure): one plain closing line.
                 if (agentId == null) try {
-                    if (TurnEnd.silent(msgs.map { it.role })) {
+                    if (TurnEnd.silent(msgs.filterNot { it.meta == Ack.META }.map { it.role })) {
                         val lastStep = msgs.lastOrNull { it.role == Role.STEP }?.text.orEmpty()
                         val why = if (turnEnd == TurnEnd.Reason.DONE && lastStep == "You stopped me") TurnEnd.Reason.STOPPED else turnEnd
                         add(Role.BLAZE, TurnEnd.line(why, lastStep))
@@ -3681,6 +3737,7 @@ When you finish, say what you did in one short sentence.
                 cloudTurn?.let { try { CloudRuns.endTurn(it) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: CloudRuns.endTurnit", e) } }
                 lastTurnDesign = ViewRouter.byId("design")?.let { d -> synchronized(turnOk) { turnOk.any { ClaimGuard.backs(d, it) } } } == true
                 if (agentId == null) com.blaze.assistant.phone.Pointer.done()
+                try { finishAck() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: finishAck", e) }
                 thinking = ""
                 mood = Mood.IDLE
                 currentStep = 0
@@ -3928,7 +3985,7 @@ When you finish, say what you did in one short sentence.
                 catch (e: CancellationException) { throw e }
                 catch (e: Throwable) { com.blaze.assistant.device.CrashLog.error("tool $name", e); ToolGuide.crash(name, e) }
             // v0.39.0: a finished undoable action under Autopilot gets the 10-second Undo bar; a missing access gets a fix card.
-            if (agentId == null && this === cur) try { UndoCenter.afterTool(name, args, r0, Modes.autopilot, undoBefore) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: UndoCenter.afterToolname args r0 Modes.a", e) }
+            if (agentId == null && this === cur) try { UndoCenter.afterTool(name, args, r0, Modes.autopilot || ackGate?.acked == true, undoBefore) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: UndoCenter.afterToolname args r0 Modes.a", e) }
             val fix = if (agentId == null) FixCards.kindOf(r0) else null
             if (fix != null) FixCards.afterTool(name, r0)
             val r = if (fix != null) r0 + FixCards.NOTE else r0
@@ -4774,6 +4831,47 @@ When you finish, say what you did in one short sentence.
                 val chip = Learning.review(exchange, t, d, tools)
                 if (chip != null) scope.launch { addMeta(reply.id, chip); persist() }
             }
+        }
+
+        /**
+         * Ack-and-background: shows [a] as a plain Blaze message when [gate] lets it (first ack of the turn, nothing has
+         * answered yet, it doesn't claim done). The model never sees acks; off screen it lands as a text-style notification.
+         */
+        fun showAck(gate: Ack.Gate, a: String, turnUser: Long, said: String) {
+            if (gate !== ackGate || streamId >= 0 || duoLive.isNotEmpty()) return
+            val after = msgs.dropWhile { it.id != turnUser }.drop(1)
+            if (after.any { it.role == Role.BLAZE || it.role == Role.ERROR }) return
+            if (!gate.take(a)) return
+            gate.user = turnUser
+            val aid = ids.getAndIncrement()
+            msgs = msgs + ChatMessage(aid, Role.BLAZE, a.trim(), meta = Ack.META)
+            taskChip = Ack.chip(said)
+            persist()
+            TaskKeeper.started(app, TaskKeeper.Task(id, turnUser, said, System.currentTimeMillis()))
+            if (!(this === cur && (inForeground || overlayOpen))) {
+                if (isPrivate) Notifier.reply("Blaze got your message in your private chat.", false, id)
+                else Notifier.reply(a.trim(), false, id)
+            }
+        }
+
+        /**
+         * Ack-and-background: the end of an acknowledged turn. The last reply becomes "Done ✓ …" only when every action
+         * the turn ran was verified (ClaimCheck has already made a failure honest); the task chip goes away.
+         */
+        private fun finishAck() {
+            val gate = ackGate ?: return
+            gate.finished = true
+            taskChip = ""
+            if (!gate.acked) return
+            TaskKeeper.finished(app, id, gate.user)
+            val done = synchronized(turnDone) { turnDone.toList() }
+            val last = done.groupBy { it.name }.mapValues { it.value.last().status }
+            val verified = last.count { it.value == ToolVerify.Status.VERIFIED }
+            val unproven = last.count { it.value != ToolVerify.Status.VERIFIED }
+            val r = msgs.lastOrNull() ?: return
+            if (r.role != Role.BLAZE || r.meta == Ack.META) return
+            val t = Ack.receipt(r.text, verified, unproven, rewrote = false)
+            if (t != r.text) msgs = msgs.map { if (it.id == r.id) it.copy(text = t) else it }
         }
 
         /** v0.42.0: a Cloud run's reply that arrived after its turn ended (app closed, connection lost). */

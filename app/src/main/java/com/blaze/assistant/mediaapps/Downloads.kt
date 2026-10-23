@@ -160,6 +160,13 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
         try {
             if (!DlLogic.hasSpace(MediaFiles.freeBytes(c), job))
                 throw Fatal("Not enough space: needs ${com.blaze.assistant.mediaapps.TimeText.size(DlLogic.spaceNeeded(job))} free")
+            // v0.45.18: the plan's monthly limit. The server counts (atomic); the download starts only on its yes.
+            if (!job.counted) when (val g = com.blaze.assistant.connect.Entitlements.consume(c, job.kind, job.videoId)) {
+                com.blaze.assistant.connect.Entitlements.Gate.Ok -> job = Downloads.update(job.id) { it.copy(counted = true) } ?: throw Stop()
+                com.blaze.assistant.connect.Entitlements.Gate.Skip -> {}
+                is com.blaze.assistant.connect.Entitlements.Gate.Blocked -> throw Fatal(g.message)
+                is com.blaze.assistant.connect.Entitlements.Gate.Offline -> throw Transient(g.why)
+            }
             var refreshed = 0
             for (i in job.parts.indices) {
                 while (true) {

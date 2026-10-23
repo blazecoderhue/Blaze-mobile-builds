@@ -901,7 +901,9 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                 Box(Modifier.fillMaxWidth().appearIn(fresh && i >= items.size - 3).padding(top = Bubbles.gapAbove(item.pos, i == 0))) {
                     when (item) {
                         is Item.Steps -> {
-                            val st by Agent.status.collectAsState()
+                            val st0 by Agent.status.collectAsState()
+                            val chipOn by Agent.taskChip.collectAsState()
+                            val st = if (chipOn.isNotBlank()) "" else st0   // no status words behind an ack
                             // v0.24.4: the token meter is a technical line; shown only with Show technical details on.
                             val m = if (Settings.longChat && com.blaze.assistant.agent.ReplyChips.showTech() && (item.live || item.key == lastStepsKey)) meter else null
                             when (com.blaze.assistant.agent.SimpleMode.work(simpleUi, Settings.showSteps, item.live)) {
@@ -909,7 +911,7 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                                     WorkCard(item.steps, item.live, item.startAt, item.endAt, status = if (item.live) st else "", exact = Settings.showSteps,
                                         meter = m?.text.orEmpty(), meterHigh = m?.high == true, simple = false)
                                 // v0.41.0 Simple mode: one small quiet line while working, nothing once done.
-                                com.blaze.assistant.agent.SimpleMode.Work.HINT -> SimpleWorkHint(com.blaze.assistant.agent.SimpleMode.hint(st, item.steps.lastOrNull()?.text.orEmpty()))
+                                com.blaze.assistant.agent.SimpleMode.Work.HINT -> if (chipOn.isBlank()) SimpleWorkHint(com.blaze.assistant.agent.SimpleMode.hint(st, item.steps.lastOrNull()?.text.orEmpty()))
                                 com.blaze.assistant.agent.SimpleMode.Work.NONE -> Unit
                             }
                         }
@@ -929,7 +931,10 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                 // reply starts streaming, then rides the reply itself. (A turn with steps keeps its work card above.)
                 // v0.31.1: the waiting drop sits where the reply's first line will start (same size and centre as the reply's
                 // droplet layer), and hands over without a fade: the reply's drop appears at this spot and glides to the text end.
-                AnimatedVisibility(mood != Mood.IDLE && streamId < 0 && duoLive.isEmpty(), enter = MotionTokens.enterUp(), exit = androidx.compose.animation.ExitTransition.None) {
+                val chip by Agent.taskChip.collectAsState()
+                // Ack-and-background: an acknowledged task shows its small chip instead of the "Blaze is thinking" line.
+                if (chip.isNotBlank() && mood != Mood.IDLE && streamId < 0) TaskChip(chip)
+                AnimatedVisibility(chip.isBlank() && mood != Mood.IDLE && streamId < 0 && duoLive.isEmpty(), enter = MotionTokens.enterUp(), exit = androidx.compose.animation.ExitTransition.None) {
                     Column(Modifier.padding(top = if (hasLiveSteps || items.lastOrNull()?.side == Side.BLAZE) 3.dp else 16.dp)) {
                         val label = com.blaze.assistant.agent.ThinkingLabel.label(live = true, hasThought = live.isNotBlank(), show = Settings.showReasoning)
                             ?: status.ifBlank { "Blaze is thinking" }
