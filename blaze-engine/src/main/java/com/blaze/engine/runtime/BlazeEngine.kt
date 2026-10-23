@@ -27,7 +27,7 @@ class BlazeEngine private constructor(private val appContext: Context) {
     val layout = StorageLayout(File(appContext.filesDir, "engine"))
     val registry = GuestRegistry(layout)
     private val allocators = HashMap<Int, SlotAllocator>()
-    private val processes = ProcessTable()
+    private val processes = ProcessTable(size = com.blaze.engine.route.GuestProcesses.DECLARED)
     private val tokens: LaunchToken by lazy { LaunchToken(keyMaterial()) }
     private var intercepting = false
 

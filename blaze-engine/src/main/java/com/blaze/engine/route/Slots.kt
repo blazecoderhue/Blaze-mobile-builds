@@ -12,6 +12,8 @@ const val SLOT_CLASS_PREFIX = "com.blaze.engine.slot"
 /** Guest processes declared in the host manifest: com.blaze.assistant:g0 … :g7 */
 object GuestProcesses {
     const val COUNT = 8
+    /** Processes whose slots are actually declared in the manifest today (M1: :g0 only; M2 declares all 8). */
+    const val DECLARED = 1
     fun name(index: Int): String {
         require(index in 0 until COUNT) { "no guest process $index" }
         return "$SLOT_PACKAGE:g$index"

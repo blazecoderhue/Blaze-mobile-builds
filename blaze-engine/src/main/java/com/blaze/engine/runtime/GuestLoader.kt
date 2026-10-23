@@ -56,7 +56,7 @@ class GuestLoader(private val context: Context, private val layout: StorageLayou
 
     private fun fallbackClassLoader(ai: ApplicationInfo): ClassLoader? = try {
         // Parent = the boot class loader, so guest classes never see Blaze's (no AndroidX clashes).
-        DexClassLoader(ai.sourceDir, File(ai.dataDir, "code_cache").apply { mkdirs() }.path, ai.nativeLibraryDir, Object::class.java.classLoader)
+        DexClassLoader(ai.sourceDir, File(ai.dataDir, "code_cache").apply { mkdirs() }.path, ai.nativeLibraryDir, String::class.java.classLoader)
     } catch (t: Throwable) {
         EngineLog.e("guest class loader failed", t); null
     }

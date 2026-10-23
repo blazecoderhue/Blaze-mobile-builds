@@ -176,7 +176,7 @@ object AxmlReader {
         val flags = r.u32(pos + 16)
         val stringsStart = r.u32(pos + 20)
         if (count > MAX_STRINGS) throw AxmlFormatException("string pool too large")
-        val utf8 = flags and AxmlTypes.POOL_FLAG_UTF8 != 0
+        val utf8 = (flags and AxmlTypes.POOL_FLAG_UTF8) != 0
         val offsets = pos + header
         r.need(offsets, count * 4)
         val base = pos + stringsStart
@@ -191,10 +191,10 @@ object AxmlReader {
     private fun readUtf8(r: Bytes, start: Int, end: Int): String {
         var o = start
         // UTF-16 length (skipped), then UTF-8 byte length; each 1 or 2 bytes (high bit = 2-byte form).
-        var b = r.u8(o); o += if (b and 0x80 != 0) 2 else 1
+        var b = r.u8(o); o += if ((b and 0x80) != 0) 2 else 1
         b = r.u8(o); o++
         var len = b
-        if (b and 0x80 != 0) { len = ((b and 0x7f) shl 8) or r.u8(o); o++ }
+        if ((b and 0x80) != 0) { len = ((b and 0x7f) shl 8) or r.u8(o); o++ }
         if (o + len > end) throw AxmlFormatException("utf8 string past pool")
         return String(r.b, o, len, Charsets.UTF_8)
     }
@@ -202,7 +202,7 @@ object AxmlReader {
     private fun readUtf16(r: Bytes, start: Int, end: Int): String {
         var o = start
         var len = r.u16(o); o += 2
-        if (len and 0x8000 != 0) { len = ((len and 0x7fff) shl 16) or r.u16(o); o += 2 }
+        if ((len and 0x8000) != 0) { len = ((len and 0x7fff) shl 16) or r.u16(o); o += 2 }
         if (o + len * 2 > end) throw AxmlFormatException("utf16 string past pool")
         return String(r.b, o, len * 2, Charsets.UTF_16LE)
     }
