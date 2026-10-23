@@ -31,6 +31,8 @@ object CallScan {
         "load_tools", "ask_user", "web_search", "fetch_page", "memory_save", "memory_search", "recall_memory", "message_contact",
         "blaze_self", "run_shell", "open_app", "type_text", "look_at_screen", "run_plan", "save_file", "open_view", "set_alarm",
         "gmail_search", "gmail_read", "gcal_events", "calendar_events", "generate_image", "open_settings", "search_in_app", "press_button",
+        // 0.45.19-speed: Blaze Phone's tools, so `phone_open(url="…")` written as text never flashes on screen before the first request.
+        "phone_open", "phone_read", "phone_act", "phone_screenshot", "phone_wait", "phone_handoff", "phone_status",
     )
 
     /** Every tool name the agent has registered (the agent adds its full list with [learn]). */

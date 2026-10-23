@@ -799,23 +799,24 @@ object BrowserData {
 
     private fun save(ctx: Context) { try { file(ctx).writeText(data(ctx).toString()) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: filectx.writeTextdatactx.toString", e) } }
 
-    private fun list(ctx: Context, k: String): List<Entry> {
+    // 0.45.19-speed: Blaze Phone's site resolver reads history off the main thread while the browser writes it; one lock.
+    @Synchronized private fun list(ctx: Context, k: String): List<Entry> {
         val a = data(ctx).optJSONArray(k) ?: JSONArray()
         return (0 until a.length()).map { a.getJSONObject(it) }.map { Entry(it.optString("t"), it.optString("u"), it.optLong("at")) }
     }
-    private fun put(ctx: Context, k: String, l: List<Entry>) {
+    @Synchronized private fun put(ctx: Context, k: String, l: List<Entry>) {
         data(ctx).put(k, JSONArray().apply { l.forEach { put(JSONObject().put("t", it.title).put("u", it.url).put("at", it.time)) } }); save(ctx)
     }
 
     fun bookmarks(ctx: Context) = list(ctx, "bookmarks")
     fun history(ctx: Context) = list(ctx, "history")
     fun isBookmarked(ctx: Context, url: String) = bookmarks(ctx).any { it.url == url }
-    fun toggleBookmark(ctx: Context, title: String, url: String) {
+    @Synchronized fun toggleBookmark(ctx: Context, title: String, url: String) {
         val b = bookmarks(ctx).toMutableList()
         if (b.removeAll { it.url == url }.not()) b.add(0, Entry(title.ifBlank { url }, url))
         put(ctx, "bookmarks", b)
     }
-    fun addHistory(ctx: Context, title: String, url: String) {
+    @Synchronized fun addHistory(ctx: Context, title: String, url: String) {
         val h = history(ctx).filter { it.url != url }.toMutableList()
         h.add(0, Entry(title, url)); put(ctx, "history", h.take(300))
     }

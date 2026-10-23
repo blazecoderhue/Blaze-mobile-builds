@@ -1,3 +1,9 @@
+## v0.45.20: faster Blaze Phone, finds sites by name, honest booking status (versionCode 165)
+- Blaze Phone reads pages live from the browser instead of waiting and re-reading: page reads drop from ~28 ms to ~2 ms (p50), and every action is confirmed.
+- Say "the booking site", "herokuapp login page" or "my bank" and Blaze finds the right page and sub-page; it asks when it can't tell.
+- Blaze never says booked, paid or confirmed unless it saw the confirmation; status questions say what's done so far.
+- Browser fixes: safer element ids, page-load race, leaks, raw step text hidden.
+
 ## v0.45.19: Blaze Phone browser, App Store, cleaner chat (versionCode 164)
 - Blaze Phone browser: Blaze browses, signs in and fills forms on its own phone screen; take control any time, then Hand back.
 - Picture-in-picture: while Blaze works on Blaze Phone and you leave the app, the screen floats with Stop and Open Blaze.

@@ -3398,6 +3398,13 @@ When you finish, say what you did in one short sentence.
                         val intent = calledNames + (if (ToolRouter.looksEnglish(lastUserText())) emptySet() else sentNames)
                         val check = ClaimCheck.review(shown, synchronized(turnDone) { turnDone.toList() }, lastUserText(), intent)
                         if (check is ClaimCheck.Outcome.Rewrite) { textOut = check.text; reply.put("content", textOut); pendingFollowups = emptyList(); rewroteClaim = true }
+                        // 0.45.19-speed: while Blaze Phone is in play, "booked / paid / confirmed" needs a phone_read THIS turn that saw a
+                        // confirmation; a status question counts too (device test: "Booking confirmed!" with nothing booked).
+                        run {
+                            val phoneDone = synchronized(turnDone) { turnDone.filter { it.name in com.blaze.assistant.browser.phone.PhonePolicy.TOOLS }.map { it.name to it.why } }
+                            com.blaze.assistant.browser.phone.PhoneClaimGuard.review(textOut, phoneDone, phoneDone.isNotEmpty() || (try { com.blaze.assistant.browser.phone.PhoneBrowser.active } catch (_: Throwable) { false }))
+                                ?.let { textOut = it; reply.put("content", textOut); pendingFollowups = emptyList(); rewroteClaim = true }
+                        }
                         val miss = (check as? ClaimCheck.Outcome.Unbacked)?.action
                         // v0.45.0 (#19): re-prompt only when it can help: the tool wasn't offered (load its group, ask once) or
                         // nothing at all ran this turn. Otherwise the honest line straight away, with "Try again" as a chip.

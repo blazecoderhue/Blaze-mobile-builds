@@ -144,7 +144,7 @@ class PhoneUiFixesTest {
         assertEquals("automationintesting.online", PhoneUiRules.host("https://www.automationintesting.online/reservation/1?x"))
         assertEquals("Blaze needs you: Solve the captcha", PhoneUiRules.pill(PhonePolicy.Mode.WAITING, "x", "Solve the captcha"))
         // The tile said "Tapping e61": an element id is never shown as if it were a button's name.
-        assertEquals("Tapping on the page", PhoneBrowserTools.describe("phone_act", JSONObject().put("action", "click").put("target", "e${run}1")))
+        assertEquals("Tapping on the page", PhoneBrowserTools.describe("phone_act", JSONObject().put("action", "click").put("target", "e${run}1")))   // rel merge kept chat's readable() wording
         assertEquals("Tapping Reserve Now", PhoneBrowserTools.describe("phone_act", JSONObject().put("action", "click").put("target", "Reserve Now")))
     }
 

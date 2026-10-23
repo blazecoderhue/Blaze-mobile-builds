@@ -188,11 +188,19 @@ object PhonePolicy {
      * field. [ref]: the reference found. [evidence]: the words it was read from. [blocker]: an error or a hold on the page.
      */
     data class Verdict(val confirmed: Boolean, val ref: String?, val evidence: String, val loggedIn: Boolean, val blocker: String?) {
+        /** 0.45.19-speed: what was and wasn't completed, in plain words (phone_status, the reply guard). */
+        fun progress(): String = when {
+            confirmed -> "Completed: the page shows a confirmation \u201c${evidence.take(120)}\u201d" + (ref?.let { " (reference $it)" } ?: "") + "."
+            blocker != null -> "Not booked, ordered or paid: the page shows a problem: \u201c${blocker.take(120)}\u201d."
+            loggedIn -> "Signed in. Not booked, ordered or paid yet: no confirmation page or number seen on Blaze Phone."
+            else -> "Not booked, ordered or paid yet: no confirmation page or number seen on Blaze Phone."
+        }
+
         fun line(): String = when {
             confirmed -> "VERIFIED: the page shows \u201c${evidence.take(120)}\u201d" + (ref?.let { " (reference $it)" } ?: "") + "."
-            blocker != null -> "NOT VERIFIED: the page shows a problem: \u201c${blocker.take(120)}\u201d. Nothing is confirmed; tell the user what it says."
-            loggedIn -> "SIGNED IN: the page has an account / sign-out control and no password field. No booking or order is confirmed on this page."
-            else -> "NOT VERIFIED: no confirmation number or confirmation text on this page. Don't say it's done, booked or confirmed; say what the page shows."
+            blocker != null -> "NOT VERIFIED: the page shows a problem: \u201c${blocker.take(120)}\u201d. Nothing is confirmed; tell the user what it says. Not booked, ordered or paid."
+            loggedIn -> "SIGNED IN: the page has an account / sign-out control and no password field. No booking or order is confirmed on this page. Not booked, ordered or paid yet."
+            else -> "NOT VERIFIED: no confirmation number or confirmation text on this page. Don't say it's done, booked or confirmed; say what the page shows. Not booked, ordered or paid yet."
         }
     }
 
@@ -266,6 +274,12 @@ object PhonePolicy {
     val TOOLS = setOf("phone_open", "phone_read", "phone_act", "phone_screenshot", "phone_wait", "phone_handoff", "phone_status")
     val ACTIONS = setOf("click", "type", "key", "scroll", "select", "navigate", "back", "forward", "reload", "fill_login")
     val KEYS = setOf("enter", "back", "tab", "escape", "backspace", "space", "up", "down", "left", "right", "pageup", "pagedown")
+
+    /** A tap's finger-down time before the up event. */
+    const val TAP_HOLD_MS = 70L
+
+    /** Pause between typed characters, only while someone watches the live view (so the letters show); none otherwise. */
+    fun keyPaceMs(watching: Boolean): Long = if (watching) 6L else 0L
 
     /** Bounds a wait: 0.5–30 s, default 10. */
     fun waitMs(timeoutSec: Double?): Long = ((timeoutSec ?: 10.0) * 1000).toLong().coerceIn(500, 30_000)

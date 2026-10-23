@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -93,6 +94,19 @@ object PhoneBrowser {
     @Volatile private var lastCrash: String? = null
     @Volatile private var handBack: CompletableDeferred<Unit>? = null
 
+    // 0.45.19-speed: the DOM bridge. The injected script keeps [domCache] current; every bridge message and every
+    // navigation start / finish bumps [sig], which the engine's event waits watch.
+    private val token: String = java.util.UUID.randomUUID().toString()
+    private val domCache = DomCache(token) { SystemClock.uptimeMillis() }
+    private val sig = MutableStateFlow(0L)
+    private fun bump() { sig.update { it + 1 } }
+    @Volatile private var loadingNow = false
+    /** A load was asked for and hasn't started yet: an onPageFinished before its onPageStarted is the old page's. */
+    @Volatile private var waitStart = false
+    @Volatile private var bridgeOn = false
+    private var bridgeKind = 0   // 1 = WebMessageListener, 2 = JavascriptInterface
+    private var scriptHandler: androidx.webkit.ScriptHandler? = null
+
     val active: Boolean get() = _live.value.mode != PhonePolicy.Mode.OFF
     val multiProfile: Boolean get() = try { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) } catch (_: Throwable) { false }
 
@@ -100,6 +114,21 @@ object PhoneBrowser {
 
     private fun prefs() = app.getSharedPreferences("blaze_phone", Context.MODE_PRIVATE)
     fun sites(): List<String> = if (!::app.isInitialized) emptyList() else PhonePolicy.Sites.decode(prefs().getString("sites", null))
+    /** Blaze Phone's own visits: the "sites you used before" the resolver prefers. Cleared with Clear Blaze Phone data. */
+    private fun rememberVisit(url: String, title: String) {
+        if (!::app.isInitialized || !url.startsWith("http")) return
+        try { prefs().edit().putString("visits", SiteResolver.addVisit(prefs().getString("visits", null), url, title, System.currentTimeMillis())).apply() } catch (_: Throwable) { }
+    }
+
+    /** Everything the resolver may treat as "used before": Blaze Phone visits, Blaze's browser history, saved logins. */
+    fun visits(ctx: Context): List<SiteResolver.Visit> {
+        init(ctx)
+        val own = try { SiteResolver.decodeVisits(prefs().getString("visits", null)) } catch (_: Throwable) { emptyList() }
+        val browser = try { com.blaze.assistant.browser.BrowserData.history(ctx).take(300).map { SiteResolver.Visit(it.url, it.title, 1, it.time) } } catch (_: Throwable) { emptyList() }
+        val logins = try { BrowserLogins.all().map { SiteResolver.Visit("https://${it.host}/", it.site, 2, it.used) } } catch (_: Throwable) { emptyList() }
+        return own + browser + logins
+    }
+
     private fun rememberSite(site: String) { if (site.isNotBlank()) prefs().edit().putString("sites", PhonePolicy.Sites.add(prefs().getString("sites", null), site)).apply() }
 
     fun config(): PhonePolicy.Config = cfg ?: run {
@@ -169,6 +198,8 @@ object PhoneBrowser {
         try { cookies(s).setAcceptThirdPartyCookies(w, true) } catch (_: Throwable) { }
         w.webViewClient = Client()
         w.webChromeClient = Chrome()
+        domCache.clear(); loadingNow = false; waitStart = false
+        installBridge(w)
         web = w; wrap = w0; session = s
         _webGen.value = _webGen.value + 1
         rememberSite(s.site)
@@ -197,8 +228,77 @@ object PhoneBrowser {
     private fun dropWebView() {
         val w = web ?: return
         flush()
+        detachBridge(w)
         try { (w.parent as? ViewGroup)?.removeView(w); w.stopLoading(); w.destroy() } catch (_: Throwable) { }
         web = null; wrap = null; session = null
+    }
+
+    // ------------------------------------------------------------------ the DOM bridge
+    /** Registers the bridge on a new WebView: the message channel, then the document-start script. Main thread. */
+    @SuppressLint("JavascriptInterface", "RequiresFeature", "AddJavascriptInterface")
+    private fun installBridge(w: WebView) {
+        bridgeOn = false; bridgeKind = 0; scriptHandler = null
+        try {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+                WebViewCompat.addWebMessageListener(w, PhoneScripts.BRIDGE_WM, setOf("*")) { view, message, _, isMainFrame, _ ->
+                    if (isMainFrame && view === web) onBridge(message.data)
+                }
+                bridgeKind = 1
+            } else {
+                w.addJavascriptInterface(JsBridge(w), PhoneScripts.BRIDGE_JI)
+                bridgeKind = 2
+            }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT))
+                scriptHandler = WebViewCompat.addDocumentStartJavaScript(w, PhoneScripts.bridge(token), setOf("*"))
+            bridgeOn = true
+        } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("PhoneBrowser.bridge", e); detachBridge(w) }
+    }
+
+    /** Takes the bridge off a WebView that's going away (no messages from it after this). Main thread. */
+    private fun detachBridge(w: WebView) {
+        try { scriptHandler?.remove() } catch (_: Throwable) { }
+        try {
+            when (bridgeKind) {
+                1 -> WebViewCompat.removeWebMessageListener(w, PhoneScripts.BRIDGE_WM)
+                2 -> w.removeJavascriptInterface(PhoneScripts.BRIDGE_JI)
+            }
+        } catch (_: Throwable) { }
+        scriptHandler = null; bridgeKind = 0; bridgeOn = false
+        domCache.clear(); loadingNow = false; waitStart = false
+        bump()
+    }
+
+    private fun onBridge(raw: String?) { if (domCache.accept(raw)) bump() }
+
+    /** Old WebViews without document-start scripts: inject at page start and finish (the script runs once per page). */
+    private fun injectLate(v: WebView) {
+        if (bridgeOn && scriptHandler == null) try { v.evaluateJavascript(PhoneScripts.bridge(token), null) } catch (_: Throwable) { }
+    }
+
+    /** The JavascriptInterface channel (WebViews without WebMessageListener). Holds the WebView weakly; ignores stale ones. */
+    private class JsBridge(w: WebView) {
+        private val ref = java.lang.ref.WeakReference(w)
+        @android.webkit.JavascriptInterface fun post(s: String?) {
+            val w = ref.get() ?: return
+            main.post { if (w === web) onBridge(s) }
+        }
+    }
+
+    /** A load we asked for: its finish counts only after its start (or, for loads that never "start", once progress is 100). Main thread. */
+    private fun expectLoad(w: WebView) {
+        if (loaded.isCompleted) loaded = CompletableDeferred()
+        waitStart = true; loadingNow = true; bump()
+        main.postDelayed({ if (waitStart && web === w && w.progress >= 100) finishLoad(w, w.url) }, 3_000)
+    }
+
+    private fun finishLoad(v: WebView, url: String?) {
+        waitStart = false; loadingNow = false
+        loaded.complete(Unit)
+        set { it.copy(url = url.orEmpty(), title = v.title.orEmpty()) }
+        rememberVisit(url.orEmpty(), v.title.orEmpty())
+        flush()
+        injectLate(v)
+        bump()
     }
 
     /** Frees everything (WebView, display, buffers). Sessions stay on disk. Main thread. */
@@ -229,22 +329,27 @@ object PhoneBrowser {
             return s != "http" && s != "https" && s != "about" && s != "data" && s != "blob"
         }
         override fun onPageStarted(v: WebView, url: String?, favicon: Bitmap?) {
+            if (v !== web) return   // a WebView that's going away
             if (loaded.isCompleted) loaded = CompletableDeferred()
-            _live.value = _live.value.copy(url = url.orEmpty())
+            waitStart = false; loadingNow = true
+            domCache.navStarted()
+            set { it.copy(url = url.orEmpty()) }
+            injectLate(v)
+            bump()
         }
         override fun onPageFinished(v: WebView, url: String?) {
-            loaded.complete(Unit)
-            _live.value = _live.value.copy(url = url.orEmpty(), title = v.title.orEmpty())
-            try { CookieManager.getInstance().flush() } catch (_: Throwable) { }
-            flush()
+            if (v !== web) return
+            // 0.45.19-speed: the old page's late finish used to complete the new load's wait (reads of a half-loaded page).
+            if (waitStart) { main.postDelayed({ if (waitStart && web === v && v.progress >= 100) finishLoad(v, url) }, 400); return }
+            finishLoad(v, url)
         }
         override fun onRenderProcessGone(v: WebView, d: android.webkit.RenderProcessGoneDetail): Boolean {
             val url = _live.value.url
             lastCrash = "The page renderer stopped (Android closed it to save memory) on ${url.take(80)}; Blaze Phone reopened it and anything typed there was lost."
             com.blaze.assistant.device.CrashLog.write("Blaze Phone renderer gone on ${url.take(80)}")
             main.post {
-                if (web === v) { web = null; try { (v.parent as? ViewGroup)?.removeView(v); v.destroy() } catch (_: Throwable) { }; session = null
-                    if (url.startsWith("http")) ensure(url).loadUrl(url) }
+                if (web === v) { detachBridge(v); web = null; try { (v.parent as? ViewGroup)?.removeView(v); v.destroy() } catch (_: Throwable) { }; session = null; wrap = null
+                    if (url.startsWith("http")) ensure(url).let { w -> expectLoad(w); w.loadUrl(url) } }
             }
             return true
         }
@@ -268,7 +373,7 @@ object PhoneBrowser {
             if (userDriving()) return false
             r.confirm(); return true
         }
-        override fun onReceivedTitle(v: WebView, title: String?) { _live.value = _live.value.copy(title = title.orEmpty()) }
+        override fun onReceivedTitle(v: WebView, title: String?) { set { it.copy(title = title.orEmpty()) } }
     }
 
     // ------------------------------------------------------------------ helpers
@@ -279,12 +384,6 @@ object PhoneBrowser {
                 w.evaluateJavascript(code) { r -> if (cont.isActive) cont.resume(try { JSONTokener(r ?: "null").nextValue() } catch (_: Exception) { r }) }
             }
         }
-    }
-
-    internal suspend fun settle(ms: Long = 12_000) {
-        delay(250)
-        withTimeoutOrNull(ms) { loaded.await() }
-        delay(350)   // let scripts render
     }
 
     /** While the user drives, Blaze waits for Hand back (up to [ms]); true when it may act. */
@@ -306,6 +405,38 @@ object PhoneBrowser {
 
     private fun stillUser() = "The user is in control of Blaze Phone and hasn't handed back yet. Don't act; tell them you'll continue when they tap Hand back."
 
+    // ------------------------------------------------------------------ the engine's page
+    /** The WebView as [PhoneEngine] sees it. */
+    private object Host : PageHost {
+        override fun now(): Long = SystemClock.uptimeMillis()
+        override suspend fun sleep(ms: Long) = delay(ms)
+        override suspend fun eval(code: String): Any? = js(code)
+        override fun hasPage(): Boolean = web != null
+        override fun url(): String = _live.value.url
+        override suspend fun tap(x: Float, y: Float) { PhoneBrowser.tapAt(x, y) }
+        override suspend fun drag(dy: Float) { PhoneBrowser.drag(dy) }
+        override suspend fun keys(text: String, clear: Boolean): Boolean = PhoneBrowser.keys(text, clear)
+        override suspend fun key(k: String) { PhoneBrowser.key(k) }
+        override suspend fun viewHeight(): Int = withContext(Dispatchers.Main) { web?.height ?: 0 }
+        override suspend fun history(what: String): String = withContext(Dispatchers.Main) {
+            val w = web ?: return@withContext "No page open."
+            when (what) {
+                "back" -> if (w.canGoBack()) { expectLoad(w); w.goBack(); "Went back." } else "Nothing to go back to."
+                "forward" -> if (w.canGoForward()) { expectLoad(w); w.goForward(); "Went forward." } else "Nothing to go forward to."
+                else -> { expectLoad(w); w.reload(); "Reloaded." }
+            }
+        }
+        override suspend fun awaitLoad(ms: Long): Boolean = withTimeoutOrNull(ms) { loaded.await() } != null
+        override fun touch() { PhoneBrowser.touch() }
+        override fun dom(): DomCache? = if (bridgeOn && web != null) domCache else null
+        override fun signal(): Long = sig.value
+        override suspend fun awaitSignal(after: Long, ms: Long): Boolean = withTimeoutOrNull(ms) { sig.first { it != after } } != null
+        override fun loading(): Boolean = loadingNow
+        override fun watching(): Boolean = watchers > 0
+    }
+
+    private val engine = PhoneEngine(Host)
+
     // ------------------------------------------------------------------ what the tools call
     suspend fun open(ctx: Context, url0: String): String {
         init(ctx)
@@ -314,19 +445,16 @@ object PhoneBrowser {
         if (!url.startsWith("https://") && !url.startsWith("http://")) return "Blaze Phone opens web pages only (https)."
         withContext(Dispatchers.Main) {
             val w = ensure(url)
-            if (loaded.isCompleted) loaded = CompletableDeferred()
+            expectLoad(w)
             w.loadUrl(url)
             touch()
         }
-        settle(15_000)
+        engine.afterOpen()
         return "Opened on Blaze Phone.\n" + readText()
     }
 
     suspend fun read(): PhonePolicy.Snapshot? {
-        if (web == null) return null
-        val o = js(PhoneScripts.SNAPSHOT) as? JSONObject ?: return null
-        touch()
-        val s = PhonePolicy.parseSnapshot(o) { SecureInput.scrub(it) }
+        val s = engine.read() ?: return null
         val d = lastDialog; lastDialog = null
         return if (d != null) s.copy(dialog = d) else s
     }
@@ -345,32 +473,13 @@ object PhoneBrowser {
         return "data:image/jpeg;base64," + android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP)
     }
 
-    /** Finds a target: an element id ("e12"), or words on the page. Scrolled into view. */
-    suspend fun locate(target: String, field: Boolean = false): Target? {
-        val t = target.trim().removePrefix("[").removeSuffix("]")
-        val id = if (Regex("^e\\d+$").matches(t)) t else if (t == ":focus") (js(PhoneScripts.FOCUSED_ID) as? String) ?: return null
-            else (js(PhoneScripts.find(t, field)) as? String) ?: return null
-        val o = js(PhoneScripts.rect(id)) as? JSONObject ?: return null
-        delay(60)
-        return Target(id, o.optInt("x"), o.optInt("y"), o.optInt("w"), o.optInt("h"), SecureInput.scrub(o.optString("label")), o.optString("role"),
-            o.optString("tag"), o.optString("type"), o.optBoolean("card"), o.optBoolean("sens"), o.optBoolean("editable"), o.optBoolean("disabled"),
-            o.optBoolean("covered"), o.optString("coveredBy"))
-    }
-
-    suspend fun focusInfo(): FocusInfo {
-        val o = js(PhoneScripts.FOCUS) as? JSONObject ?: return FocusInfo("", false, false, false)
-        return FocusInfo(o.optString("submit"), o.optBoolean("card"), o.optBoolean("inForm"), o.optBoolean("editable"))
-    }
-
-    suspend fun pageHasCard(): Boolean = focusInfo().card
-
     /** A real tap at (x, y) in the WebView's pixels. */
     suspend fun tapAt(x: Float, y: Float) = withContext(Dispatchers.Main) {
         val w = web ?: return@withContext
         val t = SystemClock.uptimeMillis()
         val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0).apply { source = InputDevice.SOURCE_TOUCHSCREEN }
         w.dispatchTouchEvent(down); down.recycle()
-        delay(70)
+        delay(PhonePolicy.TAP_HOLD_MS)
         val up = MotionEvent.obtain(t, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, x, y, 0).apply { source = InputDevice.SOURCE_TOUCHSCREEN }
         w.dispatchTouchEvent(up); up.recycle()
         touch()
@@ -418,78 +527,13 @@ object PhoneBrowser {
                 w.dispatchKeyEvent(KeyEvent(t, t, a, KeyEvent.KEYCODE_A, 0, KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON))
             for (a in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) w.dispatchKeyEvent(KeyEvent(t, t, a, KeyEvent.KEYCODE_DEL, 0))
         }
+        val pace = PhonePolicy.keyPaceMs(watchers > 0)
         events.forEachIndexed { i, e ->
             w.dispatchKeyEvent(KeyEvent.changeTimeRepeat(e, SystemClock.uptimeMillis(), 0))
-            if (i % 2 == 1) delay(6)
+            if (i % 2 == 1 && pace > 0) delay(pace)
         }
         touch()
         true
-    }
-
-    suspend fun click(t: Target): ActResult {
-        if (t.disabled) return ActResult(false, "\u201c${t.label.take(40)}\u201d is disabled right now (a required field may be empty). phone_read to see what's missing.")
-        val real = t.w > 0 && t.h > 0 && !t.covered
-        if (real) tapAt(t.x.toFloat(), t.y.toFloat()) else js(PhoneScripts.click(t.id))
-        settle(10_000)
-        return ActResult(true, "Clicked \u201c${t.label.take(60)}\u201d" + (if (!real) " (by script: ${if (t.covered) "covered by \u201c${t.coveredBy}\u201d" else "no size"})" else "") + ".")
-    }
-
-    suspend fun type(t: Target, text0: String, clear: Boolean, submit: Boolean): ActResult {
-        val url = _live.value.url
-        val secret = SecureInput.hasPlaceholder(text0)
-        if (secret && !com.blaze.assistant.connect.UrlSafety.autofillAllowed(url)) return ActResult(false, com.blaze.assistant.connect.UrlSafety.AUTOFILL_REFUSED)
-        val text = if (!secret) text0 else SecureInput.resolve(text0, SecureInput.hostOf(url)).first?.also { SecureInput.hide(it) }
-            ?: return ActResult(false, "No saved value for that placeholder on this site. Ask the user to take control (phone_handoff) so they type it themselves.")
-        if (t.w > 0 && t.h > 0 && !t.covered) tapAt(t.x.toFloat(), t.y.toFloat()) else js("(function(){var e=document.querySelector('[data-bzp=\"${t.id}\"]');if(e)e.focus();})()")
-        delay(120)
-        val typedByKeys = keys(text, clear)
-        delay(80)
-        // Check what landed; frameworks that swallow key events get the value set by script instead.
-        val check = js("(function(){var e=document.querySelector('[data-bzp=\"${t.id}\"]');if(!e)return -1;var v=e.isContentEditable?e.innerText:(e.value||'');return v.length;})()")
-        val len = (check as? Number)?.toInt() ?: -1
-        val good = typedByKeys && (len < 0 || (if (clear) len == text.length else len >= text.length))
-        if (!good) js(PhoneScripts.type(t.id, text, secret || t.sens, clear))
-        else if (secret || t.sens) js(PhoneScripts.markSecret(t.id))
-        touch()
-        var msg = if (secret || t.sens) "Typed into \u201c${t.label.take(40)}\u201d (value hidden)" else "Typed \u201c${text0.take(60)}\u201d into \u201c${t.label.take(40)}\u201d"
-        if (!good) msg += " (by script)"
-        if (submit) { key("enter"); settle(12_000); msg += " and pressed Enter" }
-        return ActResult(true, SecureInput.scrub("$msg."))
-    }
-
-    suspend fun select(t: Target, option: String): ActResult {
-        val r = js(PhoneScripts.select(t.id, option))?.toString().orEmpty()
-        touch()
-        return when {
-            r.startsWith("ok:") -> { settle(4000); ActResult(true, "Selected \u201c${r.removePrefix("ok:").take(60)}\u201d in \u201c${t.label.take(40)}\u201d.") }
-            r.startsWith("nooption:") -> ActResult(false, "No option \u201c${option.take(40)}\u201d. Options: ${r.removePrefix("nooption:").take(300)}")
-            r == "notselect" -> ActResult(false, "\u201c${t.label.take(40)}\u201d isn't a dropdown; click it, then click the option.")
-            else -> ActResult(false, "That element is gone. phone_read for fresh ids.")
-        }
-    }
-
-    suspend fun scroll(down: Boolean): ActResult {
-        val before = (js("String(Math.round(window.scrollY))") as? String)?.toIntOrNull()
-        val h = withContext(Dispatchers.Main) { web?.height ?: 0 }
-        drag((if (down) 1 else -1) * h * 0.6f)
-        delay(350)
-        val after = (js("String(Math.round(window.scrollY))") as? String)?.toIntOrNull()
-        if (before != null && before == after) js(PhoneScripts.scrollBy(down))
-        return ActResult(true, "Scrolled ${if (down) "down" else "up"}.")
-    }
-
-    suspend fun navigate(what: String): ActResult {
-        val r = withContext(Dispatchers.Main) {
-            val w = web ?: return@withContext "No page open."
-            if (loaded.isCompleted) loaded = CompletableDeferred()
-            when (what) {
-                "back" -> if (w.canGoBack()) { w.goBack(); "Went back." } else { loaded.complete(Unit); "Nothing to go back to." }
-                "forward" -> if (w.canGoForward()) { w.goForward(); "Went forward." } else { loaded.complete(Unit); "Nothing to go forward to." }
-                else -> { w.reload(); "Reloaded." }
-            }
-        }
-        touch(); settle(10_000)
-        return ActResult(true, r)
     }
 
     /** Fills the saved login for this site (BrowserLogins, the browser's password store) without submitting. */
@@ -509,24 +553,6 @@ object PhoneBrowser {
         touch()
         return ActResult(true, "Filled the saved login for ${l.user.take(60)} on $host (not submitted; click the sign-in button next).")
     }
-
-    /** Waits until [selector] is visible / [text] is on the page / the page loaded (or the opposite with [gone]). */
-    suspend fun waitFor(selector: String?, text: String?, gone: Boolean, ms: Long): String {
-        if (web == null) return "No page open."
-        val until = System.currentTimeMillis() + ms
-        if (selector.isNullOrBlank() && text.isNullOrBlank()) { withTimeoutOrNull(ms) { loaded.await() }; return if (loaded.isCompleted) "Page loaded." else "Still loading after ${ms / 1000}s." }
-        while (System.currentTimeMillis() < until) {
-            when (js(PhoneScripts.waitCheck(selector, text, gone))) {
-                "yes" -> { touch(); return "Condition met: ${describe(selector, text, gone)}." }
-                "badselector" -> return "That CSS selector isn't valid."
-            }
-            delay(300)
-        }
-        return "Timed out after ${ms / 1000}s waiting for ${describe(selector, text, gone)}."
-    }
-
-    private fun describe(sel: String?, text: String?, gone: Boolean) =
-        (if (!sel.isNullOrBlank()) "selector $sel" else "text \u201c${text.orEmpty().take(40)}\u201d") + if (gone) " gone" else ""
 
     // ------------------------------------------------------------------ hand-off
     /**
@@ -604,7 +630,9 @@ object PhoneBrowser {
             PhonePolicy.Mode.USER -> "the user is in control"; else -> "idle" }
         return "Blaze Phone: $mode. Page: ${l.title.take(80)} \u2014 ${l.url.take(160)}. Session: ${session?.site ?: "?"} (" +
             (if (session?.isolated == true) "own profile" else "shared with the browser: this phone's WebView has no profiles") + "). " +
-            "Screen: ${if (l.surfaceOk) "live" else "offscreen (no live view on this phone)"}, ${if (c.lowRam) "low-RAM mode" else "normal mode"}. " + memoryLine()
+            "Screen: ${if (l.surfaceOk) "live" else "offscreen (no live view on this phone)"}, ${if (c.lowRam) "low-RAM mode" else "normal mode"}. " +
+            "Page reading: ${if (bridgeOn) "live DOM bridge (${domCache.nodeCount()} elements cached)" else "direct DOM reads (no bridge on this page)"}. " +
+            memoryLine() + PhonePerf.line().let { if (it.isEmpty()) "" else " $it" }
     }
 
     fun memoryLine(): String {
@@ -643,7 +671,7 @@ object PhoneBrowser {
                 }
             } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("PhoneBrowser.clearAll", e) }
         } else sites().forEach { if (expireCookies(it)) n++ }
-        prefs().edit().remove("sites").apply()
+        prefs().edit().remove("sites").remove("visits").apply()
         return n
     }
 
@@ -677,20 +705,23 @@ object PhoneBrowser {
         override fun site() = PhoneBrowser.site()
         override suspend fun open(url: String) = PhoneBrowser.open(ctx, url)
         override suspend fun snapshot() = PhoneBrowser.read()
-        override suspend fun locate(target: String, field: Boolean) = PhoneBrowser.locate(target, field)
-        override suspend fun focusInfo() = PhoneBrowser.focusInfo()
-        override suspend fun click(t: Target) = PhoneBrowser.click(t)
-        override suspend fun type(t: Target, text: String, clear: Boolean, submit: Boolean) = PhoneBrowser.type(t, text, clear, submit)
-        override suspend fun select(t: Target, option: String) = PhoneBrowser.select(t, option)
-        override suspend fun key(k: String) { if (k.equals("back", true)) PhoneBrowser.navigate("back") else { PhoneBrowser.key(k); if (k.equals("enter", true)) PhoneBrowser.settle(10_000) } }
-        override suspend fun scroll(down: Boolean) = PhoneBrowser.scroll(down)
-        override suspend fun navigate(what: String) = PhoneBrowser.navigate(what)
+        override suspend fun locate(target: String, field: Boolean) = engine.locate(target, field)
+        override suspend fun focusInfo() = engine.focusInfo()
+        override suspend fun click(t: Target) = engine.click(t)
+        override suspend fun type(t: Target, text: String, clear: Boolean, submit: Boolean) = engine.type(t, text, clear, submit)
+        override suspend fun select(t: Target, option: String) = engine.select(t, option)
+        override suspend fun key(k: String) = engine.pressKey(k)
+        override suspend fun scroll(down: Boolean) = engine.scroll(down)
+        override suspend fun navigate(what: String) = engine.navigate(what)
         override suspend fun fillLogin(user: String?) = PhoneBrowser.fillLogin(user)
         override suspend fun screenshot() = PhoneBrowser.screenshot()
-        override suspend fun waitFor(selector: String?, text: String?, gone: Boolean, ms: Long) = PhoneBrowser.waitFor(selector, text, gone, ms)
+        override suspend fun waitFor(selector: String?, text: String?, gone: Boolean, ms: Long) = engine.waitFor(selector, text, gone, ms)
         override suspend fun handoff(reason: String) = PhoneBrowser.handoff(reason, notify = notify)
         override suspend fun awaitAgentTurn() = PhoneBrowser.mayAct()
         override fun status() = PhoneBrowser.status()
+        override fun now() = SystemClock.uptimeMillis()
+        override suspend fun resolve(query: String) = SiteResolver.resolve(query, PhoneBrowser.visits(ctx)) { q ->
+            SiteResolver.parseSearch(com.blaze.assistant.agent.Web.search(q, 8)) }
         override fun step(what: String) = PhoneBrowser.step(what)
     }
 }
