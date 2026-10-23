@@ -192,7 +192,7 @@ object Ack {
         val w = whenPart(text).let { if (it.isEmpty()) "" else " $it" }
         // "delete my 7am alarm" is a delete, not "Setting an alarm".
         val verb = verbAt.find(politeLead.replace(text.trim(), ""))?.value?.lowercase()?.replace(Regex("\\s+"), " ")
-        val undoing = verb in setOf("delete", "remove", "cancel", "stop", "turn off", "disable", "switch off", "move", "rename", "update", "snooze")
+        val undoing = verb != null && verb in setOf("delete", "remove", "cancel", "stop", "turn off", "disable", "switch off", "move", "rename", "update", "snooze")
         val a = when {
             undoing -> describe(text)
             timer.containsMatchIn(text) -> forSpan.find(text)?.let { f ->
