@@ -94,10 +94,49 @@ object UnconfirmedEcho {
         return acts[i].why.ifBlank { "the phone didn't read it back" }
     }
 
+    /** A reply that says the thing happened ("Dark mode is now turned on", "Done", "I've switched it off"). */
+    val CLAIM = Regex("(?i)\\b(done|all set|it'?s (?:now )?(?:on|off|set|removed|gone)|(?:is|are) (?:now )?(?:turned |switched )?(?:on|off|enabled|disabled|set|removed)|" +
+        "i(?:'ve| have)? (?:turned|switched|set|removed|deleted|enabled|disabled)|has been (?:turned|switched|set|removed))\\b")
+
+    /**
+     * 0.45.19 (phone 09:21): "I couldn't confirm it: couldn't read the switch back. Dark mode is now turned on." said two
+     * things. The reply is ONE honest voice: when the last phone action wasn't confirmed, a reply that claims it worked is
+     * replaced (never prefixed) by one honest line; for a switch that was turned but couldn't be read back that line is
+     * "I turned it on but couldn't check it; it should be on." ([com.blaze.assistant.phone.StateCheck.honest]).
+     */
     fun fix(reply: String, done: List<ClaimCheck.Done>): String {
         val why = open(done) ?: return reply
-        if (HONEST.containsMatchIn(reply)) return reply
+        val honestLine = com.blaze.assistant.phone.StateCheck.honestFrom(why)
+        val claims = CLAIM.containsMatchIn(reply)
+        if (HONEST.containsMatchIn(reply)) {
+            // honest already, unless it also claims success (the contradiction): then the one honest line
+            if (!claims) return reply
+            return honestLine ?: "I couldn't confirm it: ${why.trim().trimEnd('.')}."
+        }
+        if (honestLine != null) return honestLine
+        if (claims) return "I couldn't confirm it: ${why.trim().trimEnd('.')}."
         return "I couldn't confirm it: ${why.trim().trimEnd('.')}. " + reply.trimStart()
+    }
+}
+
+/**
+ * 0.45.19: a switch that was read back on the phone ends the turn with "Done ✓ Dark mode is on.", one short line that
+ * says exactly what was read, instead of whatever wording the model chose. Only when the last phone action this turn
+ * was that verified switch, and the reply is a short claim about it (not an answer that also carries other content
+ * or a question). Pure.
+ */
+object ToggleReply {
+    fun fix(reply: String, done: List<ClaimCheck.Done>): String {
+        val acts = done.filter { it.name in UnconfirmedEcho.ACTIONS || it.name == "run_plan" || it.name == "do_actions" }
+        val last = acts.lastOrNull() ?: return reply
+        if (last.status != ToolVerify.Status.VERIFIED) return reply
+        val (word, on) = com.blaze.assistant.phone.StateCheck.parseEvidence(last.why) ?: return reply
+        val r = reply.trim()
+        if (r.length > 160 || r.contains('\n') || r.contains("?")) return reply
+        // the reply must be about this switch (or a bare "Done") and must not say a failure
+        val about = r.contains(word, ignoreCase = true) || Regex("(?i)^(done|all set|ok(?:ay)?|it'?s (?:now )?(?:on|off))\\b").containsMatchIn(r)
+        if (!about || UnconfirmedEcho.HONEST.containsMatchIn(r)) return reply
+        return com.blaze.assistant.phone.StateCheck.doneLine(word, on)
     }
 }
 
