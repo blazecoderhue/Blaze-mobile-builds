@@ -53,3 +53,11 @@ it('contains no torrent, scraper-install, debrid or telemetry code', () => {
 it('ships no keystore', () => {
   expect(fs.existsSync(path.join(ROOT, 'debug.keystore'))).toBe(false);
 });
+
+it('does not pull the GPL-3.0 Jellyfin FFmpeg decoder through the react-native-video patch', () => {
+  const dir = path.join(ROOT, 'patches');
+  for (const f of fs.readdirSync(dir)) {
+    const body = fs.readFileSync(path.join(dir, f), 'utf8');
+    expect(body).not.toMatch(/org\.jellyfin|media3-ffmpeg-decoder|FfmpegLibrary\.isAvailable/);
+  }
+});
