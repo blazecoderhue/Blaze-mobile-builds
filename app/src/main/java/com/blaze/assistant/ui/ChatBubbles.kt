@@ -94,10 +94,12 @@ object BubblePalette {
      */
     fun minAlpha(b: Color, fg: Color, gs: List<Color>, floor: Float, ratio: Double = Contrast.AA_TEXT + 0.1): Float =
         memo.getOrPut("${b.value}|${fg.value}|${gs.joinToString { it.value.toString() }}|$floor|$ratio") {
-            var a = floor
-            while (a < 1f) {
+            // Integer steps: a float step (a * 100 + 1) can land on the same value again and never end.
+            var i = kotlin.math.ceil(floor * 100f - 0.001f).toInt().coerceIn(0, 100)
+            while (i < 100) {
+                val a = i / 100f
                 if (gs.all { g -> val f = Contrast.over(b, g, a); Contrast.ratio(Contrast.over(fg, f), f) >= ratio }) return@getOrPut a
-                a = ((a * 100).toInt() + 1) / 100f
+                i++
             }
             1f
         }
@@ -122,7 +124,10 @@ object BubblePalette {
     const val META_FLOOR = 0.62f
 
     /** The time inside a bubble: ink at the least alpha >= [META_FLOOR] that reads at AA on that bubble over any ground. */
-    fun meta(c: BlazeColors, mine: Boolean): Color {
+    private val colours = java.util.concurrent.ConcurrentHashMap<String, Color>()
+
+    fun meta(c: BlazeColors, mine: Boolean): Color = colours.getOrPut("meta|$c|$mine") { metaOf(c, mine) }
+    private fun metaOf(c: BlazeColors, mine: Boolean): Color {
         val f = fill(c, mine)
         val solids = grounds(c).map { Contrast.over(f, it) }
         var a = META_FLOOR
@@ -135,7 +140,8 @@ object BubblePalette {
         val b = c.paper.copy(alpha = 1f)
         return b.copy(alpha = minAlpha(b, c.ink.copy(alpha = META_FLOOR), grounds(c), 0.55f))
     }
-    fun capsuleInk(c: BlazeColors): Color {
+    fun capsuleInk(c: BlazeColors): Color = colours.getOrPut("cap|$c") { capsuleInkOf(c) }
+    private fun capsuleInkOf(c: BlazeColors): Color {
         val f = capsule(c)
         val solids = grounds(c).map { Contrast.over(f, it) }
         var a = META_FLOOR

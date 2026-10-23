@@ -25,9 +25,11 @@ class StepPill20Test {
         val long = StepPill.clean("Refactoring the car body into its own shape and then checking every wheel twice over")!!
         assertTrue(long, long.length <= StepPill.MAX && long.endsWith("\u2026"))
         assertFalse(long.endsWith(".\u2026"))
-        // Specialists are always general, never which one.
-        assertEquals(StepPill.SPECIALIST_IN, StepPill.clean("Bringing in the travel-booking specialist", "specialist"))
-        assertEquals(StepPill.SPECIALIST_UPDATE, StepPill.clean("Updating the flights playbook", "specialist"))
+        // Specialties are always general, never which one; the word is "specialty" (contract amended 11:08).
+        assertEquals("Using a specialty", StepPill.clean("Using the travel-booking playbook", "specialty"))
+        assertEquals("Updating a specialty", StepPill.clean("Updating the flights playbook", "specialty"))
+        assertEquals("older kind name still general", "Using a specialty", StepPill.clean("Bringing in someone", "specialist"))
+        assertFalse(StepPill.SPECIALIST_IN.contains("specialist") || StepPill.SPECIALIST_UPDATE.contains("specialist"))
     }
 
     @Test fun noPill_whenTheReplyLandsWithin2s() = five {
@@ -78,15 +80,16 @@ class StepPill20Test {
 
     @Test fun specialistEvents_areGeneral_andUnknownEventsIgnored() = five {
         val m = StepPill.Machine(); m.begin(0)
-        m.onEvent(ev("specialty_loaded", "text" to "Bringing in a specialist", "_name" to "flights"))
+        m.onEvent(ev("specialty_loaded", "text" to "Using a specialty", "_name" to "flights"))
         assertEquals(StepPill.SPECIALIST_IN, m.visible(3_000))
-        assertEquals("specialist", m.kind)
+        assertEquals("specialty", m.kind)
         m.onEvent(ev("specialty_updated", "_change" to "always aisle"))
         assertEquals(StepPill.SPECIALIST_UPDATE, m.visible(3_000))
         assertFalse(m.onEvent(ev("brand_new_event", "text" to "x")))
         assertEquals(StepPill.SPECIALIST_UPDATE, m.visible(3_000))
-        m.onEvent(step("Bringing in a specialist", "specialist"))
+        m.onEvent(step("Using a specialty", "specialty"))
         assertEquals(StepPill.SPECIALIST_IN, m.visible(3_000))
+        assertEquals("specialty", m.kind)
     }
 
     @Test fun pillsFlow_publishesAtTheDueTime_forThePip() = five {

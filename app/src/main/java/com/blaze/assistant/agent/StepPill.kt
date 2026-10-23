@@ -17,7 +17,7 @@ import org.json.JSONObject
  * the phone (`needs_device`, the device tool UI takes over) and when reply text starts streaming (`delta`). Never shown
  * for a reply that lands within [SHOW_AFTER_MS] of the send.
  *
- * Specialists are always general ("Bringing in a specialist" / "Updating a specialist"), never which one. The server
+ * Specialties are always general ("Using a specialty" / "Updating a specialty", contract amended 11:08), never which one. The server
  * promises clean text; the phone checks again ([clean]): no model / provider / route / owner names, raw tool names,
  * JSON, braces, URLs or code, at most [MAX] characters, no trailing period. A step that fails the check is dropped (the
  * pill keeps the previous line) rather than shown half-cleaned.
@@ -29,8 +29,12 @@ object StepPill {
     const val MAX = 60
     /** No pill when the reply lands within this long of the send (contract: "~2 s"). */
     const val SHOW_AFTER_MS = 2_000L
-    const val SPECIALIST_IN = "Bringing in a specialist"
-    const val SPECIALIST_UPDATE = "Updating a specialist"
+    // Contract amended 11:08 CAT: the word is "specialty", never "specialist".
+    const val SPECIALIST_IN = "Using a specialty"
+    const val SPECIALIST_UPDATE = "Updating a specialty"
+
+    /** A step of kind `specialty` (older drafts said `specialist`). */
+    fun isSpecialty(kind: String): Boolean = kind == "specialty" || kind == "specialist"
 
     // Owner names are built from pieces so no source file carries them (OwnerName19Test greps the repo).
     private val owner = Regex("(?i)\\b(" + listOf("lack" + "son", "lu" + "ke", "kap" + "apa").joinToString("|") + ")\\b")
@@ -43,7 +47,7 @@ object StepPill {
      * always gives the general line.
      */
     fun clean(text: String, kind: String = "step"): String? {
-        if (kind == "specialist") return if (text.contains("updat", ignoreCase = true)) SPECIALIST_UPDATE else SPECIALIST_IN
+        if (isSpecialty(kind)) return if (text.contains("updat", ignoreCase = true)) SPECIALIST_UPDATE else SPECIALIST_IN
         var t = text.replace(Regex("\\s+"), " ").trim()
         if (t.isEmpty()) return null
         if (owner.containsMatchIn(t) || url.containsMatchIn(t) || code.containsMatchIn(t) || routeWords.containsMatchIn(t)) return null
@@ -72,9 +76,9 @@ object StepPill {
         fun onEvent(o: JSONObject): Boolean {
             if (closed) return false
             when (o.optString("type")) {
-                "step" -> { val k = o.optString("kind", "step"); val c = clean(o.optString("text"), k) ?: return false; text = c; kind = k }
-                "specialty_loaded" -> { text = SPECIALIST_IN; kind = "specialist" }
-                "specialty_updated" -> { text = SPECIALIST_UPDATE; kind = "specialist" }
+                "step" -> { val k = o.optString("kind", "step").let { if (isSpecialty(it)) "specialty" else it }; val c = clean(o.optString("text"), k) ?: return false; text = c; kind = k }
+                "specialty_loaded" -> { text = SPECIALIST_IN; kind = "specialty" }
+                "specialty_updated" -> { text = SPECIALIST_UPDATE; kind = "specialty" }
                 "delta" -> { if (o.optString("text").isEmpty() || text == null) return false; text = null }
                 "status" -> { val s = o.optString("status"); if (s !in HIDE_STATUS) return false; text = null; if (s in END) closed = true }
                 "done", "failed", "cancelled", "error" -> { text = null; closed = true }
@@ -119,7 +123,7 @@ object StepPills {
     private fun publish() {
         val now = clock()
         val t = m.visible(now)
-        _current.value = t?.let { Pill(chat, it, m.kind == "specialist") }
+        _current.value = t?.let { Pill(chat, it, StepPill.isSpecialty(m.kind)) }
         timer?.cancel(); timer = null
         if (t == null && !m.closed && m.text != null && now < m.dueAt()) {
             val wait = m.dueAt() - now

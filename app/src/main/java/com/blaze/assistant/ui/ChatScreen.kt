@@ -911,6 +911,7 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                 val fresh = remember(item.key) { appear.fresh(item.key) }
                 // 0.45.20: "Today" / "Yesterday" chips between days (ui/ChatBubbles.kt).
                 val prevAt = if (i > 0) items[i - 1].at else 0L
+                Column(Modifier.fillMaxWidth()) {
                 if (item is Item.Msg && BubbleDays.startsDay(prevAt, item.at)) DayChip(remember(item.at) { BubbleDays.label(item.at) })
                 Box(Modifier.fillMaxWidth().appearIn(fresh && i >= items.size - 3).padding(top = Bubbles.gapAbove(item.pos, i == 0))) {
                     when (item) {
@@ -937,6 +938,7 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                             onFollowup = onFollowup, askChips = item.m.id == lastBlazeId && mood == Mood.IDLE && com.blaze.assistant.agent.SimpleMode.simple) }
                     }
                 }
+                }
             }
             item(key = "working") {
                 val live by Agent.thinking.collectAsState()
@@ -951,7 +953,7 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                 // 0.45.20 step pill: the newest step under the pending reply (agent/StepPill.kt), this chat only.
                 val pill by com.blaze.assistant.agent.StepPills.current.collectAsState()
                 val chatNow by Agent.chatId.collectAsState()
-                StepPillRow(pill?.takeIf { it.chat == chatNow && mood != Mood.IDLE }?.text, pill?.specialist == true)
+                Column(Modifier.fillMaxWidth()) {
                 // Ack-and-background: an acknowledged task shows its small chip instead of the "Blaze is thinking" line.
                 if (chip.isNotBlank() && mood != Mood.IDLE && streamId < 0) TaskChip(chip)
                 AnimatedVisibility(chip.isBlank() && mood != Mood.IDLE && streamId < 0 && duoLive.isEmpty(), enter = MotionTokens.enterUp(), exit = androidx.compose.animation.ExitTransition.None) {
@@ -962,6 +964,8 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                         val ring by androidx.compose.animation.core.animateFloatAsState(if (split) 0f else 1f, androidx.compose.animation.core.tween(520), label = "ring")
                         ThinkingOrb(if (split) "Blaze is working" else label, Modifier.offset(y = OrbAnchor.thinkingOffsetY), size = OrbAnchor.SIZE, ring = ring)
                     }
+                }
+                StepPillRow(pill?.takeIf { it.chat == chatNow && mood != Mood.IDLE }?.text, pill?.specialist == true)
                 }
                 // v0.26.0: no "this chat is getting long" banner; long chats compact themselves (AutoCompact).
             }
