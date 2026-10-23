@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
-	"github.com/lacksonkapapahue/blaze-desktop/internal/llm"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/llm"
 )
 
 // Options connect the router to the app.

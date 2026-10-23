@@ -1,4 +1,4 @@
-module github.com/lacksonkapapahue/blaze-desktop
+module github.com/blazeinchue/blaze-desktop
 
 go 1.26.10
 

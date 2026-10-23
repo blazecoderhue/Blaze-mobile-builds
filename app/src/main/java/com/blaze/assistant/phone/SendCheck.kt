@@ -1,7 +1,7 @@
 package com.blaze.assistant.phone
 
 /**
- * v0.28.7: honest sends. Luke asked Blaze to find his older brother Gabriel and send him a cat picture it had
+ * v0.28.7: honest sends. Blazeinchue asked Blaze to find his older brother Gabriel and send him a cat picture it had
  * just made. It said it saw no Gabriel, then opened WhatsApp and claimed "Message sent" while nothing was sent,
  * and in the end it sent the words "orange cat" instead of the picture.
  *

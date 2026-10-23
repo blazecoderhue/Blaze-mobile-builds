@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
 )
 
 // HealthOf is a copy of a provider|model's health (zero when never tried).

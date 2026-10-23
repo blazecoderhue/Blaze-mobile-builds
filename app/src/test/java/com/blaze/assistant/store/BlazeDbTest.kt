@@ -127,7 +127,7 @@ class BlazeDbTest {
 
     @Test fun forPromptPinnedThenMatch() {
         val d = db()
-        val pid = d.add("Name is Luke").first; d.setPinned(pid, true)
+        val pid = d.add("Name is Sam").first; d.setPinned(pid, true)
         for (i in 0 until 50) d.add("Filler fact number " + "x".repeat(i % 7 + 1) + " about topic" + ('a' + i % 26) + ('a' + i / 26))
         d.add("HomeGlow deploys with shopify theme push")
         val got = d.forPrompt("deploy homeglow", 8, 600)

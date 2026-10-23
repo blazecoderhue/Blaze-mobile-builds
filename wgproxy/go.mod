@@ -1,4 +1,4 @@
-module github.com/lacksonkapapahue/Blaze-agent/wgproxy
+module github.com/blazeinchue/Blaze-agent/wgproxy
 
 go 1.26.10
 

@@ -9,14 +9,14 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** v0.28.1: tool calls leaked as text (Luke's exact strings) are run as real calls, or stripped, never shown. */
+/** v0.28.1: tool calls leaked as text (Blazeinchue's exact strings) are run as real calls, or stripped, never shown. */
 class ToolLeakTest {
     private fun tool(n: String) = JSONObject().put("type", "function").put("function", JSONObject().put("name", n)
         .put("parameters", JSONObject().put("type", "object").put("properties", JSONObject())))
     private val all = JSONArray().apply { listOf("find_tool", "browser_open", "memory_save", "remember", "web_search").forEach { put(tool(it)) } }
 
     private val findTool = "[/find_tool need=\"stock tracking\"]"
-    private val github = "[github_open repo=\"LacksonKapapa/Blaze-Agent\"]"
+    private val github = "[github_open repo=\"Blazeinchue/Blaze-Agent\"]"
     private val blazer = "[/blazer_save kind=features text=\"## App ideas\n1. **Offline mode**: works without data\n2. **Sync**: across devices"
 
     private fun only(r: Pair<JSONArray, String>?): Pair<String, JSONObject> {
@@ -92,18 +92,18 @@ class ToolLeakTest {
         assertEquals(s, ToolLeak.strip(s, final = false))
     }
 
-    // v0.28.3: Luke's 15:55 reply was saved by the old build and still drawn raw after updating to v0.28.1.
+    // v0.28.3: Blazeinchue's 15:55 reply was saved by the old build and still drawn raw after updating to v0.28.1.
     @Test fun oldSavedLeaksAreHiddenWhenDrawn() {
         assertEquals(ToolLeak.STORED_EMPTY, ToolLeak.bubbleText(github))
         assertFalse(ToolLeak.bubbleText(github).contains("["))
         assertEquals("", ToolLeak.forDisplay(github))
         assertEquals("Opening it now.", ToolLeak.bubbleText("Opening it now. $github"))
         // The chat-list preview under a project chat.
-        assertEquals("", ToolLeak.forDisplay("[github_open repo=\"LacksonKapapa/Blaze-Agent\"]"))
+        assertEquals("", ToolLeak.forDisplay("[github_open repo=\"Blazeinchue/Blaze-Agent\"]"))
         // Mixed-case owner / repo maps to opening the real repo.
-        val (n, a) = only(ToolLeak.toCalls("[github_open repo=\"LacksonKapapa/Blaze-Agent\"]", all))
+        val (n, a) = only(ToolLeak.toCalls("[github_open repo=\"Blazeinchue/Blaze-Agent\"]", all))
         assertEquals("browser_open", n); assertEquals("https://gitlab.com/blazeinchue/Blaze-agent", a.getString("url"))
-        assertEquals(ToolLeak.BLAZE_REPO_URL, ToolLeak.githubUrl(JSONObject().put("repo", "lacksonkapapa/BLAZE-AGENT")))
+        assertEquals(ToolLeak.BLAZE_REPO_URL, ToolLeak.githubUrl(JSONObject().put("repo", "blazeinchue/BLAZE-AGENT")))
     }
 
     @Test fun displayLeavesNormalRepliesByteForByte() {

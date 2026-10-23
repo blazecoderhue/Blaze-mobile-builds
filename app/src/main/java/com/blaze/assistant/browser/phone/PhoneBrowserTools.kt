@@ -64,12 +64,11 @@ object PhoneBrowserTools {
         "phone_open" -> "Opening ${hostish(a.optString("url"))} on Blaze Phone"
         "phone_read" -> "Reading Blaze Phone's page"
         "phone_act" -> when (a.optString("action")) {
-            // Never a raw element id ("e12") or call text in the chat's step line; the live tile gets the element's label.
-            "click" -> a.optString("target").trim().let { t -> if (t.isEmpty() || Regex("^\\[?e\\d+\\]?$").matches(t)) "Tapping on Blaze Phone" else "Tapping \u201c${t.take(40)}\u201d" }
+            "click" -> "Tapping " + readable(a.optString("target"), "on the page")
             "type" -> "Typing on Blaze Phone"
             "key" -> "Pressing ${a.optString("key").ifBlank { "a key" }}"
             "scroll" -> "Scrolling Blaze Phone"
-            "select" -> "Choosing ${a.optString("option").take(40)}"
+            "select" -> "Choosing " + readable(a.optString("option"), "an option")
             "navigate" -> "Going to ${hostish(a.optString("text"))}"
             "fill_login" -> "Filling your saved login"
             else -> "Working on Blaze Phone"
@@ -78,6 +77,19 @@ object PhoneBrowserTools {
         "phone_wait" -> "Waiting for the page"
         "phone_handoff" -> "Asking you to take control"
         else -> "Checking Blaze Phone"
+    }
+
+    /**
+     * 0.45.19 (phone 10:07 "Tapping e61"): the page's element refs (e61, ref=e12, [e3]) and CSS / XPath selectors never
+     * reach the status line; a visible label does ("Reserve Now"). Pure.
+     */
+    fun readable(target: String, fallback: String): String {
+        val t = target.trim().trim('"', '\'')
+        if (t.isEmpty()) return fallback
+        val ref = Regex("^\\[?(ref\\s*[=:]\\s*)?#?e\\d+\\]?$", RegexOption.IGNORE_CASE)
+        val selector = Regex("^(//|/html|[#.\\[]|\\w+\\[|\\w+[#.][\\w-]+)|[>~]\\s|:nth-|::|=\\s*['\"]")
+        if (ref.matches(t) || selector.containsMatchIn(t) || t.length > 60) return fallback
+        return t.take(40)
     }
 
     private fun hostish(u: String) = u.trim().removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore('/').take(40)
@@ -103,7 +115,8 @@ object PhoneBrowserTools {
     private suspend fun runInner(d: PhoneDriver, name: String, a: JSONObject, shots: MutableList<String>, confirm: suspend (String, String, String) -> Boolean): String = try {
         d.step(describe(name, a))
         when (name) {
-            "phone_status" -> d.status()
+            // 0.45.19-speed: status always says plainly what was and wasn't completed (device test: "Booking confirmed!" mid-task).
+            "phone_status" -> d.status() + "\n" + progress(d)
             "phone_open" -> {
                 val url = a.optString("url").trim()
                 if (url.isEmpty()) "Give a URL or the site's name." else if (SiteResolver.isUrlish(url)) d.open(url) else openByName(d, url)
@@ -122,6 +135,14 @@ object PhoneBrowserTools {
             else -> "Unknown Blaze Phone tool."
         }
     } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { "Blaze Phone error: ${com.blaze.assistant.browser.SecureInput.scrub(e.message.orEmpty().take(200))}" }
+
+    /** What Blaze Phone has and hasn't completed, from the page as it is now. Never claims more than the page shows. */
+    suspend fun progress(d: PhoneDriver): String {
+        if (!d.hasPage()) return "Nothing open on Blaze Phone: nothing booked, ordered or paid."
+        val s = try { d.snapshot() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+            ?: return "Couldn't read the page right now: not booked, ordered or paid as far as Blaze can see (no confirmation seen)."
+        return "So far: " + PhonePolicy.verify(s).progress() + " Page: " + s.title.take(80) + "."
+    }
 
     /** The DOM couldn't be read: only then a screenshot (never as a substitute for verification). */
     private suspend fun readFallback(d: PhoneDriver, shots: MutableList<String>): String {
@@ -179,7 +200,7 @@ object PhoneBrowserTools {
             "click" -> {
                 if (target.isEmpty()) return "click needs a target (an id like e12, or its words)."
                 val t = d.locate(target, false) ?: return "No element \u201c${target.take(40)}\u201d on the page now. phone_read for fresh ids."
-                d.step("Tapping \u201c${t.label.take(40).ifBlank { "an element" }}\u201d")
+                if (t.label.isNotBlank()) d.step("Tapping \u201c${t.label.take(40)}\u201d")
                 val card = d.focusInfo().card
                 when (PhonePolicy.gate("click", t.label, t.node(), card)) {
                     PhonePolicy.Gate.CONFIRM -> if (!confirm("Tap \u201c${t.label.take(40)}\u201d on $site?", "On Blaze Phone. This looks like it books, pays, sends or submits something.", "Tap")) return refused(t.label)

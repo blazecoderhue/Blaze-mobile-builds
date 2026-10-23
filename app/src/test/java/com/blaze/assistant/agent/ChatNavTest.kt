@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** v0.28.3: project chats are their own place; the main Chat thread is never replaced (Luke's phone report). */
+/** v0.28.3: project chats are their own place; the main Chat thread is never replaced (Blazeinchue's phone report). */
 class ChatNavTest {
     private val projectOf = mapOf("pc1" to "p1", "pc2" to "p1", "pc9" to "p2")
     private fun of(id: String): String? = projectOf[id]

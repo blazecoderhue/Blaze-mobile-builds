@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
-	"github.com/lacksonkapapahue/blaze-desktop/internal/llm"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/llm"
 )
 
 //go:embed web

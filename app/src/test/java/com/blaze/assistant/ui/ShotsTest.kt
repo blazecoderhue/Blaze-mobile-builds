@@ -134,7 +134,7 @@ open class ShotsTest {
     @Composable
     private fun Chat(plus: Boolean = false, views: Boolean = false, chip: String = "", input: String = "", busy: Boolean = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, routerOk = true, onRouter = {}, avatar = "Luke", onAvatar = {}, mood = if (busy) Mood.ACTING else Mood.IDLE)
+            ShellTopBar("chat", {}, {}, {}, routerOk = true, onRouter = {}, avatar = "Sam", onAvatar = {}, mood = if (busy) Mood.ACTING else Mood.IDLE)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 ThreadSample(busy)
                 if (plus || views) SheetScrim {}
@@ -180,14 +180,14 @@ open class ShotsTest {
     @Test fun views() = shot("04-views") { Chat(views = true, input = "/views") }
     @Test fun avatar() = shot("05-avatar-menu") {
         Chat()
-        AvatarMenu("Luke", "luke@example.com", listOf(
+        AvatarMenu("Sam", "sam@example.com", listOf(
             MenuItem("account", "Account", "Signed in"), MenuItem("settings", "Settings"), MenuItem("router", "BlazeRouter", "AUTO"),
             MenuItem("views", "All views", "/VIEWS"), MenuItem("control", "Phone control", "ON"), MenuItem("themes", "Themes", "Classic"),
             MenuItem("update", "Check for updates", "v0.15.0"), MenuItem("signout", "Sign out")), onPick = {}, onDismiss = {})
     }
     @Test fun projects() = shot("06-projects") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("projects", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("projects", {}, {}, {}, true, {}, "Sam", {})
             ProjectsPane(listOf(Project("p1", "Northrise CS year 2", chats = listOf("c2")), Project("p2", "HomeGlow store", chats = listOf("c3", "c4")),
                 Project("p3", "Portfolio", chats = listOf("c1"))), chats, busy = setOf("c3"), needsYou = setOf("c1"), openId = "",
                 onOpen = {}, onBack = {}, onCreate = {}, onChat = {}, onNewChat = {}, onInstructions = { _, _ -> }, onDelete = {})
@@ -195,7 +195,7 @@ open class ShotsTest {
     }
     @Test fun design() = shot("07-design-exit", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Design")
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Design")
             Box(Modifier.weight(1f)) { DesignView("~/site/index.html", busy = false, status = "", onAsk = {}, onOpenInBrowser = {}, home = File("/home"), preview = false) }
         }
     }
@@ -232,7 +232,7 @@ open class ShotsTest {
     }
     @Test fun clearUndo() = shot("41-clear-undo") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {})
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 Welcome(needsSetup = false, onSetup = {}) {}
                 UndoBar("Chat cleared \u00b7 nothing is forgotten", onUndo = {})
@@ -243,7 +243,7 @@ open class ShotsTest {
     }
     @Test fun questionInline() = shot("42-question-inline", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, mood = Mood.ACTING)
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, mood = Mood.ACTING)
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
                 UserBubble("Book me a bus to Lusaka on Friday")
                 Spacer(Modifier.height(16.dp))
@@ -257,7 +257,7 @@ open class ShotsTest {
 
     @Test fun router() = shot("09-router") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {})
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
                 Label("Settings \u203a BlazeRouter", size = 10.sp, modifier = Modifier.padding(top = 18.dp))
                 RouterPage(onClassic = {})
@@ -266,9 +266,9 @@ open class ShotsTest {
     }
     @Test fun projectBrief() = shot("10-project-brief") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("projects", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("projects", {}, {}, {}, true, {}, "Sam", {})
             ProjectsPane(listOf(Project("p2", "HomeGlow store", "Friendly, short replies. Prices in USD.", chats = listOf("c3", "c4"),
-                brief = "Purpose: grow the HomeGlow Shopify store to 20 orders a week.\nRules: free tools only; every customer message needs Luke's OK.\n" +
+                brief = "Purpose: grow the HomeGlow Shopify store to 20 orders a week.\nRules: free tools only; every customer message needs Sam's OK.\n" +
                     "Key files: ~/homeglow/products.csv, ~/homeglow/brand.md\nIn progress: 5 new lamp listings, TikTok week 3.")),
                 chats, busy = setOf("c3"), needsYou = emptySet(), openId = "p2",
                 onOpen = {}, onBack = {}, onCreate = {}, onChat = {}, onNewChat = {}, onInstructions = { _, _ -> }, onDelete = {})
@@ -276,7 +276,7 @@ open class ShotsTest {
     }
     @Test fun longChat() = shot("11-long-chat", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {})
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 UserBubble("Where did we land on the lamp prices?")
                 WorkCard(listOf(step(21, "Looking back through this chat for \u201clamp prices\u201d"), step(22, "Reading an earlier message")), live = false,
@@ -300,13 +300,13 @@ open class ShotsTest {
     }
     @Test fun learn() { seedCards(); shot("12-learn") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Learn")
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Learn")
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) { LearnPage() }
         }
     } }
     @Test fun flashcard() { seedCards(); shot("13-flashcard", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Learn")
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Learn")
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp)) { LearnPage(startDeck = "CIT102 loops", reveal = true, now = t0) }
         }
     } }
@@ -316,7 +316,7 @@ open class ShotsTest {
             accents = listOf("#e8743b", "#2f5d50"), fonts = listOf("Playfair Display", "Inter"), notes = "Warm, cosy home decor for young renters"))
         shot("14-seller") {
             Column(Modifier.fillMaxSize()) {
-                ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Seller")
+                ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Seller")
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) { SellerPage(digest0 = true) }
             }
         }
@@ -328,7 +328,7 @@ open class ShotsTest {
         com.blaze.assistant.browser.SecureInput.Field("password", "GitHub password", com.blaze.assistant.browser.SecureInput.Kind.PASSWORD))
     @Composable private fun BrowserChat(content: @Composable () -> Unit) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, mood = Mood.ACTING)
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, mood = Mood.ACTING)
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 UserBubble("Star the Blaze-agent repo on GitHub for me")
                 WorkCard(listOf(step(31, "Browsing github.com/login"), step(32, "Reading the page"), step(33, "Waiting for you: Sign in to GitHub")),
@@ -339,7 +339,7 @@ open class ShotsTest {
     }
     @Test fun secureForm() = shot("30-secure-form") {
         BrowserChat { SecureForm("github.com", "Sign in to GitHub", "GitHub needs you signed in to star the repo.", signIn,
-            onSubmit = { _, _ -> }, onCancel = {}, onWatch = {}, preset = mapOf("email" to "luke", "password" to "not-a-real-one"), notifPrompt = false) }
+            onSubmit = { _, _ -> }, onCancel = {}, onWatch = {}, preset = mapOf("email" to "sam", "password" to "not-a-real-one"), notifPrompt = false) }
     }
     @Test fun secureFormDark() = shot("31-secure-form-dark", dark = true) {
         BrowserChat { SecureForm("api.groq.com", "Your Groq API key", "Paste it once; Blaze saves it encrypted on this phone.",
@@ -348,7 +348,7 @@ open class ShotsTest {
     }
     @Test fun noPasswordChoice() = shot("32-no-password-choice") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {})
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 UserBubble("Sign me in to GitHub")
                 WorkCard(listOf(step(41, "Browsing github.com/login"), step(42, "GitHub says this account can't use a password")), live = false, startAt = t0, endAt = t0 + 9_000)
@@ -361,12 +361,12 @@ open class ShotsTest {
     @Test fun savedLogins() {
         com.blaze.assistant.browser.Vault.fileOverride = File(System.getProperty("java.io.tmpdir"), "blaze-shots-vault-" + System.nanoTime() + ".json")
         com.blaze.assistant.browser.Vault.seal = { it }; com.blaze.assistant.browser.Vault.open = { it }
-        com.blaze.assistant.browser.Vault.save("github.com", "email", "luke@example.com")
+        com.blaze.assistant.browser.Vault.save("github.com", "email", "sam@example.com")
         com.blaze.assistant.browser.Vault.save("github.com", "password", "not-a-real-one")
         com.blaze.assistant.browser.Vault.save("console.groq.com", "groq_key", "gsk_not_real_0000")
         shot("33-saved-logins") {
             Column(Modifier.fillMaxSize()) {
-                ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Saved logins")
+                ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Saved logins")
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) { SavedLoginsPage() }
             }
         }
@@ -393,21 +393,21 @@ open class ShotsTest {
     private fun mem(id: Long, kind: String, subject: String, text: String, related: String = "", turn: Long = 0, ago: Int = 40 - id.toInt()) =
         com.blaze.assistant.agent.Mind.Mem(id, kind, subject, text, related, turn, t0 - ago * day, t0 - ago * day)
     private val mems = listOf(
-        mem(1, "profile", "You", "Luke: Computer Science student at Northrise University, Ndola"),
+        mem(1, "profile", "You", "Sam: Computer Science student at Northrise University, Ndola"),
         mem(2, "profile", "You", "From Chingola, Zambia; finished school at Amano Christian School in 2025"),
         mem(3, "profile", "You", "Phone has 3 GB of RAM; data is expensive, prefers low-data answers (inferred)"),
         mem(4, "preference", "Replies", "Short, friendly replies; no long lists unless asked"),
         mem(5, "preference", "Money", "Picks the free or cheapest option first (inferred)"),
         mem(6, "preference", "Study", "Studies at night, 21:00 to 23:00, on weekdays", related = "Northrise University"),
         mem(7, "preference", "Music", "Lofi or afro beats while studying", related = "Study"),
-        mem(8, "person", "Gloria", "Gloria Gozza is Luke's cousin; he sends her his school documents", related = "Northrise University"),
+        mem(8, "person", "Gloria", "Gloria Gozza is Sam's cousin; he sends her his school documents", related = "Northrise University"),
         mem(9, "person", "Gloria", "Gloria's birthday is on 3 March"),
-        mem(10, "person", "Mutale", "Mutale is Luke's CIT102 lecturer", related = "CIT102"),
-        mem(11, "person", "Chanda", "Chanda is in Luke's NET103 group project", related = "NET103 group project"),
+        mem(10, "person", "Mutale", "Mutale is Sam's CIT102 lecturer", related = "CIT102"),
+        mem(11, "person", "Chanda", "Chanda is in Sam's NET103 group project", related = "NET103 group project"),
         mem(12, "project", "HomeGlow store", "Shopify dropshipping store selling lamps and home decor", related = "Gloria"),
         mem(13, "project", "HomeGlow store", "Goal: 20 orders a week by December"),
         mem(14, "project", "Portfolio", "One-page portfolio site in ~/site, hosted free on GitHub Pages"),
-        mem(15, "project", "NET103 group project", "Network design report due 30 October; Luke owns the diagrams", related = "Chanda"),
+        mem(15, "project", "NET103 group project", "Network design report due 30 October; Sam owns the diagrams", related = "Chanda"),
         mem(16, "project", "Blaze", "Building Blaze, an AI assistant for Android, Desktop and CLI"),
         mem(17, "decision", "Lamp prices", "Moon lamp at $24.99 and the mini at $19.99 for the HomeGlow store, free shipping over $35", turn = 41),
         mem(18, "decision", "Ads", "TikTok first for the HomeGlow store; no paid ads until 10 organic orders", turn = 41),
@@ -454,21 +454,6 @@ open class ShotsTest {
 
     @Test fun settingsList() = shot("20-settings") { SettingsFrame("Settings") { SettingsList {} } }
 
-    @Test fun modelPicker() = shot("21-model-picker") {
-        SettingsFrame("Brain (classic editor)") {
-            Spacer(Modifier.height(18.dp))
-            Label("Model", modifier = Modifier.padding(bottom = 8.dp))
-            ModelField("meta-llama/llama-3.3-70b-instruct:free", open = true) {}
-            ModelList(listOf(
-                com.blaze.assistant.agent.ModelCatalog.Model("meta-llama/llama-3.3-70b-instruct:free", "Llama 3.3 70B Instruct", "free"),
-                com.blaze.assistant.agent.ModelCatalog.Model("google/gemini-2.0-flash-exp:free", "Gemini 2.0 Flash", "free"),
-                com.blaze.assistant.agent.ModelCatalog.Model("deepseek/deepseek-chat-v3-0324:free", "DeepSeek V3", "free"),
-                com.blaze.assistant.agent.ModelCatalog.Model("qwen/qwen-2.5-coder-32b-instruct:free", "Qwen 2.5 Coder 32B", "free"),
-                com.blaze.assistant.agent.ModelCatalog.Model("mistralai/mistral-small-3.1-24b-instruct", "Mistral Small 3.1", "128k context")),
-                selected = "meta-llama/llama-3.3-70b-instruct:free", query = "", onQuery = {}, onPick = {})
-        }
-    }
-
     @Test fun onboarding() = shot("22-onboarding") { SetupFlow(startPage = 1) {} }
 
     @Test fun accounts() = shot("23-accounts") {
@@ -484,7 +469,7 @@ open class ShotsTest {
 
     @Test fun workCard() = shot("25-work-card", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, mood = Mood.ACTING)
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, mood = Mood.ACTING)
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 UserBubble("Make me a one-page portfolio site and show it to me")
                 WorkCard(doneSteps, live = false, startAt = t0 + 9_000, endAt = t0 + 9_000 + 191_000, open0 = true)
@@ -520,7 +505,7 @@ open class ShotsTest {
     // v0.23.0: views + skills. "Make flashcards" → skills on the work card, a Learn deck, a short reply.
     @Test fun viewsSkills() = shot("35-views-skills") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {})
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 UserBubble("Make me flashcards on CIT102 loops")
                 WorkCard(listOf(step(51, "Skills: study-flashcards, tutor"), step(52, "Making flashcards", "flashcards {\"action\":\"add\",\"deck\":\"CIT102 loops\"}"),
@@ -552,7 +537,7 @@ open class ShotsTest {
             .put("units", "m").put("parts", parts))
         shot("36-design-3d") {
             Column(Modifier.fillMaxSize()) {
-                ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Design")
+                ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Design")
                 Box(Modifier.weight(1f)) { DesignView(made.open ?: "", busy = false, status = "", onAsk = {}, onOpenInBrowser = {}, home = null, preview = false) }
             }
         }
@@ -577,7 +562,7 @@ open class ShotsTest {
             .put("units", "m").put("parts", parts))
         shot("37-design-3d-fallback") {
             Column(Modifier.fillMaxSize()) {
-                ShellTopBar("chat", {}, {}, {}, true, {}, "Luke", {}, viewChip = "Design")
+                ShellTopBar("chat", {}, {}, {}, true, {}, "Sam", {}, viewChip = "Design")
                 Box(Modifier.weight(1f)) { DesignView(made.open ?: "", busy = false, status = "", onAsk = {}, onOpenInBrowser = {}, home = null, preview = false,
                     initialFailure = "WebGL is turned off in this phone's WebView (no WebGL 1 or 2), so three.js can't draw.") }
             }
@@ -675,29 +660,6 @@ open class ShotsTest {
     }
 
     // v0.23.4: Settings › Brains / Auto, models per provider with cooling counts, one provider opened.
-    @Test fun autoPool() = shot("38-auto-pool") {
-        fun S(pid: String, name: String, n: Int, cool: Int, tools: Int, at: Long, err: String, next: Long) =
-            com.blaze.assistant.agent.FreeRouter.PoolSummary(pid, name, n, cool, tools, at, err, next)
-        val rows = listOf(
-            S("gemini", "Google Gemini", 9, 1, 7, 1L, "", 0),
-            S("groq", "Groq", 12, 12, 9, 1L, "", 40_000),
-            S("nvidia", "NVIDIA NIM", 31, 2, 24, 1L, "", 0),
-            S("openrouter", "OpenRouter", 14, 0, 10, 1L, "", 0),
-            S("pollinations", "Keyless", 1, 0, 0, 0L, "", 0),
-        )
-        val nim = listOf(
-            PoolModel("moonshotai/kimi-k2.6", true, "worked", false),
-            PoolModel("z-ai/glm-5.3", true, "limited · back in 52s · rate limit", true),
-            PoolModel("nvidia/nemotron-3-super-120b-a12b", true, "untried", false),
-            PoolModel("meta/llama-3.3-70b-instruct", true, "failed · back in 23h 59m · not available", true),
-            PoolModel("deepseek-ai/deepseek-v4.1-flash", true, "untried", false),
-            PoolModel("google/gemma-4-31b-it", false, "untried", false),
-        )
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
-            PageHead("Brains", "Auto (free routing)", "Every free model your providers offer, taking turns.")
-            AutoPoolPanel(rows, refreshing = false, onRefresh = {}, models = { if (it == "nvidia") nim else emptyList() }, initiallyOpen = "nvidia")
-        }
-    }
     // v0.24.7 Magic Hand: the dock over an app, the menu (shared pointer tiles), grab, teach review and the watches page.
     private fun handState() = com.blaze.assistant.phone.MagicHandState.point(com.blaze.assistant.phone.MagicHandState.start(false),
         "K1,299", com.blaze.assistant.phone.MagicHandLogic.Kind.VALUE, "Jumia")
@@ -881,7 +843,7 @@ open class ShotsTest {
         }
     }
 
-    // Luke's own message with Markdown: rendered, never raw "## App" / "**".
+    // Sam's own message with Markdown: rendered, never raw "## App" / "**".
     @Test fun userBubbleMarkdown() = shot("66-user-bubble-markdown") {
         Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             UserBubble("## App\n1. **Offline mode**: works without data\n2. **Voice notes**: *quick* capture\n- Sync with `git`\n- See [the repo](https://gitlab.com/blazeinchue/Blaze-agent)")
@@ -945,20 +907,20 @@ open class ShotsTest {
         }
     }
 
-    // v0.28.3 project chats: the project page with the round back button (Luke's phone, dark), a project chat screen inside
+    // v0.28.3 project chats: the project page with the round back button (Sam's phone, dark), a project chat screen inside
     // Projects (project name over the chat title, same thread and composer as Chat), and main Chat unchanged after it.
-    private val pcChats = listOf(ChatMeta("pc1", "Store Feature Preferences", t0, false, "[github_open repo=\"LacksonKapapa/Blaze-Agent\"]"),
+    private val pcChats = listOf(ChatMeta("pc1", "Store Feature Preferences", t0, false, "[github_open repo=\"Blazeinchue/Blaze-Agent\"]"),
         ChatMeta("pc2", "Launch checklist", t0, false, "Five steps left before the beta"))
     @Test fun projectPageBack() = shot("71-project-page-back", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("projects", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("projects", {}, {}, {}, true, {}, "Sam", {})
             ProjectsPane(listOf(Project("p9", "New project", chats = listOf("pc1", "pc2"))), pcChats, busy = emptySet(), needsYou = emptySet(), openId = "p9",
                 onOpen = {}, onBack = {}, onCreate = {}, onChat = {}, onNewChat = {}, onInstructions = { _, _ -> }, onDelete = {})
         }
     }
     @Test fun projectChatScreen() = shot("72-project-chat", dark = true) {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("projects", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("projects", {}, {}, {}, true, {}, "Sam", {})
             ProjectChatHeader("New project", "Launch checklist", onBack = {}, onRename = {}, onDelete = {}, onNewChat = {})
             Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp)) {
                 UserBubble("What's left before the beta?", pos = GroupPos.SINGLE)
@@ -973,7 +935,7 @@ open class ShotsTest {
     }
     @Test fun projectChatEmpty() = shot("73-project-chat-new") {
         Column(Modifier.fillMaxSize()) {
-            ShellTopBar("projects", {}, {}, {}, true, {}, "Luke", {})
+            ShellTopBar("projects", {}, {}, {}, true, {}, "Sam", {})
             ProjectChatHeader("HomeGlow store", "", onBack = {}, onRename = {}, onDelete = {}, onNewChat = {}, canEdit = false)
             Box(Modifier.weight(1f).fillMaxWidth()) { ProjectChatEmpty("HomeGlow store", hasInstructions = true) }
             Composer(TextFieldValue(""), {}, busy = false, canSend = false, plusOpen = false, chip = "", agents = 0,

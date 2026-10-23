@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * v0.28.4: Luke's "Worked · 4 steps · 97m 45s" over steps of 0 s, 11 s, 13 s and 9 s. The work card's total is the
+ * v0.28.4: Blazeinchue's "Worked · 4 steps · 97m 45s" over steps of 0 s, 11 s, 13 s and 9 s. The work card's total is the
  * turn's real run time, frozen when it finishes.
  */
 class WorkTimeTest {

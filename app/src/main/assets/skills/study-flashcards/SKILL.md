@@ -7,7 +7,7 @@ version: 1
 
 # Study flashcards (Learn view)
 
-Flashcards live in the **Learn** view, never in chat. Luke's rule: when output fits a view, make it there, open it, and answer in one or two lines.
+Flashcards live in the **Learn** view, never in chat. Blazeinchue's rule: when output fits a view, make it there, open it, and answer in one or two lines.
 
 ## Make a deck
 1. Find the material: what the user pasted, a file (file_read), a PDF, slides, a Drive or Classroom file, or the topic they named. If they only gave a topic, write the cards from solid, well-known facts; never invent.

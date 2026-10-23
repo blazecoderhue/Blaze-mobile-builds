@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
-	"github.com/lacksonkapapahue/blaze-desktop/internal/keystore"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/keystore"
 )
 
 // Keys saved before BlazeRouter existed (Settings › Providers & keys, or Blaze CLI)

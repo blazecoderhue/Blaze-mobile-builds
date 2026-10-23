@@ -1,7 +1,7 @@
 package com.blaze.assistant.agent
 
 /**
- * /clear (v0.24.0). Luke: "it clears the screen of all the messages".
+ * /clear (v0.24.0). Blazeinchue: "it clears the screen of all the messages".
  *
  * Only the visible thread is emptied. The conversation's model history stays on disk (chat file `history`),
  * in the journal (`mind.db`, search_chat) and in the long-chat index (`longchat.db`), so One Mind can still

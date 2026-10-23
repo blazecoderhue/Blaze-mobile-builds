@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v0.24.5: the real Blaze mascot (Luke's art): a flame/teardrop with the tip at the top right, orange to blue, two dark eyes, soft glow. Geometry = phone/Mascot.kt. -->
+<!-- v0.24.5: the real Blaze mascot (Blazeinchue's art): a flame/teardrop with the tip at the top right, orange to blue, two dark eyes, soft glow. Geometry = phone/Mascot.kt. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
     <path android:pathData="M54.00,65.70 m-35.20,0 a35.20,35.20 0 1,0 70.40,0 a35.20,35.20 0 1,0 -70.40,0 Z"><aapt:attr name="android:fillColor"><gradient android:type="radial" android:centerX="54.00" android:centerY="65.70" android:gradientRadius="35.20"><item android:offset="0" android:color="#663D7BFF"/><item android:offset="1" android:color="#003D7BFF"/></gradient></aapt:attr></path>

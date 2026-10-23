@@ -129,7 +129,7 @@ object Voice {
                 GeminiVoice.speak(text, id, flush)
                 return true
             }
-            tellGeminiOnce(if (!GeminiVoice.hasKey()) GeminiTts.NO_KEY + " Using the phone voice for now." else GeminiVoice.lastError.ifBlank { "Gemini voice isn't working right now." } + " Using the phone voice for now.")
+            tellGeminiOnce(if (!GeminiVoice.hasKey()) GeminiTts.NO_KEY + " Using the phone voice for now." else GeminiVoice.lastError.ifBlank { "The Google voice isn't working right now." } + " Using the phone voice for now.")
             if (!ttsReady) return false
             if (flush) GeminiVoice.stop()
             tts?.speak(text, if (flush) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, id)
@@ -304,7 +304,7 @@ object Voice {
     } catch (_: Exception) { emptyList() }
 
     /** "Hear it" in Settings → Voice: always the phone's voice (that's what those settings tune). */
-    fun preview(text: String = "Hi Luke, this is how I sound.") {
+    fun preview(text: String = "Hi, this is how I sound.") {
         if (!ttsReady) return
         applyPrefs()
         MyVoice.stop()

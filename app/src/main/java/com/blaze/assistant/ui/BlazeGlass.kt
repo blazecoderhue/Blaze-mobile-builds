@@ -91,7 +91,7 @@ fun GlassIconButton(
     }
 }
 
-/** Mascot geometry (same numbers as Luke's art): body circle radius 1 at (0, 0), y down, flame tip up-right. */
+/** Mascot geometry (same numbers as Blazeinchue's art): body circle radius 1 at (0, 0), y down, flame tip up-right. */
 object MascotArt {
     private val start = floatArrayOf(0.06f, -1.53f)
     private val cubics = listOf(

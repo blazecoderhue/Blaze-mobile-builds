@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -36,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -49,6 +51,15 @@ import androidx.compose.ui.unit.sp
 import com.blaze.assistant.browser.phone.PhoneBrowser
 import com.blaze.assistant.browser.phone.PhoneBrowserActivity
 import com.blaze.assistant.browser.phone.PhonePolicy
+import com.blaze.assistant.browser.phone.PhoneUiRules
+import kotlinx.coroutines.delay
+
+/** The Blaze Phone palette for the current theme accent and light / dark (PhoneColors; every pair meets WCAG AA). */
+@Composable
+fun phonePalette(): PhoneColors.Palette {
+    val c = LocalBlaze.current
+    return remember(c.accent, c.dark) { PhoneColors.of(c.accent.toArgb().toLong() and 0xFFFFFFFFL, c.dark) }
+}
 
 /**
  * 0.45.19 Blaze Phone live tile: while Blaze works on its own phone (or waits for the user to take over), a compact
@@ -60,46 +71,48 @@ import com.blaze.assistant.browser.phone.PhonePolicy
 fun PhoneLiveCard() {
     val live by PhoneBrowser.live.collectAsState()
     var hiddenAt by remember { mutableLongStateOf(-1L) }
+    // 0.45.19 fix 9: the 2-minute "recent" window needs a clock; without one the tile never left after Blaze finished.
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(live.at, live.mode) {
+        now = System.currentTimeMillis()
+        while (live.mode == PhonePolicy.Mode.AGENT && now - live.at < PhoneUiRules.RECENT_MS) { delay(5_000); now = System.currentTimeMillis() }
+    }
     val needsUser = live.mode == PhonePolicy.Mode.WAITING
-    // Shown while Blaze works there (a step in the last 2 minutes), and always while it waits for the user.
-    val recent = live.mode == PhonePolicy.Mode.AGENT && System.currentTimeMillis() - live.at < 120_000
-    val show = (needsUser || recent || live.mode == PhonePolicy.Mode.USER) && (needsUser || hiddenAt < live.at)
+    val show = PhoneUiRules.showTile(live.mode, live.at, now, hiddenAt)
     val ctx = LocalContext.current
+    val pal = phonePalette()
     AnimatedVisibility(show, enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 3 },
         exit = fadeOut(tween(220)) + slideOutVertically(tween(220)) { it / 3 }) {
         DisposableEffect(Unit) { PhoneBrowser.watch(true); onDispose { PhoneBrowser.watch(false) } }
         val shape = Glass.card
-        val host = live.url.removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore('/')
-        val pill = when (live.mode) {
-            PhonePolicy.Mode.WAITING -> "Blaze needs you: " + (live.reason ?: "take control")
-            PhonePolicy.Mode.USER -> "You're in control"
-            else -> live.step.ifBlank { "Browsing" }
-        }
+        val host = PhoneUiRules.host(live.url)
+        val pill = PhoneUiRules.pill(live.mode, live.step, live.reason)
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
             .shadow(14.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
-            .clip(shape).background(Glass.surface).border(1.dp, Glass.border, shape)
+            .clip(shape).background(Color(pal.card)).border(1.dp, Color(pal.cardBorder), shape)
             .clickable(onClickLabel = "Open Blaze Phone") { PhoneBrowserActivity.open(ctx, control = false) }
             .semantics { contentDescription = "Blaze Phone: $pill on ${host.ifBlank { "a page" }}. Tap to watch." }
             .padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            PhoneFrame(live.frameNo, Modifier.width(54.dp).height(96.dp))
+            PhoneFrame(live.frameNo, Modifier.width(54.dp).height(96.dp), pal)
             Spacer(Modifier.width(9.dp))
             Column(Modifier.weight(1f)) {
                 Text("Blaze Phone" + if (host.isNotBlank()) " \u00b7 $host" else "", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Glass.blue))
+                    style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(pal.title)))
                 Spacer(Modifier.height(5.dp))
-                StatusPill(pill, working = live.mode == PhonePolicy.Mode.AGENT)
+                StatusPill(pill, working = live.mode == PhonePolicy.Mode.AGENT, chip = Color(pal.chip), onChip = Color(pal.onChip))
                 if (live.mode != PhonePolicy.Mode.USER) {
                     Spacer(Modifier.height(6.dp))
-                    Text("Take control", maxLines = 1,
-                        modifier = Modifier.clip(Glass.pill).background(if (needsUser) Color.White else Glass.raised2)
+                    Text(PhoneUiRules.TAKE_CONTROL, maxLines = 1,
+                        modifier = Modifier.clip(Glass.pill).background(Color(if (needsUser) pal.strong else pal.button))
                             .clickable(onClickLabel = "Take control of Blaze Phone") { PhoneBrowserActivity.open(ctx, control = true) }
                             .padding(horizontal = 10.dp, vertical = 5.dp),
-                        style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = if (needsUser) Color.Black else Glass.text))
+                        style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color(if (needsUser) pal.onStrong else pal.onButton)))
                 }
             }
             if (!needsUser) {
                 Spacer(Modifier.width(4.dp))
-                GlassIconButton(Icons.Rounded.Close, "Hide the Blaze Phone card", size = 30.dp, onClick = { hiddenAt = System.currentTimeMillis() })
+                GlassIconButton(Icons.Rounded.Close, "Hide the Blaze Phone card", size = 30.dp, tint = Color(pal.onButton), bg = Color(pal.button),
+                    onClick = { hiddenAt = System.currentTimeMillis() })
             }
         }
     }
@@ -107,9 +120,9 @@ fun PhoneLiveCard() {
 
 /** The newest frame of Blaze's screen, fitted; a quiet placeholder when this phone has no live view. */
 @Composable
-fun PhoneFrame(frameNo: Long, modifier: Modifier) {
+fun PhoneFrame(frameNo: Long, modifier: Modifier, pal: PhoneColors.Palette = phonePalette()) {
     val shape = RoundedCornerShape(12.dp)
-    Box(modifier.clip(shape).background(Color.White).border(1.dp, Glass.border, shape)) {
+    Box(modifier.clip(shape).background(Color(pal.frame)).border(1.dp, Color(pal.cardBorder), shape)) {
         Canvas(Modifier.fillMaxSize()) {
             if (frameNo < 0) return@Canvas   // read so each new frame redraws
             val pic = PhoneBrowser.frame ?: return@Canvas
@@ -121,7 +134,7 @@ fun PhoneFrame(frameNo: Long, modifier: Modifier) {
             drawImage(pic.asImageBitmap(), srcOffset = IntOffset.Zero, srcSize = IntSize(pw.coerceAtMost(pic.width), ph.coerceAtMost(pic.height)),
                 dstOffset = IntOffset(ox.toInt(), oy.toInt()), dstSize = IntSize((pw * s).toInt().coerceAtLeast(1), (ph * s).toInt().coerceAtLeast(1)))
         }
-        if (PhoneBrowser.frame == null) Text("\u2026", Modifier.align(Alignment.Center),
-            style = TextStyle(fontFamily = Type.Sans, fontSize = 12.sp, color = LightColors.sub))
+        if (frameNo >= 0 && PhoneBrowser.frame == null) Text("\u2026", Modifier.align(Alignment.Center),
+            style = TextStyle(fontFamily = Type.Sans, fontSize = 12.sp, color = Color(pal.frameText)))
     }
 }

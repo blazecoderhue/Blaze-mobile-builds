@@ -270,6 +270,9 @@ object Notifier {
      * Blaze's message (its ack, its reply, its Done ✓ or an honest failure) as a text from Blaze: MessagingStyle,
      * with an inline Reply box. Ack-and-background (HQ 22 Oct 20:36). 0.45.19: through [post].
      */
+    /** 0.45.19: Blaze's ack ("Turning on dark mode.") off screen: a plain text from Blaze, no reply chips. */
+    fun ack(raw: String, chatId: String? = null) = post(raw, BlazeThread.Kind.ACK, chatId)
+
     fun reply(raw: String, isError: Boolean, chatId: String? = null) {
         val t = raw.trim()
         val kind = when {

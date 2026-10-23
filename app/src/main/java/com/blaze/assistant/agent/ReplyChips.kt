@@ -30,14 +30,27 @@ object ReplyChips {
 
     fun isTechnical(part: String): Boolean = tech.any { it.containsMatchIn(part.trim()) }
 
-    /** The chip text to show ("" = nothing). */
-    fun visible(meta: String, showTech: Boolean): String {
-        if (meta.isBlank() || showTech) return meta
+    /**
+     * The chip text to show ("" = nothing). 0.45.19 chat fixes: never the ack label ("ack"), never the action receipt
+     * chips ("✓ Phone status", "⚠ Couldn't confirm …", "✗ Phone act didn't work", "+1 more": "What I did" holds them), and
+     * never a model, provider or route ([ModelHide]) unless the developer flag [dev] is on ([DevFlags.modelInfo]).
+     * Timings / data stay behind Show technical details ([showTech]).
+     */
+    fun visible(meta: String, showTech: Boolean, dev: Boolean = false): String {
+        if (meta.isBlank()) return ""
+        if (dev) return meta
+        if (meta.trim() == Ack.META) return ""
+        if (meta.startsWith("usedup:")) return ""
         // "Heads-up · 14:02" is one human chip even though it has a dot.
         if (meta.startsWith("Heads-up")) return meta
-        // v0.45.0: receipt chips ("✓ Sent to Mum", "⚠ Couldn't confirm: …") always show.
-        return meta.split(" \u00b7 ").map { it.trim() }.filter { it.isNotEmpty() && (Receipt.isChip(it) || !isTechnical(it)) }.joinToString(" \u00b7 ")
+        return meta.split(" \u00b7 ").map { it.trim() }.filter { p ->
+            p.isNotEmpty() && p != Ack.META && !Receipt.isChip(p) && !ModelHide.mentions(p) && !isRouteWord(p) && (showTech || !isTechnical(p))
+        }.joinToString(" \u00b7 ")
     }
+
+    /** Route / lane words that only make sense with a model next to them ("Blaze Cloud", "cloud run", "fallback"). */
+    private fun isRouteWord(p: String): Boolean =
+        Regex("^run$|\\b(blaze cloud|cloud run|via |model|provider|fallback|lane|keyless|free \\(|tier)\\b|^[\u2601]|[\\w.-]+/[\\w.:-]+|\\)$", RegexOption.IGNORE_CASE).containsMatchIn(p)
 
     /**
      * v0.26.2: the old "Fresh start. Earlier turns are out of my context…" / "Fresh start. Here's where we were" bubble.
@@ -47,4 +60,7 @@ object ReplyChips {
         text.startsWith("Fresh start. ") && (meta.contains("New context") || text.startsWith("Fresh start. Earlier turns are out of my context") || text.startsWith("Fresh start. Here's where we were"))
 
     fun showTech(): Boolean = try { Settings.bool(PREF, false) } catch (_: Throwable) { false }
+
+    /** The chip for [meta] with this phone's settings (Show technical details, the developer flag). */
+    fun shown(meta: String): String = visible(meta, showTech(), DevFlags.modelInfo())
 }

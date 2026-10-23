@@ -13,13 +13,20 @@ import com.blaze.assistant.agent.Agent
 import com.blaze.assistant.notify.Notifier
 import com.blaze.assistant.voice.Voice
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.layout.layout
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import com.blaze.assistant.ui.BlazeTheme
 import com.blaze.assistant.ui.ChatScreen
 
-class MainActivity : FragmentActivity() {
+class MainActivity : FragmentActivity(), com.blaze.assistant.ui.BackRule.Shelled {
     private val locked = mutableStateOf(false)
     private var leftAt = 0L
+    /** 0.45.19 fix 4: in picture-in-picture (only Blaze Phone's live view is drawn). */
+    private val pip = mutableStateOf(false)
+    /** When Blaze last opened one of its own screens (that is not "leaving Blaze"). */
+    private var ownLaunchAt = 0L
 
     companion object { const val EXTRA_LISTEN = "listen"; const val ACTION_CALL = "com.blaze.assistant.CALL" }
 
@@ -36,8 +43,23 @@ class MainActivity : FragmentActivity() {
         )
         locked.value = com.blaze.assistant.agent.Settings.appLock
         setContent { BlazeTheme {
-            if (locked.value) com.blaze.assistant.ui.LockScreen { unlock() } else ChatScreen()
+            // 0.45.19 fix 4: in picture-in-picture only Blaze Phone's live view is drawn; the chat stays composed (its
+            // draft, attachments and scroll survive) but is not placed, so nothing of it shows in the small window.
+            androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+                androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize().layout { m, c ->
+                    val p = m.measure(c); layout(p.width, p.height) { if (!pip.value) p.place(0, 0) }
+                }) {
+                    if (locked.value) com.blaze.assistant.ui.LockScreen { unlock() } else ChatScreen()
+                }
+                if (pip.value && !locked.value) com.blaze.assistant.browser.phone.PhonePipView()
+            }
         } }
+        // Picture-in-picture follows the user out only while Blaze works on Blaze Phone (auto-enter on API 31+).
+        lifecycleScope.launch {
+            kotlinx.coroutines.flow.combine(com.blaze.assistant.browser.phone.PhoneBrowser.live, Agent.busyChats) { l, b ->
+                com.blaze.assistant.browser.phone.PhonePip.working(l.mode, com.blaze.assistant.browser.phone.PhoneBrowser.ownerChat, b)
+            }.distinctUntilChanged().collect { w -> com.blaze.assistant.browser.phone.PhonePipHost.update(this@MainActivity, w, locked.value) }
+        }
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
@@ -74,6 +96,10 @@ class MainActivity : FragmentActivity() {
             true
         } catch (_: Exception) { false }
     }
+
+    // 0.45.19 fix 7: Back goes to the chat from any view the shell has in front (BackRule); never past the app lock.
+    override fun backTakesToChat(): Boolean = com.blaze.assistant.ui.BackRule.shellTakesBack(locked.value) && !pip.value
+    override fun backToChat() { com.blaze.assistant.ui.BackRule.toChat?.invoke() }
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent); setIntent(intent); handle(intent)
@@ -148,6 +174,29 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onStop() { leftAt = System.currentTimeMillis(); super.onStop() }
+
+    /** Below API 31 Blaze enters picture-in-picture itself when the user leaves while Blaze Phone works. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        com.blaze.assistant.browser.phone.PhonePipHost.enterOnLeave(this, locked.value, android.os.SystemClock.uptimeMillis() - ownLaunchAt < 1500)
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        pip.value = isInPictureInPictureMode
+    }
+
+    /**
+     * Opening one of Blaze's own screens (Blaze Phone, the browser, Music…) is not leaving Blaze: those starts carry
+     * NO_USER_ACTION, so neither auto-enter (API 31+) nor onUserLeaveHint turns the chat into picture-in-picture.
+     */
+    @Deprecated("Activity API")
+    override fun startActivityForResult(intent: android.content.Intent, requestCode: Int, options: Bundle?) {
+        if (com.blaze.assistant.browser.phone.PhonePip.ownScreen(intent.component?.packageName ?: intent.`package`, packageName)) {
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NO_USER_ACTION); ownLaunchAt = android.os.SystemClock.uptimeMillis()
+        }
+        @Suppress("DEPRECATION") super.startActivityForResult(intent, requestCode, options)
+    }
 
     override fun onResume() {
         com.blaze.assistant.ui.MotionTokens.refresh(this)   // v0.27.0: follow "Remove animations"

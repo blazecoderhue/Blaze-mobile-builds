@@ -387,7 +387,7 @@ object Settings {
 
     /**
      * v0.45.9: the name Blaze may greet the user by: the one they typed (Settings › Your name), else the signed-in Blaze
-     * account's first name, else none. Never any other name the prompt mentions (0.45.8: "Hey Luke" with no name set).
+     * account's first name, else none. Never any other name the prompt mentions (0.45.8: "Hey Blazeinchue" with no name set).
      */
     fun greetName(): String? = GreetName.pick(userName, try { com.blaze.assistant.connect.BlazeAccount.user()?.name } catch (_: Throwable) { null })
 

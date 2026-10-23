@@ -34,6 +34,7 @@ object Views {
         BlazeView("skills", "Skills", "Skill library: on, off, restore", page = "skills"),
         BlazeView("music", "Music", "Blaze Music: your songs, playlists and a Store (Jamendo, Internet Archive" + (if (com.blaze.assistant.mediaapps.store.StoreSources.get("youtube") != null) ", YouTube" else "") + ") with downloads", special = "music", aliases = listOf("songs", "player", "music player", "playlist", "playlists")),
         BlazeView("video", "Video", "Blaze Video: your videos, continue watching, and a Store (public-domain films, Blender open movies" + (if (com.blaze.assistant.mediaapps.store.StoreSources.get("youtube") != null) ", YouTube" else "") + ")", special = "video", aliases = listOf("videos", "movies", "films", "video player")),
+        BlazeView("apps", "App Store", "Free open-source apps from their developers' own releases. Not made by Blazeinchue; install at your own risk", page = "appstore", aliases = listOf("app store", "appstore", "open source apps", "foss apps", "get apps")),
         BlazeView("phone", "Phone", "BlazeOS: Blaze's own virtual phone with its own apps and App Store, fullscreen", special = "phone", aliases = listOf("blazeos", "virtual phone", "blaze os")),
         BlazeView("gallery", "Gallery", "Images, music and files Blaze made", special = "gallery"),
         BlazeView("browser", "Browser", "Blaze's own browser and tabs", special = "browser"),
@@ -75,7 +76,7 @@ object Views {
 
     // ---------------- v0.24.6: ask before switching ----------------
 
-    /** "Open in Design?": a chip in the chat that opens the view on one tap (Luke: Blaze asks, it doesn't jump). */
+    /** "Open in Design?": a chip in the chat that opens the view on one tap (Blazeinchue: Blaze asks, it doesn't jump). */
     data class Offer(val id: String, val target: String = "", val n: Long = System.nanoTime())
     val offer = MutableStateFlow<Offer?>(null)
 

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/keystore"
+	"github.com/blazeinchue/blaze-desktop/internal/keystore"
 )
 
 type Provider struct {

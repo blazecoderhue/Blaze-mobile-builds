@@ -8,7 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** v0.28.1 (Luke): Enter never sends a message; only the send button does. */
+/** v0.28.1 (Blazeinchue): Enter never sends a message; only the send button does. */
 class ComposerKeysTest {
     @Test fun messageBoxesUseTheNormalEnterKey() {
         assertEquals(ImeAction.Default, ComposerKeys.Message.imeAction)

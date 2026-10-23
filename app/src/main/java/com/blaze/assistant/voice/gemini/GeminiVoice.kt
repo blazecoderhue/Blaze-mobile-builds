@@ -58,11 +58,11 @@ object GeminiVoice {
     fun make(text: String, voice: String = voice()): Result<Made> {
         val k = key()
         if (k.isBlank()) return Result.failure(IllegalStateException(GeminiTts.NO_KEY))
-        var last = "Gemini voice didn't work this time."
+        var last = "The Google voice didn't work this time."
         for (model in GeminiTts.MODELS) {
             val (code, body) = try { post(k, GeminiTts.requestBody(text, voice, model).toString()) } catch (e: Exception) { 0 to (e.message ?: "") }
             if (code in 200..299) {
-                val a = GeminiTts.audio(body) ?: return Result.failure(IllegalStateException("Gemini sent no sound."))
+                val a = GeminiTts.audio(body) ?: return Result.failure(IllegalStateException("The Google voice sent no sound."))
                 return Result.success(Made(a.first, a.second))
             }
             last = GeminiTts.friendlyError(code, body)

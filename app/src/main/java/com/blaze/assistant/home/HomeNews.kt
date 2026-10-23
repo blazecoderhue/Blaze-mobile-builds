@@ -3,7 +3,7 @@ package com.blaze.assistant.home
 import kotlin.math.abs
 
 /**
- * v0.30.5 (Luke: "add reminder/check-in/heads up for when the home screen [has] new stuff the user might be interested in").
+ * v0.30.5 (Blazeinchue: "add reminder/check-in/heads up for when the home screen [has] new stuff the user might be interested in").
  *
  * After the background Home refresh, anything new on the board since the user last looked (a new story, video, score,
  * release or deadline, or a price that moved ≥ [MOVE_PCT] %) becomes one short heads-up through Proactive.say, so quiet

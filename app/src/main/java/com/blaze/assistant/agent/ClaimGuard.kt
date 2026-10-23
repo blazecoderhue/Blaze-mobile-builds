@@ -3,7 +3,7 @@ package com.blaze.assistant.agent
 import org.json.JSONObject
 
 /**
- * v0.23.2: no fake claims about views. Luke asked for a 3D rocket and got "I'm on that tall modern 3D
+ * v0.23.2: no fake claims about views. Blazeinchue asked for a 3D rocket and got "I'm on that tall modern 3D
  * rocket… view it in the design section", then "I've updated the design to show the engine" and "I've
  * opened the design view", with no design ever made.
  *

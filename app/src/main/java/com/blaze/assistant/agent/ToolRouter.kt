@@ -83,6 +83,10 @@ object ToolRouter {
         Group("seller", "brand kit for the user's store or business (posts, ads, listings, designs)",
             r("""\b(brand|store|shop|shopify|dropship\w*|listing|product|ads?|advert\w*|caption|posts?|content calendar|tiktok|instagram|facebook|marketing|customers?|orders?|digest|competitors?|homeglow)\b"""),
             { it == "brand_kit" }),
+        // 0.45.19: App Store (free open-source apps from their own releases, installed with Android's installer).
+        Group("appstore", "App Store: free open-source Android apps from their developers' releases, installed on this phone with Android's installer",
+            r("""\b(app ?store|apps?|install|f-?droid|open[- ]source|foss|apk|get (?:me )?(?:the |an? )?app)\b"""),
+            { it.startsWith("store_") }),
         Group("study", "flashcards (spaced repetition in the Learn view), study tools",
             r("""\b(flash ?cards?|quiz|revise|revision|study|studying|exam|test me|memori[sz]e|lecture|tutor)\b"""),
             { it == "flashcards" }),
