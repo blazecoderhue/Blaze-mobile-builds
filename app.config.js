@@ -25,7 +25,8 @@ module.exports = () => {
         },
       },
     ],
-    ['react-native-google-cast', {expandedController: true}],
+    // Pinned: '+' resolves to cast-framework 23.x, which needs mediarouter 1.9 (compileSdk 37, AGP 9.1).
+    ['react-native-google-cast', {expandedController: true, androidPlayServicesCastFrameworkVersion: '22.3.1'}],
     'react-native-edge-to-edge',
     [
       'react-native-bootsplash',
