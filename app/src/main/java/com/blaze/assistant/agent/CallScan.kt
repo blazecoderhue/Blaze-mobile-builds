@@ -291,7 +291,8 @@ object CallScan {
     }
 
     /** True when every bracket in [s] is closed (a call whose `)` alone is missing still has readable args). */
-    private fun complete(s: String): Boolean = s.count { it == '[' } == s.count { it == ']' } && s.count { it == '{' } == s.count { it == '}' }
+    private fun complete(s: String): Boolean = s.count { it == '[' } == s.count { it == ']' } && s.count { it == '{' } == s.count { it == '}' } &&
+        s.count { it == '(' } == s.count { it == ')' }
 
     /** What can be read from a cut-off call: the fields a secure form needs, by name. Null when nothing is readable. */
     fun partialArgs(s: String): JSONObject? {
@@ -364,9 +365,9 @@ object CallScan {
         var t = if (hits.isEmpty()) text else removeRanges(text, hits.map { it.start until it.end })
         if (!final) unfinished(t, known).takeIf { it >= 0 }?.let { t = t.substring(0, it) }
         if (t == text) {
-            val a = ToolLeak.strip(t, final)
-            if (a == text || a == text.trim()) return text
-            t = a
+            // Nothing of ours: ToolLeak's own syntax only, else the text exactly as it came (whitespace too).
+            if (ToolLeak.find(t).isEmpty() && (final || ToolLeak.unfinished(t) < 0)) return text
+            t = ToolLeak.strip(t, final)
         } else t = ToolLeak.strip(t, final)
         return t.replace(Regex("""[ \t]+\n"""), "\n").replace(Regex("""\n{3,}"""), "\n\n").trim()
     }
@@ -407,7 +408,8 @@ object CallScan {
         val arr: JSONArray? = when (f) {
             is JSONArray -> f
             is String -> runCatching { JSONArray(f) }.getOrNull()
-                ?: f.split(',', ' ', '+', '/').map { it.trim().trim('"', '\'') }.filter { it.isNotBlank() && it != "and" }.takeIf { it.isNotEmpty() }?.let { JSONArray(it) }
+                ?: f.split(',', ' ', '+', '/').map { it.trim().trim('"', '\'') }.filter { it.isNotBlank() && it != "and" }
+                    .takeIf { it.isNotEmpty() && it.all { w -> Regex("""^[A-Za-z][A-Za-z0-9_\-]{0,31}$""").matches(w) } }?.let { JSONArray(it) }
             is JSONObject -> JSONArray().put(f)
             else -> null
         }
