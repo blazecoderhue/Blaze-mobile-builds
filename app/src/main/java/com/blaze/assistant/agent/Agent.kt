@@ -64,7 +64,8 @@ object ReplyParts {
         // v0.28.1: tool calls written as text ("[/find_tool need=…]") never reach the screen, speech or history;
         // only the gatekeeper reads them (keepCalls) to run them as real calls.
         // v0.44.0: function-style calls (`browser_show()`, `open_app("X")`, a bare JSON call) are hidden too (TextCalls).
-        val raw = if (keepCalls) clean.text else TextCalls.strip(ToolLeak.strip(clean.text, final), final)
+        // 0.45.19: CallScan first (multi-line Python calls, JSON calls mid-prose, fenced tool blocks, cut-off calls).
+        val raw = if (keepCalls) clean.text else TextCalls.strip(ToolLeak.strip(CallScan.clean(clean.text, final), final), final)
         val thinking = (listOf(clean.thinking) + thinkRe.findAll(raw).map { it.groupValues[2].trim() }).filter { it.isNotBlank() }.joinToString("\n\n")
         // v0.45.3: Autopilot's hidden <<done>> / <<continue>> marker is never shown, spoken or kept (a half-typed one waits).
         var text = AutoContinue.strip(thinkRe.replace(raw, ""), final)
@@ -2241,7 +2242,7 @@ When you finish, say what you did in one short sentence.
                 try { Usage.record(req, reply, LlmClient.lastUsage) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: Usage.recordreq reply LlmClient.lastUsag", e) }
                 if (useTools) try {
                     if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) (reply.opt("content") as? String)?.let { txt ->
-                        (ToolCalls.fromText(txt, tools!!) ?: ToolLeak.toCalls(txt, tools))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else ToolLeak.strip(rest)) } }
+                        (CallScan.toCalls(txt, tools!!) ?: ToolCalls.fromText(txt, tools) ?: ToolLeak.toCalls(txt, tools))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else CallScan.clean(ToolLeak.strip(rest))) } }
                     ToolCalls.normalize(reply, tools!!)
                 } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: if reply.optJSONArraytool_calls.length 0", e) }
                 if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) {
@@ -2882,6 +2883,8 @@ When you finish, say what you did in one short sentence.
                     val src = if (spNow != null) Specialists.filter(allTools0, spNow) else allTools0
                     for (i in 0 until src.length()) src.getJSONObject(i).let { t -> if (t.optJSONObject("function")?.optString("name") !in BgAgents.leadOnly) put(t) } }, agentPlan)
                 timer.mark("tools"); if (agentId == null) StartTrace.stage("tools")
+                // 0.45.19: every bubble's final sanitizer knows this app's tool names (CallScan).
+                try { CallScan.learn(ToolCalls.names(allTools0)) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("CallScan.learn", e) }
                 // v0.23.0 views + skills: the view this request needs (its tools on) and the skills that match it,
                 // looked up before the first model call with no extra model call. Shown on the work card.
                 // v0.23.2 follow-on edits: right after a design (or from the Design view's own box), "show engine" edits that design.
@@ -2910,6 +2913,7 @@ When you finish, say what you did in one short sentence.
                 var emptyNudged = false
                 var echoNudged = false
                 var leakNudged = false
+                var credGuarded = false   // 0.45.19 CredAsk: one swap per turn
                 var vncNudged = false
                 var refusalNudged = false
                 var lastOkStep = ""
@@ -3192,14 +3196,16 @@ When you finish, say what you did in one short sentence.
                         if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) {
                             val txt = reply.opt("content") as? String
                             val seen = if (txt != null) ReplyParts.split(txt, keepCalls = true).text else ""
-                            if (txt != null) (ToolCalls.fromText(seen, allTools) ?: ToolLeak.toCalls(seen, allTools) ?: TextCalls.toCalls(seen, allTools) ?: TextCalls.blockCalls(seen, allTools))?.let { (c, rest) ->
-                                reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else TextCalls.strip(ToolLeak.strip(rest)))
+                            // 0.45.19: CallScan first: it reads multi-line Python calls, list / object arguments, JSON calls mid-prose,
+                            // fenced tool blocks and cut-off calls, which the older parsers missed or cut at the first comma.
+                            if (txt != null) (CallScan.toCalls(seen, allTools) ?: ToolCalls.fromText(seen, allTools) ?: ToolLeak.toCalls(seen, allTools) ?: TextCalls.toCalls(seen, allTools) ?: TextCalls.blockCalls(seen, allTools))?.let { (c, rest) ->
+                                reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else CallScan.clean(TextCalls.strip(ToolLeak.strip(rest))))
                                 for (k in 0 until c.length()) ToolStats.add(c.getJSONObject(k).getJSONObject("function").getString("name"), "text_call")
                             }
                             // v0.28.1: tool syntax that maps to no real tool: strip it and ask the model once to answer properly
                             // (native tool call or plain words); after that, an honest plain line, never the raw syntax.
-                            if (txt != null && (reply.optJSONArray("tool_calls")?.length() ?: 0) == 0 && (ToolLeak.has(seen) || TextCalls.has(seen, ToolCalls.names(allTools)) || TextCalls.blockHas(seen, ToolCalls.names(allTools)))) {
-                                val left = TextCalls.blockStrip(ReplyParts.split(txt, final = true).text, ToolCalls.names(allTools))
+                            if (txt != null && (reply.optJSONArray("tool_calls")?.length() ?: 0) == 0 && (ToolLeak.has(seen) || TextCalls.has(seen, ToolCalls.names(allTools)) || TextCalls.blockHas(seen, ToolCalls.names(allTools)) || CallScan.has(seen, ToolCalls.names(allTools)))) {
+                                val left = CallScan.clean(TextCalls.blockStrip(ReplyParts.split(txt, final = true).text, ToolCalls.names(allTools)), true, ToolCalls.names(allTools), loose = true)
                                 if (!leakNudged && nudgesLeft > 0 && step < maxSteps - 2) {
                                     leakNudged = true; nudgesLeft--
                                     if (liveId >= 0) { msgs = msgs.filterNot { it.id == liveId }; liveId = -1L }
@@ -3229,6 +3235,20 @@ When you finish, say what you did in one short sentence.
                         // 0.45.15 (review 22 Oct #6): a reply the gatekeeper choked on never goes on with broken calls.
                         try { ToolCalls.dropMalformed(reply, allTools).takeIf { it > 0 }?.let { CallState.current().errors.add("dropped $it malformed tool call(s)") } } catch (_: Throwable) { reply.remove("tool_calls") }
                     }
+                    // 0.45.19 (CredAsk): a page is open and the reply asks the user to type a login into the chat → the secure
+                    // form instead, once per turn and inside the per-site limits (3 asks, none after a cancel). Never card numbers.
+                    if (!routine && !credGuarded && (reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) try {
+                        val said = ReplyParts.split((reply.opt("content") as? String).orEmpty(), final = true).text
+                        if (CredAsk.asks(said)) {
+                            val host = kotlinx.coroutines.withContext(Dispatchers.Main) { com.blaze.assistant.browser.BrowserEngine.host() }
+                            CredAsk.decide(said, host, formAsks[host] ?: 0, credGuarded, ToolCalls.names(allTools), lastUserText())?.let { c ->
+                                credGuarded = true
+                                if (liveId >= 0) { msgs = msgs.filterNot { it.id == liveId }; liveId = -1L }
+                                reply.put("content", JSONObject.NULL).put("tool_calls", JSONArray().put(c))
+                                CallState.current().errors.add("chat credentials ask replaced by the secure form")
+                            }
+                        }
+                    } catch (e: CancellationException) { throw e } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("CredAsk", e) }
                     kotlinx.coroutines.yield()
                     history.put(reply)
 
@@ -3814,7 +3834,7 @@ When you finish, say what you did in one short sentence.
                 try { Usage.record(msgs, reply, LlmClient.lastUsage) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: Usage.recordmsgs reply LlmClient.lastUsa", e) }
                 val unknown = try {
                     if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) (reply.opt("content") as? String)?.let { txt ->
-                        (ToolCalls.fromText(txt, all) ?: ToolLeak.toCalls(txt, all))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else ToolLeak.strip(rest)) } }
+                        (CallScan.toCalls(txt, all) ?: ToolCalls.fromText(txt, all) ?: ToolLeak.toCalls(txt, all))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else CallScan.clean(ToolLeak.strip(rest))) } }
                     ToolCalls.normalize(reply, all).unknown
                 } catch (_: Exception) { emptySet() }
                 msgs.put(reply)
@@ -3901,7 +3921,8 @@ When you finish, say what you did in one short sentence.
             // v0.28.2: no secure form or saved login on a plain-http page (except this phone / the LAN).
             val pageUrl = kotlinx.coroutines.withContext(Dispatchers.Main) { B.url() }
             if (!com.blaze.assistant.connect.UrlSafety.autofillAllowed(pageUrl)) return com.blaze.assistant.connect.UrlSafety.AUTOFILL_REFUSED
-            val fields = S.parseFields(args.optJSONArray("fields"))
+            // 0.45.19: fields written as a JSON string or a word list ("email, password") still open the form.
+            val fields = S.parseFields(args.optJSONArray("fields") ?: CallScan.secureArgs(args)?.optJSONArray("fields"))
             if (fields.isEmpty()) return "Error: give fields, e.g. [{\"name\":\"email\",\"kind\":\"email\"},{\"name\":\"password\",\"kind\":\"password\"}]."
             if (fields.any { S.isCardField(it) }) return "Card details are never collected in the chat. Show the live browser with browser_show so the user types them on the page, or stop before paying."
             if (fields.any { it.kind == com.blaze.assistant.browser.SecureInput.Kind.PASSWORD }) B.passwordRefused()?.let { return it }
