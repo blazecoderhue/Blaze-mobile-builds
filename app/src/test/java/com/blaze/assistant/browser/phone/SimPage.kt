@@ -94,12 +94,13 @@ class SimPage(seed: Long) : PageHost {
         if (!bridge || flushAt >= 0) return
         flushAt = t + 30
         at(30) {
-            val d = doc
-            if (d == null) { flushAt = -1; return@at }
+            // Like the script (timer=0 when the flush runs): a change after this point schedules the next flush.
+            flushAt = -1
+            val d = doc ?: return@at
             val msg = bridgeMessage(d, forceFull)
             forceFull = false
             val cost = scanCost(d, msg?.toString()?.length ?: 0)
-            at(cost + 2) { flushAt = -1; if (msg != null) { posted++; if (cache.accept(msg.toString())) bump() } }
+            at(cost + 2) { if (msg != null) { posted++; if (cache.accept(msg.toString())) bump() } }
         }
     }
 

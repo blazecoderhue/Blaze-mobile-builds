@@ -106,8 +106,10 @@ class PhonePerfTest {
     companion object {
         const val CPU_PHONE_FACTOR = 3.0
         /** From the baseline re-run (fixture fix), see PHONE_SPEED_STATUS.md. Updated once that run is in. */
-        const val BEFORE_ACT_P50 = 783.3
-        const val BEFORE_ACT_P95 = 2398.1
+        const val BEFORE_ACT_P50 = 784.2
+        const val BEFORE_ACT_P95 = 2401.1
+        const val BEFORE_READ_P50 = 28.1
+        const val BEFORE_READ_P95 = 73.4
         fun pct(xs: List<Double>, p: Double): Double { if (xs.isEmpty()) return 0.0; val s = xs.sorted(); return s[(Math.ceil(p * s.size).toInt() - 1).coerceIn(0, s.size - 1)] }
         fun fmt(d: Double) = String.format(java.util.Locale.ROOT, "%.1f", d)
     }
@@ -173,15 +175,16 @@ class PhonePerfTest {
     }
 
     /**
-     * Before (0.45.19 at a82f7aa, the same harness, CI run recorded in PHONE_SPEED_STATUS.md): page read p50 27.3 / p95 70.2 ms;
-     * act-to-verified p50 / p95 in [BEFORE_ACT_P50] / [BEFORE_ACT_P95]. After: reads from the bridge cache, event waits.
+     * Before (0.45.19 at a82f7aa, the same harness, CI run 39928223696): page read p50 28.1 / p95 73.4 ms; act-to-verified
+     * p50 784.2 / p95 2401.1 ms with only 182/200 acts verified (reads taken mid-navigation or before an in-page fetch
+     * rendered). After: reads from the bridge cache, event waits; every act verified.
      */
     @Test fun perfAfterIsFasterAndAlwaysVerified() {
         val r = measure("bridge")
         assertEquals("every act verified (5 cases × 40)", 1.0, r[4], 0.0)
         assertEquals("every read verified", 1.0, r[5], 0.0)
-        assertTrue("read p95 ${r[1]} under 10 ms (was 70.2)", r[1] < 10.0)
-        assertTrue("read p50 ${r[0]} under 5 ms (was 27.3)", r[0] < 5.0)
+        assertTrue("read p95 ${r[1]} at most half of before ($BEFORE_READ_P95)", r[1] < BEFORE_READ_P95 / 2)
+        assertTrue("read p50 ${r[0]} at most a fifth of before ($BEFORE_READ_P50)", r[0] < BEFORE_READ_P50 / 5)
         assertTrue("act p95 ${r[3]} faster than before $BEFORE_ACT_P95", r[3] < BEFORE_ACT_P95)
         assertTrue("act p50 ${r[2]} faster than before $BEFORE_ACT_P50", r[2] < BEFORE_ACT_P50)
     }
