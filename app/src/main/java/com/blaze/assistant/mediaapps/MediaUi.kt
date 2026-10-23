@@ -405,7 +405,7 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
     // never under Data Saver), so Preview -> Play doesn't wait on them.
     LaunchedEffect(state.results, state.loading) {
         if (state.loading || state.results.isEmpty()) return@LaunchedEffect
-        val n = MediaNet.warmCount(MediaNet.link(ctx), MediaNet.saving(ctx), state.pending)
+        val n = MediaNet.warmCount(MediaNetDevice.link(ctx), MediaNetDevice.saving(ctx), state.pending)
         if (n == 0) return@LaunchedEffect
         delay(400)
         state.results.take(n).forEach { r ->

@@ -18,7 +18,9 @@ class MediaNetSearchTest {
     private fun item(src: String, id: String, title: String = "t$id", thumb: String = "https://img/$id.jpg") =
         StoreItem(source = src, id = id, title = title, author = "", thumb = thumb)
 
-    @Test fun debounceIs250msAndFiresOnceForAWord() = runBlocking {
+    @Test fun debounceIs250msAndFiresOnceForAWord() { runBlocking { debounceRun() } }
+
+    private suspend fun kotlinx.coroutines.CoroutineScope.debounceRun() {
         assertEquals(250L, LiveSearch.DEBOUNCE_MS)
         // The StoreView effect: keyed on the query, so each key restarts the wait (LaunchedEffect semantics).
         val fired = ArrayList<Pair<String, Long>>()

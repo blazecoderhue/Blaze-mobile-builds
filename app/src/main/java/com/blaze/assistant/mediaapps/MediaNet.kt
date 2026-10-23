@@ -1,16 +1,11 @@
 package com.blaze.assistant.mediaapps
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import com.blaze.assistant.connect.Entitlements
 import java.io.IOException
 import java.io.InterruptedIOException
-import java.time.YearMonth
-import java.time.ZoneOffset
 
 /**
- * 0.45.19 media that survives flaky networks. The pure rules (MediaNetTest) plus the one Android read (the link):
+ * 0.45.19 media that survives flaky networks. The pure rules (MediaNetTest); the device reads (link, Data Saver,
+ * the plan's limits, the prefetch ledger) are in [MediaNetDevice]:
  * - how far the player reads ahead, by link and Data Saver;
  * - whether the next queued song may be prefetched: Wi-Fi or good signal only, never under Data Saver, and no more
  *   prefetches this month than the plan's song downloads left (GET /v1/entitlements);
@@ -33,22 +28,7 @@ object MediaNet {
         else -> Link.WEAK
     }
 
-    /** The active network as a [Link]; an unreadable answer counts as weak (no prefetch, normal playback). */
-    fun link(ctx: Context): Link = try {
-        val cm = ctx.getSystemService(ConnectivityManager::class.java)
-        val n = cm?.activeNetwork
-        val caps = n?.let { cm.getNetworkCapabilities(it) }
-        if (cm == null) Link.WEAK
-        else if (caps == null) Link.NONE
-        else classify(true, caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
-            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED), caps.linkDownstreamBandwidthKbps)
-    } catch (_: Exception) { Link.WEAK }
 
-    /** Data Saver applies now: Blaze's own (on, on a metered network) or Android's system Data Saver on a metered network. */
-    fun saving(ctx: Context): Boolean = MediaPrefs.saving(ctx) || try {
-        val cm = ctx.getSystemService(ConnectivityManager::class.java)
-        cm != null && cm.isActiveNetworkMetered && cm.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
-    } catch (_: Exception) { false }
 
     // ---------------------------------------------------------------- read ahead
 
@@ -69,8 +49,6 @@ object MediaNet {
 
     // ---------------------------------------------------------------- quotas
 
-    /** Downloads left this month for [kind] ("song"/"video"): null = the server didn't say, Int.MAX_VALUE = no cap. */
-    fun left(s: Entitlements.Snapshot?, kind: String): Int? = (if (kind == "video") s?.video else s?.song)?.let { Entitlements.left(it) }
 
     /** Rough size of one item the quota counts, for turning download counts into a cache cap. */
     const val SONG_ITEM_BYTES = 10 * MB      // ~4 min at 320 kbps
@@ -93,7 +71,6 @@ object MediaNet {
         return minOf(deviceBudget, worth.coerceAtLeast(CACHE_FLOOR)).coerceAtLeast(minOf(CACHE_FLOOR, deviceBudget))
     }
 
-    fun cacheCap(deviceBudget: Long, s: Entitlements.Snapshot?): Long = cacheCap(deviceBudget, left(s, "song"), left(s, "video"))
 
     // ---------------------------------------------------------------- prefetch
 
@@ -116,9 +93,6 @@ object MediaNet {
         else -> null
     }
 
-    /** The month prefetches count against: the server's ("2026-10"), else this UTC month. */
-    fun month(s: Entitlements.Snapshot?, nowMs: Long): String = s?.month?.takeIf { it.isNotBlank() }
-        ?: YearMonth.from(java.time.Instant.ofEpochMilli(nowMs).atZone(ZoneOffset.UTC)).toString()
 
     /** Prefetch ledger: "month|kind" -> count, only the current month kept. */
     fun bump(ledger: Map<String, Int>, month: String, kind: String): Map<String, Int> {
@@ -127,21 +101,6 @@ object MediaNet {
     }
     fun count(ledger: Map<String, Int>, month: String, kind: String): Int = ledger["$month|$kind"] ?: 0
 
-    private const val PREFS = "blaze_media_net"
-    private fun ledger(ctx: Context): Map<String, Int> = ctx.applicationContext.getSharedPreferences(PREFS, 0).all
-        .mapNotNull { (k, v) -> (v as? Int)?.let { k to it } }.toMap()
-
-    /** Decides and records one prefetch of [kind]; returns the bytes to fetch, or 0 when it isn't allowed now. */
-    fun takePrefetch(ctx: Context, kind: String): Long {
-        val s = Entitlements.cached(ctx)
-        val link = link(ctx)
-        val month = month(s, System.currentTimeMillis())
-        val l = ledger(ctx)
-        if (noPrefetch(link, saving(ctx), left(s, kind), count(l, month, kind)) != null) return 0
-        val next = bump(l, month, kind)
-        ctx.applicationContext.getSharedPreferences(PREFS, 0).edit().clear().apply { next.forEach { (k, v) -> putInt(k, v) } }.apply()
-        return prefetchBytes(link, kind)
-    }
 
     // ---------------------------------------------------------------- step 3: faster first play
 

@@ -71,7 +71,7 @@ object StreamCache {
             val dir = File(ctx.applicationContext.cacheDir, "media-stream").apply { mkdirs() }
             deviceBudget = budget(ramMb(ctx), dir.usableSpace)
             // 0.45.19: the LRU cap also follows this month's download limits (MediaNet.cacheCap), updated in place.
-            val ev = CappedEvictor(MediaNet.cacheCap(deviceBudget, com.blaze.assistant.connect.Entitlements.cached(ctx)))
+            val ev = CappedEvictor(MediaNetDevice.cacheCap(deviceBudget, com.blaze.assistant.connect.Entitlements.cached(ctx)))
             evictor = ev
             SimpleCache(dir, ev, StandaloneDatabaseProvider(ctx.applicationContext))
         }.also { cache = it }
@@ -80,7 +80,7 @@ object StreamCache {
     /** Re-reads the plan's limits into the cache cap (shrinking evicts the oldest spans on the next write). */
     fun applyQuota(ctx: Context) {
         get(ctx)
-        evictor?.cap = MediaNet.cacheCap(deviceBudget, com.blaze.assistant.connect.Entitlements.cached(ctx))
+        evictor?.cap = MediaNetDevice.cacheCap(deviceBudget, com.blaze.assistant.connect.Entitlements.cached(ctx))
     }
 
     /**
@@ -90,7 +90,7 @@ object StreamCache {
     fun loadControl(ctx: Context): LoadControl {
         val (min, max) = bufferMs(ramMb(ctx))
         val app = ctx.applicationContext
-        return ReadAheadControl(min, max, MediaNet.START_BUFFER_MS, MediaNet.REBUFFER_MS) { MediaNet.readAheadMs(MediaNet.link(app), MediaNet.saving(app), max) }
+        return ReadAheadControl(min, max, MediaNet.START_BUFFER_MS, MediaNet.REBUFFER_MS) { MediaNet.readAheadMs(MediaNetDevice.link(app), MediaNetDevice.saving(app), max) }
     }
 
     /** 0.45.19: the players' load-error policy: drops retry for minutes from buffer + cache, refusals fail fast. */
@@ -123,7 +123,7 @@ object StreamCache {
             try {
                 applyQuota(app)
                 if (hasStart(app, key)) return@execute
-                val bytes = MediaNet.takePrefetch(app, kind)
+                val bytes = MediaNetDevice.takePrefetch(app, kind)
                 if (bytes <= 0) return@execute
                 val ds = CacheDataSource.Factory().setCache(get(app)).setUpstreamDataSourceFactory(DefaultDataSource.Factory(app, upstream)).createDataSource()
                 val w = CacheWriter(ds, DataSpec.Builder().setUri(url).setKey(key).setPosition(0).setLength(bytes).build(), null, null)

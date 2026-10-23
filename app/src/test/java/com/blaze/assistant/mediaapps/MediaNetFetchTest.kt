@@ -157,7 +157,7 @@ class MediaNetFetchTest {
         assertTrue("start buffer", "ReadAheadControl(min, max, MediaNet.START_BUFFER_MS, MediaNet.REBUFFER_MS)" in c)
         assertTrue("first chunk fetched with the subtitle", "StreamCache.warm(this, playUris.first(), it, http)" in v)
         assertTrue("subtitle wait capped", "withTimeoutOrNull(MediaNet.SUBS_WAIT_MS) { fetch.await() }" in v && "attach(late)" in v)
-        assertTrue("details warmed and reused", "MediaNet.warmCount(MediaNet.link(ctx), MediaNet.saving(ctx), state.pending)" in u
+        assertTrue("details warmed and reused", "MediaNet.warmCount(MediaNetDevice.link(ctx), MediaNetDevice.saving(ctx), state.pending)" in u
             && "StreamCache.details.get(detailKey)" in u)
     }
 }

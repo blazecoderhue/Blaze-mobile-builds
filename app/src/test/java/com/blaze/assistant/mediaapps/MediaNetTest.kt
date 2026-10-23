@@ -155,30 +155,30 @@ class MediaNetTest {
 
     @Test fun quotaFromEntitlements() {
         val s = snap("""{"limit":100,"used":97,"remaining":3}""", """{"limit":10,"used":10,"remaining":0}""")
-        assertEquals(3, MediaNet.left(s, "song")); assertEquals(0, MediaNet.left(s, "video"))
+        assertEquals(3, MediaNetDevice.left(s, "song")); assertEquals(0, MediaNetDevice.left(s, "video"))
         val u = snap("""{"limit":-1,"unlimited":true}""", """{"limit":-1,"unlimited":true}""")
-        assertEquals(Int.MAX_VALUE, MediaNet.left(u, "song"))
-        assertNull(MediaNet.left(null, "song"))
+        assertEquals(Int.MAX_VALUE, MediaNetDevice.left(u, "song"))
+        assertNull(MediaNetDevice.left(null, "song"))
         // 3 songs left: the 4th prefetch this month is refused.
         var ledger = emptyMap<String, Int>()
-        repeat(3) { assertNull(MediaNet.noPrefetch(Link.WIFI, false, MediaNet.left(s, "song"), MediaNet.count(ledger, "2026-10", "song"))); ledger = MediaNet.bump(ledger, "2026-10", "song") }
-        assertEquals("monthly limit", MediaNet.noPrefetch(Link.WIFI, false, MediaNet.left(s, "song"), MediaNet.count(ledger, "2026-10", "song")))
+        repeat(3) { assertNull(MediaNet.noPrefetch(Link.WIFI, false, MediaNetDevice.left(s, "song"), MediaNet.count(ledger, "2026-10", "song"))); ledger = MediaNet.bump(ledger, "2026-10", "song") }
+        assertEquals("monthly limit", MediaNet.noPrefetch(Link.WIFI, false, MediaNetDevice.left(s, "song"), MediaNet.count(ledger, "2026-10", "song")))
         // A new month starts the count again and drops the old month.
         ledger = MediaNet.bump(ledger, "2026-11", "song")
         assertEquals(1, MediaNet.count(ledger, "2026-11", "song")); assertEquals(0, MediaNet.count(ledger, "2026-10", "song"))
-        assertEquals("2026-10", MediaNet.month(s, 0)); assertEquals("1970-01", MediaNet.month(null, 0))
+        assertEquals("2026-10", MediaNetDevice.month(s, 0)); assertEquals("1970-01", MediaNetDevice.month(null, 0))
     }
 
     @Test fun cacheCapFollowsTheMonthlyLimits() {
         val dev = 256 * MB
-        assertEquals(dev, MediaNet.cacheCap(dev, null as Entitlements.Snapshot?))                     // signed out
-        assertEquals(dev, MediaNet.cacheCap(dev, snap("""{"limit":-1,"unlimited":true}""", """{"limit":-1,"unlimited":true}""")))
+        assertEquals(dev, MediaNetDevice.cacheCap(dev, null as Entitlements.Snapshot?))                     // signed out
+        assertEquals(dev, MediaNetDevice.cacheCap(dev, snap("""{"limit":-1,"unlimited":true}""", """{"limit":-1,"unlimited":true}""")))
         // 3 songs + 1 video left: 3 x 10 MB + 80 MB.
-        assertEquals(110 * MB, MediaNet.cacheCap(dev, snap("""{"limit":100,"used":97,"remaining":3}""", """{"limit":10,"used":9,"remaining":1}""")))
+        assertEquals(110 * MB, MediaNetDevice.cacheCap(dev, snap("""{"limit":100,"used":97,"remaining":3}""", """{"limit":10,"used":9,"remaining":1}""")))
         // Nothing left: the floor, so read-ahead and resume still work.
-        assertEquals(MediaNet.CACHE_FLOOR, MediaNet.cacheCap(dev, snap("""{"limit":100,"used":100,"remaining":0}""", """{"limit":10,"used":10,"remaining":0}""")))
+        assertEquals(MediaNet.CACHE_FLOOR, MediaNetDevice.cacheCap(dev, snap("""{"limit":100,"used":100,"remaining":0}""", """{"limit":10,"used":10,"remaining":0}""")))
         // Plenty left: the phone's own budget.
-        assertEquals(dev, MediaNet.cacheCap(dev, snap("""{"limit":1000,"used":0,"remaining":1000}""", """{"limit":100,"used":0,"remaining":100}""")))
+        assertEquals(dev, MediaNetDevice.cacheCap(dev, snap("""{"limit":1000,"used":0,"remaining":1000}""", """{"limit":100,"used":0,"remaining":100}""")))
         assertEquals(64 * MB, MediaNet.cacheCap(64 * MB, 0, Int.MAX_VALUE))      // videos uncapped: device budget
     }
 
@@ -190,13 +190,13 @@ class MediaNetTest {
 
     @Test fun wiring() {
         val c = src("mediaapps/StreamCache.kt"); val m = src("mediaapps/MusicService.kt"); val v = src("mediaapps/VideoActivity.kt")
-        val n = src("mediaapps/MediaNet.kt")
-        assertTrue("cache reads go through the resuming source", "ResumingDataSource(plain.createDataSource())" in c)
-        assertTrue("cache cap follows the plan", "CappedEvictor(MediaNet.cacheCap(" in c && "fun applyQuota(" in c)
-        assertTrue("read-ahead by link", "ReadAheadControl(" in c && "MediaNet.readAheadMs(MediaNet.link(app), MediaNet.saving(app), max)" in c)
-        assertTrue("prefetch gated", "MediaNet.takePrefetch(app, kind)" in c && "if (hasStart(app, key)) return@execute" in c)
-        assertTrue("gating reads the plan and data saver", "Entitlements.cached(ctx)" in n && "noPrefetch(link, saving(ctx)" in n)
-        assertTrue("system Data Saver counts too", "RESTRICT_BACKGROUND_STATUS_ENABLED" in n)
+        val d = src("mediaapps/MediaNetDevice.kt")
+        assertTrue("cache reads go through the resuming source", "ResumingDataSource(plain.createDataSource()" in c)
+        assertTrue("cache cap follows the plan", "CappedEvictor(MediaNetDevice.cacheCap(" in c && "fun applyQuota(" in c)
+        assertTrue("read-ahead by link", "ReadAheadControl(" in c && "MediaNet.readAheadMs(MediaNetDevice.link(app), MediaNetDevice.saving(app), max)" in c)
+        assertTrue("prefetch gated", "MediaNetDevice.takePrefetch(app, kind)" in c && "if (hasStart(app, key)) return@execute" in c)
+        assertTrue("gating reads the plan and data saver", "Entitlements.cached(ctx)" in d && "MediaNet.noPrefetch(link, saving(ctx)" in d)
+        assertTrue("system Data Saver counts too", "RESTRICT_BACKGROUND_STATUS_ENABLED" in d)
         assertTrue("music player drop policy", "setLoadErrorHandlingPolicy(StreamCache.dropPolicy())" in m)
         assertEquals("video players drop policy", 3, Regex("setLoadErrorHandlingPolicy\\(StreamCache\\.dropPolicy\\(\\)\\)").findAll(v).count())
     }
