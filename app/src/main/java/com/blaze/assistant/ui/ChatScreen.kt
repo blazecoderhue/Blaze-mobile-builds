@@ -899,6 +899,11 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
     LaunchedEffect(lastUser) { if (lastUser != null) { follow = true; toEnd(true) } }
 
     val lastBlazeId = messages.lastOrNull()?.takeIf { it.role == Role.BLAZE }?.id
+    // 0.45.20 delivery label: only under your latest bubble (Sending > Sent > Read, ui/DeliveryStatus.kt).
+    val deliveries by com.blaze.assistant.agent.Delivery.tracker().states.collectAsState()
+    val lastUserId = messages.lastOrNull { it.role == Role.USER }?.id
+    val answeredLast = lastUserId != null && messages.dropWhile { it.id != lastUserId }.drop(1)
+        .any { (it.role == Role.BLAZE && it.meta != com.blaze.assistant.agent.Ack.META) || it.role == Role.ERROR }
     // v0.31.0: the reply streaming in right now (the droplet rides it); -1 = none.
     val streamId by Agent.streamingId.collectAsState()
     // v0.31.2 Halo x Blaze: replies streaming side by side (@all, parallel team phases).
@@ -925,6 +930,10 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 14.dp)) {
             itemsIndexed(items, key = { _, it -> it.key }, contentType = { _, it -> if (it is Item.Steps) 1 else 0 }) { i, item ->
                 val fresh = remember(item.key) { appear.fresh(item.key) }
+                // 0.45.20: "Today" / "Yesterday" chips between days (ui/ChatBubbles.kt).
+                val prevAt = if (i > 0) items[i - 1].at else 0L
+                Column(Modifier.fillMaxWidth()) {
+                if (item is Item.Msg && BubbleDays.startsDay(prevAt, item.at)) DayChip(remember(item.at) { BubbleDays.label(item.at) })
                 Box(Modifier.fillMaxWidth().appearIn(fresh && i >= items.size - 3).padding(top = Bubbles.gapAbove(item.pos, i == 0))) {
                     when (item) {
                         is Item.Steps -> {
@@ -943,10 +952,13 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                             }
                         }
                         is Item.Msg -> ReplyThread(item.m, replyRefs, jumpTo) { Entry(item.m, item.pos, canAct = mood == Mood.IDLE, onQuote = onQuote,
+                            delivery = if (item.m.id == lastUserId) DeliveryView.effective(deliveries[item.m.gid], answeredLast, mood != Mood.IDLE) else null,
+                            showActs = item.m.id == lastBlazeId && mood == Mood.IDLE,
                             live = item.m.id == streamId || item.m.id in duoLive || item.m.id in sideLive, latest = item.m.id == waitingId,
                             followups = if (item.m.id == lastBlazeId && mood == Mood.IDLE && Settings.followups) item.m.followups else emptyList(),
                             onFollowup = onFollowup, askChips = item.m.id == lastBlazeId && mood == Mood.IDLE && com.blaze.assistant.agent.SimpleMode.simple) }
                     }
+                }
                 }
             }
             item(key = "working") {
@@ -959,6 +971,10 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                 // v0.31.1: the waiting drop sits where the reply's first line will start (same size and centre as the reply's
                 // droplet layer), and hands over without a fade: the reply's drop appears at this spot and glides to the text end.
                 val chip by Agent.taskChip.collectAsState()
+                // 0.45.20 step pill: the newest step under the pending reply (agent/StepPill.kt), this chat only.
+                val pill by com.blaze.assistant.agent.StepPills.current.collectAsState()
+                val chatNow by Agent.chatId.collectAsState()
+                Column(Modifier.fillMaxWidth()) {
                 // Ack-and-background: an acknowledged task shows its small chip instead of the "Blaze is thinking" line.
                 if (chip.isNotBlank() && mood != Mood.IDLE && streamId < 0) TaskChip(chip)
                 AnimatedVisibility(chip.isBlank() && mood != Mood.IDLE && streamId < 0 && duoLive.isEmpty(), enter = MotionTokens.enterUp(), exit = androidx.compose.animation.ExitTransition.None) {
@@ -969,6 +985,8 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
                         val ring by androidx.compose.animation.core.animateFloatAsState(if (split) 0f else 1f, androidx.compose.animation.core.tween(520), label = "ring")
                         ThinkingOrb(if (split) "Blaze is working" else label, Modifier.offset(y = OrbAnchor.thinkingOffsetY), size = OrbAnchor.SIZE, ring = ring)
                     }
+                }
+                StepPillRow(pill?.takeIf { it.chat == chatNow && mood != Mood.IDLE }?.text, pill?.specialist == true)
                 }
                 // v0.26.0: no "this chat is getting long" banner; long chats compact themselves (AutoCompact).
             }
@@ -1053,15 +1071,29 @@ private fun ThinkingLine(text: String, live: Boolean) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Entry(m: ChatMessage, pos: GroupPos, canAct: Boolean, onQuote: (String) -> Unit, followups: List<String>, onFollowup: (String) -> Unit,
-                  live: Boolean = false, latest: Boolean = false, askChips: Boolean = false) {
-    val time = remember(m.at) { Bubbles.time(m.at) }
+                  live: Boolean = false, latest: Boolean = false, askChips: Boolean = false,
+                  delivery: com.blaze.assistant.agent.DeliveryState? = null, showActs: Boolean = false) {
     val entryCtx = LocalContext.current
+    // 0.45.20 (spec A): the time sits inside the last bubble of a run; actions are a long-press menu (BubbleMenu), and
+    // only the latest Blaze reply keeps its small action row.
+    val menu = remember(m.id) { mutableStateOf(false) }
+    val entryClip = LocalClipboardManager.current
+    val bubbleTime = remember(m.at, pos) { if (pos.ends) BubbleDays.time(m.at) else "" }
+    CompositionLocalProvider(LocalBubbleTime provides bubbleTime,
+        LocalBubbleMenu provides (if (m.role == Role.USER || m.role == Role.BLAZE || m.role == Role.ERROR) ({ menu.value = true }) else null)) {
+    BubbleMenu(menu.value, buildList<Pair<String, (() -> Unit)?>> {
+        add("Copy" to { entryClip.setText(AnnotatedString(if (m.role == Role.BLAZE) Md.plain(RichKit.readable(com.blaze.assistant.agent.ToolLeak.bubbleText(m.text))) else Md.plain(splitQuote(m.text).second))); Toast.makeText(entryCtx, "Copied", Toast.LENGTH_SHORT).show() })
+        if (m.role != Role.ERROR) add("Quote" to { onQuote(if (m.role == Role.BLAZE) com.blaze.assistant.agent.ToolLeak.forDisplay(m.text) else splitQuote(m.text).second) })
+        add("Retry" to (if (canAct) ({ Agent.retry(m.id) }) else null))
+        if (m.role == Role.BLAZE && !live) add("React \uD83D\uDC4D" to { reactNow(entryCtx, m, Reactions.DOUBLE_TAP) })
+    }) { menu.value = false }
     when (m.role) {
         Role.USER -> SwipeToQuote(true, onQuote = { onQuote(splitQuote(m.text).second) }) { Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
             val (quoted, body) = splitQuote(m.text)
             // v0.24.6: pictures inside your bubble (tap to preview), other files as icon chips.
             SentBubble(body, quoted, rememberPresent(m.media), m.files, pos)
-            if (pos.ends) Actions(m, Side.ME, time, canAct, onQuote, allowQuote = false)
+            if (delivery != null) DeliveryLabel(delivery, onRetry = if (canAct) ({
+                com.blaze.assistant.agent.Delivery.tracker().apply(listOf(m.gid), com.blaze.assistant.agent.Delivery.Ev.USER_RETRY); Agent.retry(m.id) }) else null)
         } }
         Role.BLAZE -> if (m.meta == com.blaze.assistant.update.Updater.CARD) UpdateCard()
         else if (m.meta.startsWith(com.blaze.assistant.agent.BgAgents.CARD)) AgentCard(m.meta.removePrefix(com.blaze.assistant.agent.BgAgents.CARD))
@@ -1092,7 +1124,7 @@ private fun Entry(m: ChatMessage, pos: GroupPos, canAct: Boolean, onQuote: (Stri
                 if (hadLive) OrbLayer(tracker, fresh, speaker = who, latest = latest, alone = who == com.blaze.assistant.agent.Duo.Who.HALO && Agent.split.collectAsState().value)
             }
             if (m.media.isNotEmpty()) MediaStrip(m.media)
-            if (pos.ends || followups.isNotEmpty()) Actions(m, Side.BLAZE, time, canAct, onQuote, allowQuote = true,
+            if (showActs || followups.isNotEmpty()) Actions(m, Side.BLAZE, "", canAct, onQuote, allowQuote = true,
                 orbSlot = if (hadLive) ({ co -> tracker.aimRest(co) }) else null, reactable = !live)
             else {
                 if (!live && m.reactions.isNotEmpty()) { val rc = LocalContext.current; ReactionChips(m.reactions, mine = false) { e -> reactNow(rc, m, e) } }
@@ -1111,12 +1143,13 @@ private fun Entry(m: ChatMessage, pos: GroupPos, canAct: Boolean, onQuote: (Stri
             FollowupRow(listOf(com.blaze.assistant.agent.SignInGate.BUTTON)) { com.blaze.assistant.agent.SelfSetup.openPage.value = "account" }
         } else Column(Modifier.fillMaxWidth()) {
             ErrorBubble(m.text, pos)
-            Actions(m, Side.BLAZE, time, canAct, onQuote, allowQuote = false)
+            Actions(m, Side.BLAZE, "", canAct, onQuote, allowQuote = false)
             // Pick up where it broke instead of starting over: the history keeps the steps done so far.
             // (v0.25.0: no brain switcher on old "used up" errors; there is nothing to pick.)
             if (canAct) Followups(listOf(com.blaze.assistant.agent.StopResume.CHIP), onFollowup)
         }
         Role.STEP -> {}
+    }
     }
 }
 

@@ -405,7 +405,7 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
         pickUpCloudRuns()
         try {
             app.getSystemService(android.net.ConnectivityManager::class.java)?.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
-                override fun onAvailable(network: android.net.Network) { pickUpCloudRuns() }
+                override fun onAvailable(network: android.net.Network) { Delivery.reconnected(); pickUpCloudRuns() }
             })
         } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: app.getSystemServiceandroid.net.Connecti", e) }
     }
@@ -1139,6 +1139,7 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
             if (prof.simple) s("simple", PromptProfile.SIMPLE_RULE)
             slow("connectors", com.blaze.assistant.connect.Connectors.promptBlock())
             s("talk", "\nHOW YOU TALK: short, warm and sure of yourself, like a sharp friend texting back. Lead with the answer. One or two sentences unless they ask for more. Never say \"let me know if there's anything else\", \"feel free to\", \"I'd be happy to\" or similar filler, and never ask the user to share personal details for your memory. ")
+            s("voice", VoiceFiller.RULE)   // 0.45.20 (item 10): no filler on voice greetings / small talk
             s("style", AnswerStyle.RULE)
             s("format", AnswerStyle.FORMAT)   // v0.31.1: HTML tags, tables never in code fences, rich blocks open in glass windows
             s("self", "\nYou are Blaze and you can control yourself with blaze_self (close/go quiet, stop, orb, wake word, read-aloud, model, personality, settings, your setup and crash log). When the user wants help setting you up, or asks what you can do or what's installed, call blaze_self setup_check and guide them one step at a time. If the user asks you to shut down, close, go away or stop, do that with blaze_self, never a phone setting. ")
@@ -2042,6 +2043,8 @@ When you finish, say what you did in one short sentence.
             // v0.45.0 (#3): this turn's own model-call state (flags, timing, usage), never shared with another chat or agent.
             val callState = CallState().also { it.quick = ThinkBudget.quick(shown, attachments.size) }
             turnFrom = users[0].id
+            // 0.45.20: the bubbles start at Sending (the label under the latest one); the run / local loop moves them on.
+            try { users.forEach { u -> msgs.firstOrNull { it.id == u.id }?.gid?.let { Delivery.tracker().sending(it) } } } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: delivery sending", e) }
             beginTurn(msgs.lastOrNull { it.id == users[0].id }?.at ?: System.currentTimeMillis())
             // Heads-ups Blaze posted into this chat as notifications, and the one being replied to: the model
             // sees what Blaze had said, so "yes", "remind me later" or "who's that?" make sense (v0.8.0).
@@ -2437,6 +2440,8 @@ When you finish, say what you did in one short sentence.
             val name = Settings.greetName()
             val maxTurns = Settings.str("duo_max_turns", "24").toIntOrNull()?.coerceIn(4, 200) ?: 24
             var room = -1L
+            // 0.45.20: the app picked the message up itself (no run): the label under the bubble says Sent.
+            try { Delivery.tracker().apply(msgs.filter { it.role == Role.USER && it.id >= fromMsg }.map { it.gid }, Delivery.Ev.LOCAL_PICKUP) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: delivery duo", e) }
             try {
                 mood = Mood.THINKING
                 duoChatOpenAt = 0L
@@ -2461,7 +2466,8 @@ When you finish, say what you did in one short sentence.
                 val facts = duoFacts(task)
                 // v0.43.0: an @all chat message gets both answers at once (parallel, streamed, 45 s cap each) instead of a
                 // race + a second, sequential answer + more back-and-forth, which took about two minutes on a phone.
-                if (kind == Duo.Kind.CHAT) { duoBoth(name, facts); duoChatOpenAt = System.currentTimeMillis() }
+                // 0.45.20 (item 9): Blaze answers, then Halo adds only what Blaze missed or stays quiet (DuoAll).
+                if (kind == Duo.Kind.CHAT) { duoDoer(name, facts); duoChatOpenAt = System.currentTimeMillis() }
                 else while (true) {
                     pullUser()
                     val wrap = n + 1 >= maxTurns
@@ -2584,6 +2590,54 @@ When you finish, say what you did in one short sentence.
             } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: val firstMs first.values.minOrNull 1L", e) }
             persist()
             Unit
+        }
+
+        /**
+         * 0.45.20 (feature batch item 9): @all chat. Blaze, the doer, answers first (streamed, capped at
+         * [Duo.PARALLEL_LIMIT_MS]); Halo then reads it and adds only what Blaze missed, in a sentence or two, or stays
+         * quiet ([DuoAll.haloLine]): never two full answers. If Blaze fails, Halo answers alone.
+         */
+        private suspend fun duoDoer(name: String?, facts: String) {
+            val t0 = System.currentTimeMillis()
+            fun base(w: Duo.Who) = Duo.soul(w) + (if (!name.isNullOrBlank()) "\nThe user's name is $name." else "")
+            // Blaze streams into its bubble; Halo's add-on is checked whole first (a repeat never flashes up and vanishes).
+            suspend fun ask(w: Duo.Who, sys: String, stream: Boolean): String {
+                val live = if (stream) LiveMsg(w, -1L) else null
+                val req = JSONArray().put(JSONObject().put("role", "system").put("content", sys + facts))
+                val ctx = duoContext(w, 24)
+                for (i in 0 until ctx.length()) req.put(ctx.get(i))
+                return try {
+                    val raw = duoCall(w, req, null, -1L, hardMs = Duo.PARALLEL_LIMIT_MS) { t -> live?.show(t) }
+                    val text = duoVisible(raw, final = true)
+                    live?.end(text)
+                    if (stream) text else raw
+                } catch (e: CancellationException) { live?.end(""); throw e
+                } catch (e: Exception) {
+                    live?.end("")
+                    if (e !is DuoLate) com.blaze.assistant.device.CrashLog.error("duo all ${w.id}", e)
+                    ""
+                }
+            }
+            val blaze = ask(Duo.Who.BLAZE, DuoAll.blazeSystem(base(Duo.Who.BLAZE)), stream = true)
+            if (blaze.isNotEmpty()) history.put(JSONObject().put("role", "assistant").put("content", Duo.tag(Duo.Who.BLAZE) + blaze))
+            if (blaze.isEmpty()) {
+                // Blaze couldn't answer: Halo answers on her own (briefly), so the user still gets one reply.
+                val h = ask(Duo.Who.HALO, Duo.parallelSystem(Duo.Who.HALO, name), stream = false)
+                val line = duoVisible(h, final = true)
+                if (line.isNotEmpty()) {
+                    msgs = msgs + ChatMessage(ids.getAndIncrement(), Role.BLAZE, line, speaker = Duo.Who.HALO.id)
+                    history.put(JSONObject().put("role", "assistant").put("content", Duo.tag(Duo.Who.HALO) + line))
+                } else add(Role.ERROR, Duo.BOTH_LATE)
+            } else {
+                val raw = ask(Duo.Who.HALO, DuoAll.haloSystem(base(Duo.Who.HALO), blaze), stream = false)
+                val line = if (raw.contains(DuoAll.QUIET, ignoreCase = true)) "" else DuoAll.haloLine(duoVisible(raw, final = true), blaze)
+                if (line.isNotEmpty()) {
+                    msgs = msgs + ChatMessage(ids.getAndIncrement(), Role.BLAZE, line, speaker = Duo.Who.HALO.id)
+                    history.put(JSONObject().put("role", "assistant").put("content", Duo.tag(Duo.Who.HALO) + line))
+                }
+            }
+            try { android.util.Log.i("BlazeSpeed", "@all doer+brief: ${System.currentTimeMillis() - t0} ms") } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: duo speed", e) }
+            persist()
         }
 
         /** After both agreed: [who] writes the polished final answer in the main chat, under "Consensus" / "Verdict". */
@@ -2731,7 +2785,11 @@ When you finish, say what you did in one short sentence.
                 .filter { e -> text.substring(e).isNotBlank() }.toList()
             val end = ends.lastOrNull() ?: return
             if (end - spokenPrefix.length < 2) return
-            Voice.speakPart(text.substring(spokenPrefix.length, end))
+            val part = text.substring(spokenPrefix.length, end)
+            // 0.45.20 (item 10): an opening "On it." / "Sure, one sec." is never spoken unless a real tool task started.
+            val toolsRan = synchronized(turnTools) { turnTools.isNotEmpty() }
+            val say = if (spokenPrefix.isEmpty()) VoiceFiller.spoken(part, toolsRan) else part
+            if (!(spokenPrefix.isEmpty() && !toolsRan && VoiceFiller.onlyFiller(part))) Voice.speakPart(say)
             spokenPrefix = text.substring(0, end)
             streamedVoice = true
             roundSpoke = true
@@ -2830,6 +2888,7 @@ When you finish, say what you did in one short sentence.
             promptTurn = timer.start   // v0.45.1: the system prompt's live tail is kept for this turn's steps
             // v0.42.0 Cloud runs: this turn's run on the gateway (null = the local loop, as before).
             var cloudTurn: CloudRuns.Turn? = null
+            var notSent = false
             var turnModel: TurnModel? = null
             try {
                 val spNow = specialist
@@ -3020,13 +3079,22 @@ When you finish, say what you did in one short sentence.
                 val deadline = if (autopilot) turnStart + Modes.apMinutes * 60_000L else Long.MAX_VALUE
                 // v0.45.9 (TurnDeadline): a hard end for every turn, checked during each model step too (the 56-minute reply).
                 val longWork = bulk || routine || agentId != null || resuming || userNow.length > 280
-                fun hardEnd(): Long = turnStart + TurnDeadline.turnMs(autopilot, Modes.apMinutes, longWork || synchronized(turnTools) { turnTools.size } >= 3)
+                fun hardEnd(): Long = turnStart + (cloudTurn?.waitedMs ?: 0L) + TurnDeadline.turnMs(autopilot, Modes.apMinutes, longWork || synchronized(turnTools) { turnTools.size } >= 3)
                 var autoReplies = 0
                 // v0.42.0 Cloud runs: a normal chat turn goes to the gateway once, as a run it keeps until the phone has the
                 // reply. Private chats, background agents, specialists, routines and Halo turns stay on the local loop.
-                cloudTurn = if (!bulk && voice != Duo.Who.HALO && CloudRuns.eligible(agentId == null, isPrivate, FastLane.online(app)))
+                // 0.45.20: offline no longer forces the local loop: the run's send waits for the network with the bubble at
+                // Sending (contract §1), unless the Offline Brain can answer here and now.
+                val offlineBrain = try { OfflineBrain.on && OfflineBrain.ready() } catch (_: Throwable) { false }
+                cloudTurn = if (!bulk && voice != Duo.Who.HALO && CloudRuns.eligible(agentId == null, isPrivate, FastLane.online(app) || !offlineBrain))
                     CloudRuns.Turn(id, "t-$id-$turnFrom-$turnStart") else null
                 val ct = cloudTurn
+                val turnGids = msgs.dropWhile { it.id != turnFrom }.filter { it.role == Role.USER }.map { it.gid }
+                try {
+                    if (ct != null) { ct.gids = turnGids; turnGids.firstOrNull()?.let { ct.firstCid = Delivery.tracker().cidForSend(it) } }
+                    else Delivery.tracker().apply(turnGids, Delivery.Ev.LOCAL_PICKUP)
+                } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: delivery turn", e) }
+                if (agentId == null) StepPills.begin(id)
                 // v0.45.0 (#17): one turn id and one preferred route for every step of a main-chat turn.
                 turnModel = if (agentId == null && !bulk) TurnModel("t-$id-$turnStart").also { TurnModel.current = it } else null
                 // v0.45.0 (#6): a phone step's screenshot is put into words here, so the run continues (no new run, no re-upload).
@@ -3118,11 +3186,13 @@ When you finish, say what you did in one short sentence.
                         val t0 = System.currentTimeMillis()
                         if (ct != null && !ct.off) {
                             var ended = false
-                            val got = kotlinx.coroutines.withTimeoutOrNull(minOf(budget, TurnDeadline.CLOUD_STEP_MS)) {
+                            // 0.45.20: the step's limit starts once the gateway has the message (an offline send keeps retrying).
+                            val got = CloudRuns.timedAfterSent(ct, minOf(budget, TurnDeadline.CLOUD_STEP_MS)) {
                                 CloudRuns.step(ct, r, tools, onText, { line -> scope.launch { if (mood != Mood.IDLE) status = line } },
                                     { a -> val g = ackGate; val u = turnFrom; val said = lastUserText(); scope.launch {
                                         // 0.45.19: the gateway's ack waits out Ack.FAST_MS too; a fast answer goes out alone.
-                                        if (g != null) { kotlinx.coroutines.delay(Ack.holdMs(g.at, System.currentTimeMillis())); if (job?.isActive == true) showAck(g, a, u, said) } } }).also { ended = true }
+                                        if (g != null) { kotlinx.coroutines.delay(Ack.holdMs(g.at, System.currentTimeMillis())); if (job?.isActive == true) showAck(g, a, u, said) } } },
+                                    { o -> runEvent(ct, o) }).also { ended = true }
                             }
                             if (got != null) return got
                             if (!ended) { ct.off = true; LlmClient.lastCloudError = "cloud run: step over ${TurnDeadline.CLOUD_STEP_MS / 1000}s"; add(Role.STEP, TurnDeadline.CLOUD_SLOW) }
@@ -3749,6 +3819,9 @@ When you finish, say what you did in one short sentence.
                     msgs = msgs.map { if (it.id == sid) it.copy(followups = listOf(StopResume.CHIP)) else it }
                 }
                 throw e
+            } catch (e: Delivery.NotSent) {
+                // 0.45.20: the gateway refused the message (4xx): the label under the bubble says "Not sent, tap to retry".
+                notSent = true
             } catch (e: LlmClient.UsedUp) {
                 keepForResume()
                 val id = add(Role.ERROR, e.message ?: "Credits used up.")
@@ -3770,7 +3843,8 @@ When you finish, say what you did in one short sentence.
             } finally {
                 liveGate = null
                 // v0.45.6: a turn never ends silently (stop, timeout, tool failure): one plain closing line.
-                if (agentId == null) try {
+                if (agentId == null) StepPills.end(id)
+                if (agentId == null && !notSent) try {
                     if (TurnEnd.silent(msgs.filterNot { it.meta == Ack.META }.map { it.role })) {
                         val lastStep = msgs.lastOrNull { it.role == Role.STEP }?.text.orEmpty()
                         val why = if (turnEnd == TurnEnd.Reason.DONE && lastStep == "You stopped me") TurnEnd.Reason.STOPPED else turnEnd
@@ -4912,6 +4986,12 @@ When you finish, say what you did in one short sentence.
          * Ack-and-background: shows [a] as a plain Blaze message when [gate] lets it (first ack of the turn, nothing has
          * answered yet, it doesn't claim done). The model never sees acks; off screen it lands as a text-style notification.
          */
+        /** 0.45.20: a run event: the delivery label (Sent / Read) of the turn's bubbles, and the step pill. */
+        private fun runEvent(ct: CloudRuns.Turn, o: JSONObject) {
+            try { Delivery.eventOf(o)?.let { Delivery.tracker().apply(ct.gids, it) } } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: delivery event", e) }
+            if (agentId == null) StepPills.onEvent(id, o)
+        }
+
         fun showAck(gate: Ack.Gate, a: String, turnUser: Long, said: String) {
             if (gate !== ackGate || streamId >= 0 || duoLive.isNotEmpty()) return
             // 0.45.19: an ack that carries call text ("browser_open(...)") is never shown; nothing is better than code.
@@ -4975,7 +5055,7 @@ When you finish, say what you did in one short sentence.
                 if (streamedVoice) {
                     val rest = if (spokenPrefix.isNotEmpty() && last.text.startsWith(spokenPrefix)) last.text.substring(spokenPrefix.length) else if (spokenPrefix.isEmpty()) last.text else ""
                     Voice.speak(rest.ifBlank { " " }, queue = true)
-                } else Voice.speak(last.text)
+                } else Voice.speak(VoiceFiller.spoken(last.text, synchronized(turnTools) { turnTools.isNotEmpty() }))
             }
             if (!isPrivate) try { com.blaze.assistant.widget.BlazeWidget.update(app, last.text.take(240)) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: BlazeWidget.u", e) }
             if (this === cur && (inForeground || overlayOpen)) return

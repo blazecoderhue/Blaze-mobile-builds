@@ -275,9 +275,13 @@ class CloudRunsTest {
     }
 
     @Test fun unreachableBeforeARunFallsBackForThisTurn() = runBlocking {
+        // 0.45.20 (STEPS_DELIVERY_CONTRACT §1): offline before a run no longer falls back after 3 tries; the same create
+        // is retried with backoff (1, 2, 4 s here) until it lands, as one run. A 5xx still goes the local way.
         gw.down = 3
-        try { client.complete(CloudRuns.Turn("main", "t-7"), user("hi"), null, "chat", ev); fail("expected fallback") }
-        catch (_: CloudRuns.Fallback) { }
+        val m = client.complete(CloudRuns.Turn("main", "t-7"), user("hi"), null, "chat", ev)
+        assertEquals("Hi", m.getString("content"))
+        assertEquals(1, gw.created)
+        assertTrue(CloudRuns.OFFLINE in lines)
         assertFalse(client.store.isOff())
         gw.createCode = 503
         try { client.complete(CloudRuns.Turn("main", "t-7b"), user("hi"), null, "chat", ev); fail("expected fallback") }

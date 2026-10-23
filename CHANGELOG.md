@@ -1,3 +1,9 @@
+## v0.45.21: new chat bubbles, Sending/Sent/Read, live step pills (versionCode 166)
+- Chat bubbles: yours on the right, Blaze on the left, with tails, the time inside, Today/Yesterday chips and a long-press menu; readable in every theme.
+- Your latest message shows Sending, Sent or Read; offline messages retry on their own without duplicates.
+- One small pill shows what Blaze is doing right now and disappears when the reply lands.
+- @all: Blaze answers first and Halo only adds something new; voice replies skip filler like "On it".
+
 ## v0.45.20: faster Blaze Phone, finds sites by name, honest booking status (versionCode 165)
 - Blaze Phone reads pages live from the browser instead of waiting and re-reading: page reads drop from ~28 ms to ~2 ms (p50), and every action is confirmed.
 - Say "the booking site", "herokuapp login page" or "my bank" and Blaze finds the right page and sub-page; it asks when it can't tell.

@@ -59,7 +59,7 @@ class PromptCacheBenchTest {
             s("names", GreetName.RULE)   // v0.45.9
             s("lang", ReplyLanguage.line("auto"))   // v0.45.7
             slow("connectors", "\nConnected accounts you can use with tools: Gmail (mail), Google Calendar (events), Spotify (music).\n")
-            s("talk", lit("s", "talk")); s("style", AnswerStyle.RULE); s("format", AnswerStyle.FORMAT)
+            s("talk", lit("s", "talk")); s("voice", VoiceFiller.RULE); s("style", AnswerStyle.RULE); s("format", AnswerStyle.FORMAT)
             s("self", lit("s", "self")); s("remember", lit("s", "remember")); s("again", lit("s", "again"))
             s("rapid", RapidMessages.PROMPT_RULE); s("ask", lit("s", "ask"))
             s("control", lit("s", "control").trimIndent())

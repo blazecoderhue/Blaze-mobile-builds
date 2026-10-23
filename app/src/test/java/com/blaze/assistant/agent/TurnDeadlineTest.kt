@@ -23,7 +23,8 @@ class TurnDeadlineTest {
     @Test fun agentUsesTheDeadline() {
         val src = listOf(File("src/main/java/com/blaze/assistant/agent/Agent.kt"), File("app/src/main/java/com/blaze/assistant/agent/Agent.kt")).first { it.exists() }.readText()
         assertTrue(src.contains("if (System.currentTimeMillis() > hardEnd())"))
-        assertTrue(src.contains("withTimeoutOrNull(minOf(budget, TurnDeadline.CLOUD_STEP_MS))"))
+        // 0.45.20: the Cloud step limit starts once the message reached the gateway (offline sends keep retrying).
+        assertTrue(src.contains("CloudRuns.timedAfterSent(ct, minOf(budget, TurnDeadline.CLOUD_STEP_MS))"))
         assertTrue(src.contains("withTimeoutOrNull(left) { LlmClient.complete(r, tools, onText, onThink, lane) }"))
     }
 }
