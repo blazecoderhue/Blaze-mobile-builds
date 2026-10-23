@@ -1697,7 +1697,8 @@ public class BlackBoxCore extends ClientConfiguration {
             Slog.d(TAG, "Ensuring proper initialization order...");
             
             
-            try {
+            // Blaze: the native JNI hook layer is for engine processes; Blaze's main process (a client only) skips it.
+            if (!inHostMainProcess()) try {
                 NativeCore.init(android.os.Build.VERSION.SDK_INT);
                 Slog.d(TAG, "NativeCore initialized successfully");
             } catch (Exception e) {

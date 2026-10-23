@@ -9,13 +9,15 @@ Apache-2.0 §4(b): files modified relative to NewBlackbox 89b59836 (see UPSTREAM
 | `compiler/build.gradle.kts` | Project path `:phone-engine:black-reflection`. |
 | `src/main/AndroidManifest.xml` | Rewritten: 4 guest slots (:p0..:p3) instead of 50; all ~60 `uses-permission` / `uses-feature` removed (the engine adds no permission to Blaze); no `usesCleartextTraffic`; DaemonService (foreground) and ProxyVpnService removed; every stub non-exported except the BIND_JOB_SERVICE job services; stub activities resizeable + excludeFromRecents (they open on Blaze's VirtualDisplay). |
 | `proxy/ProxyManifest.java` | `FREE_COUNT` 50 → 4 to match the manifest. |
-| `BlackBoxCore.java` | Removed the log upload (`sendLogs` now a no-op that reports "disabled") and `startLogcat()` (it copied the whole device logcat to public Downloads). Added `inHostMainProcess()`: the static crash "fixes" and `installSystemHooks()` (which replace the default uncaught-exception handler) run only in engine processes, never in Blaze's main process. |
+| `BlackBoxCore.java` | Removed the log upload (`sendLogs` now a no-op that reports "disabled") and `startLogcat()` (it copied the whole device logcat to public Downloads). Added `inHostMainProcess()`: the static crash "fixes" and `installSystemHooks()` (which replace the default uncaught-exception handler) run only in engine processes, never in Blaze's main process. `ensureProperInitialization()` skips `NativeCore.init` (JNI hook layer) in Blaze's main process. |
 | `utils/LogSender.java` | Deleted (uploaded logs to a third-party server, logs-sender-api.vercel.app). |
 | `app/configuration/ClientConfiguration.java` | `getLogSenderChatId()` returns null (upstream: its author's chat id). |
 | `core/system/am/ActivityStack.java` | Reads the launch display from the intent (`GuestDisplays`) and starts new guest tasks with `ActivityOptions.setLaunchDisplayId` on Blaze's own VirtualDisplay. |
 | `core/system/am/GuestDisplays.java` | New (Blaze): guest package → display id map. |
 | `res/layout/activity_launcher.xml`, `res/values/styles.xml` | ConstraintLayout / AppCompat theme replaced by framework ones (no extra dependencies). Blaze never shows this splash (`isEnableLauncherActivity()` = false). |
 | `res/drawable/ic_launcher.png` | Deleted (unused). |
+| `closecode/Entry.java` | Deleted (upstream sample that loads an `inject.so` into a named guest; `closeCodeInit()` is never called by Blaze and now finds nothing). |
+| `core/system/am/ActivityStack.java` (2) | A guest with no Blaze Phone display open is not started at all, and a refused launch on the display is dropped, never re-tried on the user's screen; new tasks from a guest's own activities (no result-to) also get the display. |
 
 No analytics, ads or update checks were found besides the log uploader above (grep for URLs / HttpURLConnection over the
 whole module: the only network endpoint was logs-sender-api.vercel.app).

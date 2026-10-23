@@ -14,11 +14,15 @@ object BlazePhonePolicy {
     enum class Proc { MAIN, ENGINE_SERVER, GUEST, OTHER }
 
     /** What kind of process [name] is for the app [hostPkg] (":black" = engine server, ":p0".."p3" = guest slots). */
-    fun proc(name: String?, hostPkg: String): Proc = when {
-        name.isNullOrBlank() || name == hostPkg -> Proc.MAIN
-        name == "$hostPkg:black" -> Proc.ENGINE_SERVER
-        name.startsWith("$hostPkg:p") && name.removePrefix("$hostPkg:p").toIntOrNull()?.let { it in 0 until ENGINE_SLOTS } == true -> Proc.GUEST
-        else -> Proc.OTHER
+    fun proc(name: String?, hostPkg: String): Proc {
+        val n = name ?: return Proc.MAIN
+        val slot = if (n.startsWith("$hostPkg:p")) n.removePrefix("$hostPkg:p").toIntOrNull() else null
+        return when {
+            n.isBlank() || n == hostPkg -> Proc.MAIN
+            n == "$hostPkg:black" -> Proc.ENGINE_SERVER
+            slot != null && slot in 0 until ENGINE_SLOTS -> Proc.GUEST
+            else -> Proc.OTHER
+        }
     }
 
     /** The engine (and only the engine) starts in its own processes; Blaze's main process never touches it until used. */

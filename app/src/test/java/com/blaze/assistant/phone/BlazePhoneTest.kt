@@ -197,7 +197,7 @@ class BlazePhoneTest {
             onCreate.trimStart().startsWith("super.onCreate()\n        if (engineProcess) { com.blaze.assistant.phone.BlazePhoneEngine.create(); return }"))
         assertEquals("BlazePhoneEngine is called only behind engineProcess", 2, Regex("BlazePhoneEngine\\.").findAll(app).count())
         // The engine's manifest adds no permission (or feature) to Blaze.
-        val m = File("../phone-engine/src/main/AndroidManifest.xml").readText()
+        val m = File("../phone-engine/src/main/AndroidManifest.xml").readText().replace(Regex("(?s)<!--.*?-->"), "")
         assertFalse(m.contains("<uses-permission")); assertFalse(m.contains("<uses-feature")); assertFalse(m.contains("usesCleartextTraffic"))
         assertEquals(4, Regex("android:name=\"\\.proxy\\.ProxyActivity\\\$P\\d\"").findAll(m).count())
         assertFalse("no exported guest activity", Regex("""<activity[^>]*android:exported="true"""").containsMatchIn(m))

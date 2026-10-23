@@ -165,7 +165,9 @@ class BlazePhone(
         idle
     }
 
-    private fun touch(pkg: String) = synchronized(live) { if (pkg in live) live[pkg] = clock() }
+    private fun touch(pkg: String) {
+        synchronized(live) { if (pkg in live) live[pkg] = clock() }
+    }
 
     private suspend fun stopLocked(pkg: String): Boolean {
         val was = synchronized(live) { live.remove(pkg) != null }

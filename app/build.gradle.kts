@@ -19,6 +19,8 @@ android {
         // empty = "not configured" (the user can paste one in the Music Store instead).
         buildConfigField("String", "JAMENDO_CLIENT_ID", "\"" + (System.getenv("JAMENDO_CLIENT_ID") ?: (project.findProperty("jamendo.clientId") as String?) ?: "").replace("\"", "") + "\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // Blaze Phone spike: -Pblaze.phoneSpike=true builds a device-test APK that offers the blaze_phone tool. Off by default.
+        buildConfigField("boolean", "BLAZE_PHONE_SPIKE", ((project.findProperty("blaze.phoneSpike") as String?) == "true").toString())
     }
     // 0.45.15 (key rotation, user-approved 22 Oct 08:32): no signing key or password lives in this repo. Gradle signs with the
     // SDK's own debug key (fine for local runs and CI test builds); a release APK is re-signed outside the repo with the

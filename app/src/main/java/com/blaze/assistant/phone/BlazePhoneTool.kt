@@ -6,12 +6,14 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Blaze Phone (spike) as one agent tool, `blaze_phone`. Offered to the model only when the hidden setting
- * "blaze_phone_spike" is on (device testing), so the tool list everyone else sees is unchanged.
+ * Blaze Phone (spike) as one agent tool, `blaze_phone`. Offered to the model only in a device-test build
+ * (-Pblaze.phoneSpike=true) or when the hidden setting "blaze_phone_spike" is on, so everyone else's tool list is unchanged.
  */
 object BlazePhoneTool {
     const val NAME = "blaze_phone"
     const val SETTING = "blaze_phone_spike"
+
+    fun enabled(): Boolean = com.blaze.assistant.BuildConfig.BLAZE_PHONE_SPIKE || com.blaze.assistant.agent.Settings.bool(SETTING, false)
 
     fun def(): JSONObject = JSONObject().put("type", "function").put("function", JSONObject().put("name", NAME)
         .put("description", "Blaze Phone (experimental): apps that run only inside Blaze's own sandbox, never installed on the phone. " +

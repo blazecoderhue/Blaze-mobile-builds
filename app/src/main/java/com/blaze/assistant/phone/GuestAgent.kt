@@ -51,14 +51,17 @@ object GuestAgent {
         }, "blaze-phone-guest").apply { isDaemon = true }.start()
     }
 
-    private fun serve(s: LocalSocket) = s.use { sock ->
-        if (sock.peerCredentials.uid != android.os.Process.myUid()) return
-        val r = sock.inputStream.bufferedReader(); val w = sock.outputStream.bufferedWriter()
-        while (true) {
-            val line = r.readLine() ?: break
-            val reply = try { handle(JSONObject(line)) } catch (e: Throwable) { err(e.message ?: e.javaClass.simpleName) }
-            w.write(reply.toString()); w.write("\n"); w.flush()
-        }
+    private fun serve(s: LocalSocket) {
+        try {
+            if (s.peerCredentials.uid != android.os.Process.myUid()) return
+            val r = s.inputStream.bufferedReader(); val w = s.outputStream.bufferedWriter()
+            while (true) {
+                val line = r.readLine() ?: break
+                val reply = try { handle(JSONObject(line)) } catch (e: Throwable) { err(e.message ?: e.javaClass.simpleName) }
+                w.write(reply.toString()); w.write("\n"); w.flush()
+            }
+        } catch (_: Exception) {
+        } finally { try { s.close() } catch (_: Exception) { } }
     }
 
     private fun err(m: String) = JSONObject().put("ok", false).put("error", m)
