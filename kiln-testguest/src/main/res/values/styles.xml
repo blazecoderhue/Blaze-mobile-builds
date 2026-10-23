@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A loud orange theme so a tester can see the guest's own theme was applied (not Blaze's or the slot's). -->
+    <color name="guest_orange">#E65100</color>
+    <color name="guest_orange_dark">#BF360C</color>
+    <color name="guest_bg">#FFF3E0</color>
+    <style name="GuestTheme" parent="android:Theme.Material.Light.DarkActionBar">
+        <item name="android:colorPrimary">@color/guest_orange</item>
+        <item name="android:colorPrimaryDark">@color/guest_orange_dark</item>
+        <item name="android:colorAccent">@color/guest_orange</item>
+        <item name="android:windowBackground">@color/guest_bg</item>
+    </style>
+</resources>

@@ -1,97 +1,77 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Blaze Kiln host stubs (ENGINE_DESIGN.md 1.1). M1: guest process :g0 only. Merges into the app only when :app
-     depends on :kiln, which it does not yet. -->
+<!-- Blaze Kiln host stubs (ENGINE_DESIGN.md 1.1). M1: guest process :g0 only. No configChanges on purpose (M1): Android
+     relaunches the slot on rotation, which recreates the GUEST activity with its saved state and its own -land
+     resources, the default behaviour of an app that declares no configChanges. Per-guest configChanges is M2.
+     Merges only into the kilnTest build of :app (the M1 phone test build); release and debug do not depend on :kiln. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
         <provider android:name="com.blaze.kiln.slot.P0" android:process=":g0" android:exported="false"
             android:authorities="${applicationId}.kiln.p0" android:initOrder="1000" />
         <activity android:name="com.blaze.kiln.slot.A0_0_0" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_1" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_2" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_3" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_4" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_5" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_6" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_7" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_8" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_9" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_10" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_0_11" android:process=":g0" android:exported="false"
             android:launchMode="standard" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_1_0" android:process=":g0" android:exported="false"
             android:launchMode="singleTop" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_1_1" android:process=":g0" android:exported="false"
             android:launchMode="singleTop" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_1_2" android:process=":g0" android:exported="false"
             android:launchMode="singleTop" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_1_3" android:process=":g0" android:exported="false"
             android:launchMode="singleTop" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_2_0" android:process=":g0" android:exported="false"
             android:launchMode="singleTask" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_2_1" android:process=":g0" android:exported="false"
             android:launchMode="singleTask" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_2_2" android:process=":g0" android:exported="false"
             android:launchMode="singleTask" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_2_3" android:process=":g0" android:exported="false"
             android:launchMode="singleTask" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_3_0" android:process=":g0" android:exported="false"
             android:launchMode="singleInstance" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
         <activity android:name="com.blaze.kiln.slot.A0_3_1" android:process=":g0" android:exported="false"
             android:launchMode="singleInstance" android:taskAffinity="com.blaze.kiln.task.g0"
-            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|screenLayout|fontScale|uiMode|orientation|density|screenSize|smallestScreenSize|layoutDirection|colorMode|fontWeightAdjustment"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar" />
     </application>
 </manifest>

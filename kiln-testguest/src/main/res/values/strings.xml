@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kiln Test Guest</string>
+    <string name="title">Kiln Test Guest</string>
+    <string name="orientation">PORTRAIT layout</string>
+    <string name="note_hint">Type a note here</string>
+    <string name="tap">Tap +1</string>
+    <string name="taps">Taps: %1$d</string>
+    <string name="save">Save note to file</string>
+    <string name="close">Close (finish)</string>
+    <string name="nothing_saved">No saved note yet</string>
+    <string name="saved">Saved note: \"%1$s\" (save #%2$d)</string>
+    <string name="save_failed">Save failed: %1$s</string>
+</resources>

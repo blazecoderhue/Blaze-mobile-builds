@@ -16,7 +16,15 @@ android {
     kotlinOptions { jvmTarget = "17" }
     testOptions {
         unitTests.isReturnDefaultValues = true
-        unitTests.all { it.useTestNG() }
+        unitTests.all {
+            it.useTestNG()
+            // TestGuestApkTest inspects the real test guest APK built in the same run; SlotManifestTest reads the
+            // source manifest Android merges into the kilnTest build.
+            it.dependsOn(":kiln-testguest:assembleDebug")
+            it.systemProperty("kiln.testGuestApk", rootProject.file("kiln-testguest/build/outputs/apk/debug/kiln-testguest-debug.apk").path)
+            it.systemProperty("kiln.manifest", file("src/main/AndroidManifest.xml").path)
+            it.testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
+        }
     }
 }
 

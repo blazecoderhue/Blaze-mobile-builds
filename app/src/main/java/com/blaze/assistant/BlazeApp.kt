@@ -8,6 +8,9 @@ import kotlinx.coroutines.launch
 class BlazeApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Blaze Kiln guest processes (":g0".., only declared in the kilnTest build) run guest apps, not Blaze: none of
+        // Blaze's start-up (agents, router, overlays, workers) may run there.
+        if (isKilnGuestProcess()) return
         val t0 = android.os.SystemClock.elapsedRealtime()
         com.blaze.assistant.device.CrashLog.init(this)
         com.blaze.assistant.device.CrashLog.shieldMainThread()
@@ -113,6 +116,14 @@ class BlazeApp : Application() {
             // v0.28.5: index each project's full instructions / brief / notes (only what changed) for project_docs_search.
             try { com.blaze.assistant.agent.ProjectDocs.init() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BlazeApp: ProjectDocs.in", e) }
         }
+    }
+
+    private fun isKilnGuestProcess(): Boolean {
+        val name = try {
+            if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName()
+            else java.io.File("/proc/self/cmdline").readText().trimEnd('\u0000')
+        } catch (_: Throwable) { return false }
+        return Regex(":g[0-9]+$").containsMatchIn(name ?: "")
     }
 
     /**

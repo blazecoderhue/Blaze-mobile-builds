@@ -53,10 +53,17 @@ class ServiceShim(
             rewriter.rewriteArgs(args, adapters)
             return method.invoke(real, *args)
         } catch (e: java.lang.reflect.InvocationTargetException) {
-            throw e.cause ?: e
+            val cause = e.cause ?: e
+            // The real service refused even after the identity rewrite: record which one (harness diagnostics).
+            if (cause is SecurityException) KilnDiag.refusal(serviceName, method.name, cause)
+            throw cause
         } catch (t: Throwable) {
             KilnLog.e("$serviceName.${method.name} shim failed; passing through", t)
-            return try { method.invoke(real, *args) } catch (e: java.lang.reflect.InvocationTargetException) { throw e.cause ?: e }
+            return try { method.invoke(real, *args) } catch (e: java.lang.reflect.InvocationTargetException) {
+                val cause = e.cause ?: e
+                if (cause is SecurityException) KilnDiag.refusal(serviceName, method.name, cause)
+                throw cause
+            }
         }
     }
 
@@ -115,6 +122,20 @@ object AndroidArgAdapters {
         }
     }
 
+    /**
+     * The input method service checks EditorInfo.packageName against the calling uid (AOSP InputMethodManagerService);
+     * a guest's text field reports the guest package, so the keyboard would never attach. Rewritten in place.
+     */
+    fun editorInfo() = object : IdentityRewriter.ArgAdapter {
+        override fun accepts(value: Any) = value is android.view.inputmethod.EditorInfo
+        override fun rewrite(value: Any, rw: IdentityRewriter): Any {
+            val e = value as android.view.inputmethod.EditorInfo
+            if (rw.isGuest(e.packageName)) e.packageName = rw.hostPackage
+            return e
+        }
+    }
+
     fun all(): List<IdentityRewriter.ArgAdapter> =
-        if (android.os.Build.VERSION.SDK_INT >= 31) listOf(componentName(), attributionSource()) else listOf(componentName())
+        if (android.os.Build.VERSION.SDK_INT >= 31) listOf(componentName(), attributionSource(), editorInfo())
+        else listOf(componentName(), editorInfo())
 }

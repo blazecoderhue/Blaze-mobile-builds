@@ -16,6 +16,9 @@ abstract class SlotActivity : Activity() {
             setPadding(48, 96, 48, 48)
         })
         com.blaze.kiln.runtime.KilnLog.w("slot ${javaClass.simpleName} ran without a guest (launch swap missed)")
+        com.blaze.kiln.runtime.KilnDiag.init(this)
+        com.blaze.kiln.runtime.KilnDiag.step(com.blaze.kiln.diag.HarnessStep.GUEST_SWAP, false,
+            "slot ${javaClass.simpleName} ran without a guest (launch swap missed on API ${android.os.Build.VERSION.SDK_INT})")
     }
 }
 

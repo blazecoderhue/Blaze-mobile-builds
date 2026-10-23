@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:padding="16dp">
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:padding="4dp">
+            <TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/title" android:textSize="24sp" android:textColor="@color/guest_orange_dark" />
+            <TextView android:id="@+id/orientation" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/orientation" android:textStyle="bold" />
+            <TextView android:id="@+id/info" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textSize="12sp" android:paddingTop="8dp" android:textIsSelectable="true" />
+            <TextView android:id="@+id/saved" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:paddingTop="8dp" android:text="@string/nothing_saved" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:padding="4dp">
+            <EditText android:id="@+id/note" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:hint="@string/note_hint" android:inputType="text" android:importantForAutofill="no" />
+            <TextView android:id="@+id/taps" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:paddingTop="8dp" android:textSize="18sp" />
+            <Button android:id="@+id/tap" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/tap" />
+            <Button android:id="@+id/save" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/save" />
+            <Button android:id="@+id/close" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/close" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

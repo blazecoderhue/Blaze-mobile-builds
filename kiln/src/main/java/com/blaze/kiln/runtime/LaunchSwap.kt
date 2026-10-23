@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Handler
 import android.os.Message
+import com.blaze.kiln.diag.HarnessStep
 
 // Step 4 of the launch loop (ENGINE_DESIGN.md 1.3): before ActivityThread handles the launch, swap the slot's
 // Intent and ActivityInfo for the guest's own. From there AOSP builds the guest LoadedApk, Application, Activity,
@@ -79,18 +80,24 @@ class LaunchSwap(
         val env = LaunchInterceptor.envelopeOf(slotIntent) ?: return null
         if (!tokens.verify(env.token, env.guestPackage, env.guestClass, env.profile)) {
             KilnLog.w("slot intent with an unknown token; ignoring")
+            KilnDiag.step(HarnessStep.GUEST_SWAP, false, "launch token rejected (stale launch or a different install)")
             return null
         }
         val abi = abiOf(env.guestPackage)
         onGuestLaunch(env.guestPackage, env.profile, abi)
-        val guestApp = GuestApp.loaded(env.guestPackage) ?: return null
+        val guestApp = GuestApp.loaded(env.guestPackage) ?: run {
+            KilnDiag.step(HarnessStep.GUEST_SWAP, false, "guest not loaded, slot left as is")
+            return null
+        }
         val info = guestApp.activity(env.guestClass) ?: run {
             KilnLog.w("guest activity not in its manifest")
+            KilnDiag.step(HarnessStep.GUEST_SWAP, false, "activity ${env.guestClass} not in the guest manifest")
             return null
         }
         val original = LaunchInterceptor.originalIntent(slotIntent) ?: Intent()
         val intent = Intent(original)
         intent.setClassName(env.guestPackage, env.guestClass)
+        KilnDiag.step(HarnessStep.GUEST_SWAP, true, "${env.guestClass.substringAfterLast('.')} in slot ${env.slotClass.substringAfterLast('.')}, theme 0x${Integer.toHexString(info.themeResource)}")
         return intent to info
     }
 }

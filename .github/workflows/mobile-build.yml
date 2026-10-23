@@ -23,11 +23,13 @@ env:
   # Kotlin JVM backend overflows the default thread stack on the big agent coroutines (StackOverflowError in run 39836794933)
 
 jobs:
-  # Blaze Kiln branches (app/engine-*): compile + JVM tests of :kiln, and prove :app still compiles. No APK, no signing.
+  # Blaze Kiln branches (app/engine-*): compile + JVM tests of :kiln, prove :app (debug + release) does not contain Kiln,
+  # and build the M1 phone TEST APK (kilnTest build type: applicationId com.blaze.assistant.kilntest, SDK debug key).
+  # Never a release: no version bump, no release key, no publishing.
   engine:
     if: ${{ startsWith(github.ref_name, 'app/engine') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -44,6 +46,39 @@ jobs:
       - name: App still compiles
         if: always()
         run: set -o pipefail; ./gradlew :app:compileDebugKotlin --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process -Pkotlin.jvm.target.validation.mode=warning 2>&1 | tee app-compile.log
+      - name: Release and debug do not contain Kiln
+        if: always()
+        run: |
+          set -e
+          ./gradlew -q :app:dependencies --configuration releaseRuntimeClasspath --console=plain > rel-deps.txt
+          ./gradlew -q :app:dependencies --configuration debugRuntimeClasspath --console=plain > dbg-deps.txt
+          if grep -E "project :kiln" rel-deps.txt dbg-deps.txt; then echo "::error::Kiln leaked into release/debug"; exit 1; fi
+          grep -q "KILN_HARNESS\", \"false\"" app/build.gradle.kts
+          echo "release/debug: no :kiln dependency" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Kiln M1 test APK (kilnTest)
+        if: always()
+        run: set -o pipefail; ./gradlew :app:assembleKilnTest --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process -Pkotlin.jvm.target.validation.mode=warning 2>&1 | tee kiln-apk.log
+      - name: Verify test APK
+        if: always()
+        run: |
+          set -e
+          BT="$ANDROID_HOME/build-tools/34.0.0"
+          A=$(ls app/build/outputs/apk/kilnTest/*.apk | head -1)
+          mkdir -p kiln-test && cp "$A" kiln-test/blaze-kiln-m1-test.apk
+          cd kiln-test
+          "$BT/apksigner" verify --verbose --print-certs blaze-kiln-m1-test.apk | tee verify.txt
+          "$BT/aapt2" dump badging blaze-kiln-m1-test.apk > badging.txt
+          grep -q "package: name='com.blaze.assistant.kilntest'" badging.txt
+          grep -q "versionName='.*-kiln-m1-test'" badging.txt
+          "$BT/aapt2" dump xmltree --file AndroidManifest.xml blaze-kiln-m1-test.apk > manifest.txt
+          grep -q "com.blaze.assistant.kiln.KilnHarnessActivity" manifest.txt
+          grep -q "com.blaze.kiln.slot.A0_0_0" manifest.txt
+          grep -q "com.blaze.kiln.slot.P0" manifest.txt
+          grep -q '":g0"' manifest.txt
+          unzip -l blaze-kiln-m1-test.apk | grep -q "assets/kiln/kiln-testguest.apk"
+          sha256sum blaze-kiln-m1-test.apk | tee SHA256SUMS
+          grep -E "package:|sdkVersion|targetSdkVersion" badging.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          cat SHA256SUMS >> "$GITHUB_STEP_SUMMARY"
       - name: units.txt
         if: always()
         run: |
@@ -71,6 +106,14 @@ jobs:
             units.txt
             kiln/build/test-results/testDebugUnitTest/*.xml
             kiln/build/outputs/aar/
+            kiln-apk.log
+            rel-deps.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kiln-test-apk
+          retention-days: 7
+          path: kiln-test/
 
   apk:
     if: ${{ !startsWith(github.ref_name, 'app/engine') }}

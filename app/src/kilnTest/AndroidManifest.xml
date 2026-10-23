@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- kilnTest build type only (M1 phone test build, ENGINE_M1_PHONE_TEST.md). Release and debug builds never contain this
+     activity or :kiln. Its own launcher icon, so a tester opens it directly. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="com.blaze.assistant.kiln.KilnHarnessActivity"
+            android:exported="true"
+            android:label="Blaze Kiln test"
+            android:taskAffinity="com.blaze.assistant.kiln.harness"
+            android:theme="@android:style/Theme.DeviceDefault.Light">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
