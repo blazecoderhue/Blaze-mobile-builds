@@ -1,0 +1,7 @@
+Blaze Phone engine
+Copyright 2026 Blaze contributors (modifications, see CHANGES.md)
+
+This module contains NewBlackbox (https://github.com/ALEX5402/NewBlackbox, commit 89b59836c66f173756a4ae258cf379a957649820),
+licensed under the Apache License, Version 2.0 (see LICENSE), itself derived from BlackBox by niunaijun (Apache-2.0).
+It bundles Dobby (Apache-2.0), xDL (MIT) and depends on FreeReflection (MIT).
+Files changed by Blaze are listed in CHANGES.md and carry a "Blaze:" comment at each change.

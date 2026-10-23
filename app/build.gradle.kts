@@ -248,6 +248,8 @@ dependencies {
     implementation("androidx.media3:media3-effect:$media3")
     implementation("com.google.mediapipe:tasks-genai:0.10.24")   // v0.33.0 Offline Brain
     implementation(project(":storeapi"))
+    // Blaze Phone (spike): the vendored app-virtualization engine (NewBlackbox, Apache-2.0); see phone-engine/UPSTREAM.md.
+    implementation(project(":phone-engine"))
     // The YouTube Store is a plug-in: compiled in only when the youtube/ folder (Gradle :youtube) exists.
     if (rootProject.findProject(":youtube") != null) implementation(project(":youtube"))
     // v0.36.0 BlazeOS native apps: Chicory, a pure-JVM WebAssembly interpreter (no NDK, no per-CPU libraries).

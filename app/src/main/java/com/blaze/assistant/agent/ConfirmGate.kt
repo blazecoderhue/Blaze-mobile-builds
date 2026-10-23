@@ -44,6 +44,7 @@ object ConfirmGate {
         tool in screen -> SCREEN
         tool in otherApps -> "content from ${tool.substringBefore('_').replaceFirstChar { it.uppercase() }}"
         tool.startsWith("mcp__") -> "an MCP tool's answer"
+        tool == "blaze_phone" -> PHONE_APP
         else -> null
     }
 
@@ -61,6 +62,8 @@ object ConfirmGate {
     /** v0.45.0: a message typed into the dashboard from another device on the Wi-Fi. */
     const val DASHBOARD = "a message from the dashboard on another device"
     const val AGENT_REPORT = "a background agent's report"
+    /** Blaze Phone (spike): a guest app's screen (view_tree) is outside content like any other app's. */
+    const val PHONE_APP = "an app in Blaze Phone"
 
     /**
      * The current turn's taint, carried in the coroutine context of each chat's turn (so [Agent.confirm], called

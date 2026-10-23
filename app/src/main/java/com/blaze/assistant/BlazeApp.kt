@@ -6,8 +6,30 @@ import com.blaze.assistant.agent.Settings
 import kotlinx.coroutines.launch
 
 class BlazeApp : Application() {
+    /**
+     * Blaze Phone (spike): Android also starts this Application in the app-virtualization engine's own processes
+     * (":black" and the guest slots ":p0".."p3"). There the engine starts and NOTHING of Blaze does. In Blaze's main
+     * process this is one process-name check; the engine itself loads only when Blaze Phone is first used.
+     */
+    private var engineProcess = false
+
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(base)
+        val name = processName()
+        if (com.blaze.assistant.phone.BlazePhonePolicy.isEngineProcess(name, base.packageName)) {
+            engineProcess = true
+            com.blaze.assistant.phone.BlazePhoneEngine.attach(base, name!!)
+        }
+    }
+
+    private fun processName(): String? = try {
+        if (android.os.Build.VERSION.SDK_INT >= 28) Application.getProcessName()
+        else java.io.File("/proc/self/cmdline").readBytes().takeWhile { it != 0.toByte() }.toByteArray().toString(Charsets.UTF_8)
+    } catch (_: Throwable) { null }
+
     override fun onCreate() {
         super.onCreate()
+        if (engineProcess) { com.blaze.assistant.phone.BlazePhoneEngine.create(); return }
         val t0 = android.os.SystemClock.elapsedRealtime()
         com.blaze.assistant.device.CrashLog.init(this)
         com.blaze.assistant.device.CrashLog.shieldMainThread()
@@ -119,6 +141,7 @@ class BlazeApp : Application() {
      */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        if (engineProcess) return
         if (com.blaze.assistant.device.MemoryTrim.shouldDropCaches(level)) {
             try { com.blaze.assistant.device.MemoryTrim.dropCaches() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("onTrimMemory", e) }
         }
@@ -127,6 +150,7 @@ class BlazeApp : Application() {
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onLowMemory() {
         super.onLowMemory()
+        if (engineProcess) return
         try { com.blaze.assistant.device.MemoryTrim.dropCaches() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("onLowMemory", e) }
     }
 }

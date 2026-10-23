@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Blaze Phone engine (vendored NewBlackbox, Apache-2.0). Trimmed by Blaze (see ../../../CHANGES.md):
+  - 4 guest process slots (:p0..:p3) instead of 50 (Blaze runs at most 1-2 live guests).
+  - No uses-permission / uses-feature: the engine adds nothing to Blaze's permission list; a guest gets at most what
+    Blaze itself holds. No usesCleartextTraffic override, no VPN service, no foreground daemon service.
+  - Every stub is non-exported (only Blaze's own uid starts/binds them), except the job services, which only the
+    system can bind (BIND_JOB_SERVICE). Stub activities are resizeable so they can open on Blaze's own VirtualDisplay.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <provider
+            android:name="top.niunaijun.blackbox.core.system.SystemCallProvider"
+            android:authorities="${applicationId}.blackbox.SystemCallProvider"
+            android:exported="false"
+            android:process="@string/black_box_service_name" />
+        <provider
+            android:name=".fake.provider.FileProvider"
+            android:authorities="${applicationId}.blackbox.FileProvider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filepath" />
+        </provider>
+        <receiver
+            android:name=".proxy.ProxyBroadcastReceiver"
+            android:enabled="true"
+            android:exported="false"
+            android:process="@string/black_box_service_name">
+            <intent-filter>
+                <action android:name="${applicationId}.stub_receiver" />
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name=".app.LauncherActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/LauncherTheme" />
+        <!-- guest slot 0 -->
+        <activity
+            android:name=".proxy.ProxyActivity$P0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p0"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@style/BTheme" />
+        <activity
+            android:name=".proxy.TransparentProxyActivity$P0"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p0"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@android:style/Theme.Translucent" />
+        <activity
+            android:name=".proxy.ProxyPendingActivity$P0"
+            android:exported="false"
+            android:process=":p0"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent" />
+        <service
+            android:name=".proxy.ProxyService$P0"
+            android:exported="false"
+            android:process=":p0" />
+        <provider
+            android:name=".proxy.ProxyContentProvider$P0"
+            android:authorities="${applicationId}.proxy_content_provider_0"
+            android:exported="false"
+            android:process=":p0" />
+        <service
+            android:name=".proxy.ProxyJobService$P0"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:process=":p0" />
+        <!-- guest slot 1 -->
+        <activity
+            android:name=".proxy.ProxyActivity$P1"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p1"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@style/BTheme" />
+        <activity
+            android:name=".proxy.TransparentProxyActivity$P1"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p1"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@android:style/Theme.Translucent" />
+        <activity
+            android:name=".proxy.ProxyPendingActivity$P1"
+            android:exported="false"
+            android:process=":p1"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent" />
+        <service
+            android:name=".proxy.ProxyService$P1"
+            android:exported="false"
+            android:process=":p1" />
+        <provider
+            android:name=".proxy.ProxyContentProvider$P1"
+            android:authorities="${applicationId}.proxy_content_provider_1"
+            android:exported="false"
+            android:process=":p1" />
+        <service
+            android:name=".proxy.ProxyJobService$P1"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:process=":p1" />
+        <!-- guest slot 2 -->
+        <activity
+            android:name=".proxy.ProxyActivity$P2"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p2"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@style/BTheme" />
+        <activity
+            android:name=".proxy.TransparentProxyActivity$P2"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p2"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@android:style/Theme.Translucent" />
+        <activity
+            android:name=".proxy.ProxyPendingActivity$P2"
+            android:exported="false"
+            android:process=":p2"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent" />
+        <service
+            android:name=".proxy.ProxyService$P2"
+            android:exported="false"
+            android:process=":p2" />
+        <provider
+            android:name=".proxy.ProxyContentProvider$P2"
+            android:authorities="${applicationId}.proxy_content_provider_2"
+            android:exported="false"
+            android:process=":p2" />
+        <service
+            android:name=".proxy.ProxyJobService$P2"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:process=":p2" />
+        <!-- guest slot 3 -->
+        <activity
+            android:name=".proxy.ProxyActivity$P3"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p3"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@style/BTheme" />
+        <activity
+            android:name=".proxy.TransparentProxyActivity$P3"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|fontScale"
+            android:exported="false"
+            android:process=":p3"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="top.niunaijun.blackbox.task_affinity"
+            android:theme="@android:style/Theme.Translucent" />
+        <activity
+            android:name=".proxy.ProxyPendingActivity$P3"
+            android:exported="false"
+            android:process=":p3"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent" />
+        <service
+            android:name=".proxy.ProxyService$P3"
+            android:exported="false"
+            android:process=":p3" />
+        <provider
+            android:name=".proxy.ProxyContentProvider$P3"
+            android:authorities="${applicationId}.proxy_content_provider_3"
+            android:exported="false"
+            android:process=":p3" />
+        <service
+            android:name=".proxy.ProxyJobService$P3"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:process=":p3" />
+    </application>
+</manifest>

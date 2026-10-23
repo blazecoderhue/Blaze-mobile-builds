@@ -171,3 +171,14 @@ No third-party code is bundled for these; Blaze calls their public APIs. Content
 ## YouTube plug-in (v0.30.1, optional module `youtube/`)
 
 Blaze's own code (InnerTube JSON client); no third-party extractor. **NewPipeExtractor was not used:** it is GPL-3.0. Blaze-agent is licensed PolyForm Noncommercial 1.0.0 (LICENSE.md), which adds a non-commercial restriction GPL-3.0 forbids, and the APK bundles proprietary Google Play services / ML Kit libraries; a GPL-3.0 dependency would require the whole APK to be GPL-3.0. If the YouTube module moves to a private repo, it still must not pull in GPL code while it ships inside Blaze. Downloading from YouTube may breach YouTube's Terms of Service; the module is isolated so builds can leave it out (delete `youtube/`). Its source now lives in the private repo lacksonkapapahue/Blaze-mobile and is only checked out into `youtube/` at build time; this public repo no longer contains it.
+
+## Blaze Phone engine (spike, module `phone-engine/`)
+
+App-virtualization engine that runs an APK inside Blaze's own sandbox (Blaze's uid, stub processes `:black` and `:p0`..`:p3`),
+never installed on the phone or shown in the launcher. Vendored from **NewBlackbox** by ALEX5402
+(https://github.com/ALEX5402/NewBlackbox, commit 89b59836c66f173756a4ae258cf379a957649820), **Apache License 2.0**, itself derived
+from BlackBox by niunaijun (Apache-2.0). Its LICENSE and a NOTICE are kept in `phone-engine/`; Blaze's modifications are listed in
+`phone-engine/CHANGES.md` (log upload and logcat capture removed, permissions and stub count trimmed, launch onto Blaze's own
+VirtualDisplay). Bundled inside it: **Dobby** (jmpews, Apache-2.0, prebuilt static library), **xDL** (HexHacking, MIT) and the
+**FreeReflection** library (tiann, MIT). No GPL code; VirtualApp and VirtualXposed are not used. Guest APKs a user adds are their
+own files and are not part of Blaze (the device test uses F-Droid's NewPipe, GPL-3.0, as a user-supplied guest only).

@@ -1264,6 +1264,8 @@ When you finish, say what you did in one short sentence.
         t.put(com.blaze.assistant.phone.Watchers.tool())
         SkillPacks.tools().forEach { t.put(it) }
         com.blaze.assistant.phone.AndroidControl.tools().forEach { t.put(it) }
+        // Blaze Phone spike: only when switched on for device tests (the tool list is otherwise unchanged).
+        if (Settings.bool(com.blaze.assistant.phone.BlazePhoneTool.SETTING, false)) t.put(com.blaze.assistant.phone.BlazePhoneTool.def())
         t.put(Autonomy.findToolDef()); t.put(Autonomy.goalTool()); t.put(Autonomy.permissionTool())
         com.blaze.assistant.proactive.Triggers.tools().forEach { t.put(it) }
         t.put(com.blaze.assistant.phone.Ussd.tool())
@@ -4490,6 +4492,10 @@ When you finish, say what you did in one short sentence.
                     val (text, card) = kotlinx.coroutines.withContext(Dispatchers.IO) { com.blaze.assistant.phone.InstalledApps.listTool(app, args.optString("filter")) }
                     if (card != null) turnAppsCard = card
                     text
+                }
+                com.blaze.assistant.phone.BlazePhoneTool.NAME -> {
+                    add(Role.STEP, "Blaze Phone: " + args.optString("action").replace('_', ' '))
+                    try { com.blaze.assistant.phone.BlazePhoneTool.run(app, args) } catch (e: CancellationException) { throw e } catch (e: Exception) { "Error: ${e.message}" }
                 }
                 in com.blaze.assistant.phone.AndroidControl.names -> {
                     add(Role.STEP, if (name == "blaze_camera") "Opening Blaze Camera" else name.replace('_', ' ').replaceFirstChar { it.uppercase() })
