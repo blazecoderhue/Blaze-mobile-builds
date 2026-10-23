@@ -226,47 +226,46 @@ fun Modifier.chatGlass(c: BlazeColors, mine: Boolean, shape: androidx.compose.ui
  * previews) are the only glass in the thread. [chatGlass] stays for those cards.
  */
 
-/** Your message: right-aligned plain text (medium weight, slightly dimmer). No box. */
+/**
+ * Your message. 0.45.20: back in a bubble ([ChatBubble], ui/ChatBubbles.kt): right side, frosted accent tint, tail on the
+ * first of a run, time inside.
+ */
 @Composable
 fun UserBubble(text: String, quoted: String = "", pos: GroupPos = GroupPos.SINGLE, modifier: Modifier = Modifier) {
     val c = LocalBlaze.current
-    Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-        Column(Modifier.padding(start = 56.dp).widthIn(max = 320.dp).padding(vertical = 2.dp), horizontalAlignment = Alignment.End) {
-            if (quoted.isNotEmpty()) {
-                Row(Modifier.padding(bottom = 4.dp).height(IntrinsicSize.Min)) {
-                    Text(quoted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                        style = TextStyle(fontFamily = Type.Sans, fontSize = 12.5.sp, lineHeight = 17.sp, color = c.weak))
-                    Spacer(Modifier.width(8.dp))
-                    Box(Modifier.width(2.dp).fillMaxHeight().clip(RoundedCornerShape(1.dp)).background(c.ink.copy(alpha = 0.25f)))
-                }
+    ChatBubble(Side.ME, pos, modifier.padding(vertical = 1.dp)) {
+        if (quoted.isNotEmpty()) {
+            Row(Modifier.padding(bottom = 4.dp).height(IntrinsicSize.Min)) {
+                Box(Modifier.width(2.dp).fillMaxHeight().clip(RoundedCornerShape(1.dp)).background(c.ink.copy(alpha = 0.35f)))
+                Spacer(Modifier.width(8.dp))
+                Text(quoted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                    style = TextStyle(fontFamily = Type.Sans, fontSize = 12.5.sp, lineHeight = 17.sp, color = BubblePalette.meta(c, true)))
             }
-            // v0.28.1: your own message renders its markdown too (## App, 1. **Offline mode**), never raw symbols.
-            val shown = remember(text, c.ink) { Md.render(text, c.ink, c.ink.copy(alpha = 0.10f)) }
-            SelectionContainer {
-                Text(shown, textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                    style = TextStyle(fontFamily = Type.sansFor(text), fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 22.sp,
-                        color = c.ink.copy(alpha = 0.78f), shadow = GlassBubble.halo(c)))
-            }
+        }
+        // v0.28.1: your own message renders its markdown too (## App, 1. **Offline mode**), never raw symbols.
+        val ink = BubblePalette.text(c, true)
+        val shown = remember(text, ink) { Md.render(text, ink, ink.copy(alpha = 0.10f)) }
+        SelectionContainer {
+            Text(shown, style = TextStyle(fontFamily = Type.sansFor(text), fontSize = 15.sp, lineHeight = 21.sp, color = ink))
         }
     }
 }
 
-/** Blaze's message: full-width plain content on the background. No box. [fill] is kept for callers (errors). */
+/** Blaze's message. 0.45.20: a bubble on the left ([ChatBubble]); [wide] content (tables, code) may use more width. */
 @Composable
-fun BlazeBubble(pos: GroupPos = GroupPos.SINGLE, modifier: Modifier = Modifier, fill: Color? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().padding(end = 4.dp, top = 2.dp, bottom = 2.dp)) {
-        CompositionLocalProvider(LocalBubble provides null) { content() }
-    }
+fun BlazeBubble(pos: GroupPos = GroupPos.SINGLE, modifier: Modifier = Modifier, fill: Color? = null, wide: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    ChatBubble(Side.BLAZE, pos, modifier.padding(vertical = 1.dp), wide = wide) { content() }
 }
 
 /** A Blaze reply drawn in its bubble (screenshots and the thread use the same one). */
 @Composable
 fun BlazeReply(key: Long, text: String, pos: GroupPos = GroupPos.SINGLE, live: Boolean = false) {
-    BlazeBubble(pos) { AnswerBody(key, text, live = live) }
+    // Tables and code blocks get a little more room (they scroll sideways inside the bubble anyway).
+    val wide = remember(text) { text.contains("```") || Regex("(?m)^\\s*\\|.*\\|\\s*$").containsMatchIn(text) }
+    BlazeBubble(pos, wide = wide) { AnswerBody(key, text, live = live) }
 }
 
-/** An error: plain text with a small desaturated warm label; no box. */
+/** An error: in Blaze's bubble with a small desaturated warm label. */
 @Composable
 fun ErrorBubble(text: String, pos: GroupPos = GroupPos.SINGLE) {
     val c = LocalBlaze.current
@@ -274,7 +273,7 @@ fun ErrorBubble(text: String, pos: GroupPos = GroupPos.SINGLE) {
         Label("Error", color = GlassTokens.error, size = 9.sp)
         Spacer(Modifier.height(4.dp))
         SelectionContainer {
-            Text(text, style = TextStyle(fontFamily = Type.Sans, fontSize = 14.sp, lineHeight = 21.sp, color = c.body, shadow = GlassBubble.halo(c)))
+            Text(text, style = TextStyle(fontFamily = Type.Sans, fontSize = 14.sp, lineHeight = 21.sp, color = BubblePalette.text(c, false)))
         }
     }
 }

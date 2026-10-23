@@ -346,7 +346,9 @@ object CloudRuns {
     // ---------------- network ----------------
 
     /** One HTTP answer: status, content type and the body as a reader. Closing it stops a stream. */
-    class Response(val code: Int, val contentType: String, val reader: BufferedReader, private val onClose: () -> Unit = {}) : java.io.Closeable {
+    class Response(val code: Int, val contentType: String, val reader: BufferedReader, private val onClose: () -> Unit = {},
+                   /** 0.45.20: the few headers the client reads (Retry-After), lower-case names. */
+                   val headers: Map<String, String> = emptyMap()) : java.io.Closeable {
         fun text(): String = try { reader.use { it.readText() } } catch (_: IOException) { "" } finally { onClose() }
         override fun close() { try { reader.close() } catch (_: Exception) { }; try { onClose() } catch (_: Exception) { } }
     }
@@ -387,7 +389,8 @@ object CloudRuns {
                 try { val g = TurnTrace.pick(c.headerFields); if (g.isNotEmpty()) CallState.current().let { st ->
                     st.gw = st.gw + g; g["x-request-id"]?.let { if (it !in st.requestIds) st.requestIds.add(it) } } } catch (_: Throwable) { }
                 val s = (if (code in 200..299) c.inputStream else c.errorStream) ?: java.io.ByteArrayInputStream(ByteArray(0))
-                return Response(code, c.contentType.orEmpty(), s.bufferedReader(), onClose = { c.disconnect() })
+                val hs = c.getHeaderField("Retry-After")?.let { mapOf("retry-after" to it) } ?: emptyMap()
+                return Response(code, c.contentType.orEmpty(), s.bufferedReader(), onClose = { c.disconnect() }, headers = hs)
             } catch (e: IOException) { c.disconnect(); throw e }
         }
     }
@@ -411,7 +414,19 @@ object CloudRuns {
         @Volatile var acked = false
         /** The client id of the run being made now (kept for an idempotent resend). */
         var cid = ""
-        fun nextId(): String { cid = "$base:${++n}"; return cid }
+        /** 0.45.20: the bubble's own client_msg_id (Delivery.Tracker), used for this turn's first run so a resend reuses it. */
+        @Volatile var firstCid: String? = null
+        /** 0.45.20: the user bubbles this turn answers (their gids), for the delivery label. */
+        @Volatile var gids: List<String> = emptyList()
+        /** 0.45.20: how long the first create waited for the network (the turn's clock starts after it). */
+        @Volatile var waitedMs = 0L
+        /** 0.45.20: completes once the gateway has the message (a 2xx), so step time limits start then, not while offline. */
+        val sent = kotlinx.coroutines.CompletableDeferred<Unit>()
+        fun nextId(): String {
+            val f = firstCid
+            cid = if (n == 0 && !f.isNullOrBlank()) { n = 1; f } else "$base:${++n}"
+            return cid
+        }
         /**
          * v0.45.0 (#6): turns a screenshot message into words with one local vision call, so a phone step that took a
          * screenshot continues the run instead of starting a new one. null result (or no describer) = a new run.
@@ -440,6 +455,8 @@ object CloudRuns {
         fun beat() {}
         /** The gateway's instant acknowledgment (`ack{text}`, gateway contract from Site): shown once, never a "done". */
         fun ack(text: String) {}
+        /** 0.45.20: every applied run event (and the client's own `_posted`): delivery label and step pill read these. */
+        fun raw(ev: JSONObject) {}
     }
 
     /** Runs owned by a live turn (the restart / reconnect pick-up leaves them alone). */
@@ -462,6 +479,7 @@ object CloudRuns {
          */
         suspend fun complete(t: Turn, messages: JSONArray, tools: JSONArray?, task: String, ev: Events = object : Events {}): JSONObject {
             t.red.window()
+            if (t.runId != null) t.sent.complete(Unit)
             try {
                 val cur = t.runId?.let { store.get(it) }
                 if (cur != null && cur.status == "needs_device") {
@@ -512,14 +530,22 @@ object CloudRuns {
             ev.status(SENDING)
             val cid = t.nextId()
             val body = createBody(cid, messages, tools, task).toString()
-            var resp: Response? = null
-            for (i in 0 until 3) {
-                currentCoroutineContext().ensureActive()
-                try { resp = io { http.send("POST", "/runs", body, SSE + (TurnModel.current?.headers() ?: emptyMap())) }; break }
-                // The same client id again: if the first one did land, the gateway answers with that run (existing:true).
-                catch (e: IOException) { if (i == 2) throw Fallback("unreachable"); pause(1_000L * (i + 1), ev) }
-            }
-            val r = resp!!
+            // 0.45.20 (contract §1): offline keeps the bubble at Sending and retries 1, 2, 4, 8, 16, 30 … s (at once when the
+            // network comes back), 429 waits Retry-After, another 4xx is "Not sent". Every attempt is the same body and
+            // client id: if an earlier one did land, the gateway answers with that run (existing:true), never a second one.
+            val t0 = now()
+            val r = try {
+                Delivery.deliver(
+                    post = { io { http.send("POST", "/runs", body, SSE + (TurnModel.current?.headers() ?: emptyMap())) } },
+                    codeOf = { it.code }, retryAfterOf = { it.headers["retry-after"] }, close = { it.close() },
+                    wait = { ms -> Delivery.waitOrWake(ms, sleep, { ev.beat() }) }, now = now,
+                    onEvent = { e -> when (e) {
+                        Delivery.Ev.NET_ERROR -> ev.status(OFFLINE)
+                        Delivery.Ev.POSTED -> { if (!t.sent.isCompleted) t.waitedMs = now() - t0; t.sent.complete(Unit); ev.raw(JSONObject().put("type", Delivery.POSTED)) }
+                        Delivery.Ev.REJECTED -> ev.raw(JSONObject().put("type", Delivery.REJECTED))
+                        else -> Unit
+                    } })
+            } catch (e: CancellationException) { ev.raw(JSONObject().put("type", Delivery.STOPPED)); throw e }
             if (r.code !in 200..299) {
                 r.close()
                 if (noRuns(r.code)) store.runsOff()
@@ -636,6 +662,7 @@ object CloudRuns {
         private fun apply(t: Turn, o: JSONObject, ev: Events) {
             if (!t.red.apply(o)) return
             val type = o.optString("type")
+            try { ev.raw(o) } catch (_: Throwable) { }
             when (type) {
                 "delta", "reset" -> { t.streaming = true; ev.text(t.red.text) }
                 "status" -> line(t.red.status, t.red.retryInMs)?.let { ev.status(it) }
@@ -651,6 +678,8 @@ object CloudRuns {
 
         /** Contract §1: the 202 / `run` frame carries the ack before any model ran; shown at once, once per turn. */
         private fun headAck(t: Turn, o: JSONObject, ev: Events) {
+            // 0.45.20: the create / retry answer's `received` / `read` (contract §1) move the delivery label too.
+            Delivery.fromCreate(o).forEach { d -> ev.raw(JSONObject().put("type", if (d == Delivery.Ev.READ) "message_read" else "message_received")) }
             if (t.acked) return
             val a = ackText(o)
             if (a.isNotBlank()) { t.acked = true; ev.ack(a) }
@@ -784,7 +813,7 @@ object CloudRuns {
      * LlmClient. Null = do this call locally (the rest of the turn too).
      */
     suspend fun step(t: Turn, messages: JSONArray, tools: JSONArray?, onText: ((String) -> Unit)?, onStatus: (String) -> Unit,
-                     onAck: (String) -> Unit = {}): JSONObject? {
+                     onAck: (String) -> Unit = {}, onRaw: (JSONObject) -> Unit = {}): JSONObject? {
         if (t.off) return null
         val clean = withContext(Dispatchers.Default) { try { ToolCalls.clean(messages) } catch (_: Exception) { messages } }
         val sendTools = tools?.takeIf { it.length() > 0 }?.let { try { ToolCalls.adapt(it, Providers.GATEWAY, Cloud.MODEL) } catch (_: Exception) { it } }
@@ -804,6 +833,7 @@ object CloudRuns {
                 }
                 override fun status(line: String) = onStatus(line)
                 override fun ack(text: String) = onAck(text)
+                override fun raw(ev: JSONObject) = onRaw(ev)
                 override fun beat() { LlmClient.lastChunkAt = System.currentTimeMillis() }
             }).also { LlmClient.lastRoute = "Blaze Cloud · run" + (if (LlmClient.lastServedBy.isNotBlank()) " · ${LlmClient.lastServedBy}" else "") }
         } catch (f: Fallback) {
@@ -811,6 +841,20 @@ object CloudRuns {
             LlmClient.lastCloudError = "cloud run: ${f.why}"
             null
         }
+    }
+
+    /**
+     * 0.45.20: runs [block] with a time limit of [ms] that only starts once [t]'s message reached the gateway
+     * ([Turn.sent]): while the phone is offline the bubble stays at Sending and the send keeps retrying instead of being
+     * cut off by the step limit. null = the limit hit (like withTimeoutOrNull). Stop still cancels at once.
+     */
+    suspend fun <T> timedAfterSent(t: Turn, ms: Long, block: suspend () -> T): T? = coroutineScope {
+        val timedOut = java.util.concurrent.atomic.AtomicBoolean(false)
+        val work = async { block() }
+        val guard = launch { t.sent.await(); delay(ms); timedOut.set(true); work.cancel() }
+        try { work.await() } catch (e: CancellationException) {
+            if (timedOut.get() && currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == true) null else throw e
+        } finally { guard.cancel() }
     }
 
     /**
