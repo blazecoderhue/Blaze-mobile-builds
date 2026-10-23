@@ -1,3 +1,16 @@
+## v0.45.18: your plan's limits, instant replies with background tasks, safer screen actions (versionCode 163)
+
+- Settings › Account › This month: your plan, how many song and video downloads are left, how many run at once, and
+  when they reset, straight from your Blaze account. Download sheets show what's left; a gentle upgrade note appears
+  only when you're close to a limit.
+- Downloads check your plan's monthly limit before they start; a download is counted once, even if it retries.
+- Blaze answers right away with a short note, then works in the background: you can keep chatting or leave the app,
+  and you get a "Done" message (or an honest failure) when it finishes. No more "Blaze is working" notifications.
+- After reading a web page, message, email, notification or file, Blaze asks before touching the screen, and always
+  asks before a tap that sends, pays, posts, deletes, confirms or installs.
+- Android 7 and 8 phones that can't update in place get clear steps to back up and reinstall.
+- Build hygiene: test libraries come from Gradle, unused workflows removed, Go 1.26.10 for the network helpers.
+
 ## v0.45.17: media player, library and search upgrades, on top of the 0.45.16 reliability work (versionCode 162)
 
 Release candidate for testing on a low-end Android 12 phone. Includes all of 0.45.16 (which was not published on its own).
