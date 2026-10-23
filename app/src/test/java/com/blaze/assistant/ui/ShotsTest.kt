@@ -733,25 +733,6 @@ open class ShotsTest {
         }
     }
 
-    // v0.25.1: the Desktop view while the Linux desktop installs.
-    @Test fun linuxDesktop() = shot("56-linux-desktop", dark = true) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
-            LinuxDesktopPage(preview = com.blaze.assistant.desktop.LinuxDesktop.State(
-                com.blaze.assistant.desktop.DesktopPlan.Phase.INSTALLING, "Installing xfce4-panel (41 of 96)", 42))
-        }
-    }
-
-    // v0.25.5: the live desktop card while Blaze clicks in the Linux desktop (no picture yet: "Connecting…").
-    @Test fun desktopLiveCard() = shot("57-desktop-live-card", dark = true) {
-        Column(Modifier.fillMaxSize().padding(top = 40.dp)) {
-            DesktopLiveCard(onOpen = {}, preview = com.blaze.assistant.desktop.DesktopNarration.Live(active = true, acting = true,
-                status = "Clicking Save", lastAt = 0L, x = 512, y = 300))
-            Spacer(Modifier.height(16.dp))
-            DesktopLiveCard(onOpen = {}, preview = com.blaze.assistant.desktop.DesktopNarration.Live(active = true, acting = true,
-                status = "Typing into Terminal", lastAt = 0L))
-        }
-    }
-
     @Test fun magicHandWatches() = shot("52-magic-hand-watches", dark = true) {
         val now = 1_760_000_000_000L
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {

@@ -54,7 +54,7 @@ class ToolTruthTest {
     }
 
     @Test fun oldSubsetsMissedTools() {
-        // The root cause, kept as a regression record: the guessed subset left save_file / desktop tools out for these.
+        // The root cause, kept as a regression record: the guessed subset left save_file and other tools out for these.
         val (all, _) = registry()
         val sub = ToolTruth.names(ToolRouter.selectDefault(all, ToolRouter.guess("open example.com in the Linux browser")))
         assertTrue(sub.size < all.length())

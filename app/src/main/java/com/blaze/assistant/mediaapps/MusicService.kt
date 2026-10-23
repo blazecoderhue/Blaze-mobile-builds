@@ -38,6 +38,8 @@ class MusicService : MediaLibraryService() {
         /** The running service (same process), for the sleep timer. */
         @Volatile var current: MusicService? = null
             private set
+        /** 0.45.20: a quiet chip when an item was skipped offline ("Not saved for offline"); "" = none. */
+        val offlineNote = MutableStateFlow("")
         /** When the sleep timer stops playback (epoch ms, 0 = off). -1 = at the end of the current song. */
         val sleepAt = MutableStateFlow(0L)
 
@@ -83,6 +85,46 @@ class MusicService : MediaLibraryService() {
         val key = cfg.customCacheKey ?: return
         StreamCache.prefetch(this, cfg.uri.toString(), key, http)
     }
+    /** 0.45.20: local files always play offline; a stream only when its start is in the disk cache. */
+    private fun playableOffline(i: Int): Boolean {
+        val cfg = player.getMediaItemAt(i).localConfiguration ?: return false
+        val key = cfg.customCacheKey ?: return true
+        return StreamCache.hasStart(this, key)
+    }
+
+    /**
+     * 0.45.20 offline queue (spec 1, offline fallback): with no network, an item that can't play from the phone is
+     * skipped to the next one that can, in play order, with a quiet "Not saved for offline" chip. [ended] = the current
+     * item failed (ran past its cached part), so it is skipped too. Nothing left = pause, never an endless spinner.
+     */
+    private fun offlineSkip(ended: Boolean) {
+        if (NetWatch.now(this)) return
+        if (!ended && !player.playWhenReady) return       // a queue restored at start-up is left alone until Play
+        val i = player.currentMediaItemIndex
+        if (i == C.INDEX_UNSET || i >= player.mediaItemCount) return
+        if (!ended && playableOffline(i)) return
+        val order = ArrayList<Int>().apply { add(i) }
+        val tl = player.currentTimeline
+        if (!tl.isEmpty) {
+            var k = i
+            val rep = if (player.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else player.repeatMode
+            while (order.size < 200) {
+                k = tl.getNextWindowIndex(k, rep, player.shuffleModeEnabled)
+                if (k == C.INDEX_UNSET || k == i) break
+                order += k
+            }
+        }
+        val n = NetHonesty.offlineNext(order, i) { playableOffline(it) }
+        offlineNote.value = NetHonesty.NOT_SAVED
+        main.removeCallbacks(clearNote); main.postDelayed(clearNote, 4_000)
+        if (n >= 0) { player.seekTo(n, 0); player.prepare(); player.play() } else player.pause()
+    }
+    private val clearNote = Runnable { offlineNote.value = "" }
+    private val offlineStall = Runnable {
+        val stream = player.currentMediaItem?.mediaId?.startsWith("stream:") == true
+        if (player.playbackState == Player.STATE_BUFFERING && NetHonesty.offlineSkipNow(NetHonesty.OFFLINE_SKIP_MS, NetWatch.now(this), stream)) offlineSkip(true)
+    }
+
     private lateinit var player: ExoPlayer
     /** v0.33.2 BlazeOS: the player for the now-playing widget, BlazeOS's own volume and Pause (same process; null before onCreate). */
     val livePlayer: androidx.media3.common.Player? get() = if (::player.isInitialized) player else null
@@ -193,14 +235,21 @@ class MusicService : MediaLibraryService() {
                 startPlay()
                 djTopUp()
                 prefetchNext()
+                offlineSkip(false)
                 com.blaze.assistant.agent.AwarenessHooks.music(player, songChanged = true)
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 try { eq?.release() } catch (_: Exception) { }
                 eq = null; setupEq()
             }
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) { retryStream(error) }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                // 0.45.20: offline, a stream that ran past what's on disk moves on to the next item that plays offline.
+                if (!NetWatch.now(this@MusicService)) offlineSkip(true) else retryStream(error)
+            }
             override fun onPlaybackStateChanged(state: Int) {
+                // 0.45.20: offline and stalled on a stream = past its cached part; check again in 1.5 s, then skip.
+                main.removeCallbacks(offlineStall)
+                if (state == Player.STATE_BUFFERING && player.playWhenReady && !NetWatch.now(this@MusicService)) main.postDelayed(offlineStall, NetHonesty.OFFLINE_SKIP_MS)
                 if (state == Player.STATE_ENDED && sleepAt.value == -1L) sleepAt.value = 0
                 // Blaze DJ: the queue ran out, so it adds more and carries on.
                 if (state == Player.STATE_ENDED && sleepAt.value == 0L && MediaPrefs.bool(this@MusicService, MediaPrefs.DJ, false)) {

@@ -25,6 +25,7 @@ import com.blaze.assistant.mediaapps.store.StoreError
 import com.blaze.assistant.mediaapps.store.StoreItem
 import com.blaze.assistant.mediaapps.store.StoreSources
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
@@ -35,7 +36,7 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 /**
- * v0.30.1: the Store's download queue. One at a time, in order, run by a WorkManager worker in the foreground (progress
+ * v0.30.1: the Store's download queue (wave B 18: several at once, see DlConcurrency; wave B 19: verified, see DlVerify). In order, run by a WorkManager worker in the foreground (progress
  * notification), so it keeps going with Blaze closed and comes back after the app is killed or the phone restarts.
  * Each stream is fetched in 8 MB HTTP ranges into a .part file, so a dropped connection resumes where it stopped.
  * Expired or refused stream urls are fetched again from YouTube; network errors retry with backoff (2 s … 5 min, up to
@@ -67,6 +68,11 @@ object Downloads {
         val tmp = File(f.path + ".tmp")
         tmp.writeText(DlLogic.listToJson(_jobs.value)); tmp.renameTo(f)
     }
+
+    /** Wave B 18: the plan cap and the live limit, for the Downloads list (soft nudge). */
+    private val _limit = kotlinx.coroutines.flow.MutableStateFlow<Pair<Entitled, Int>>(Entitled.Unknown to DlConcurrency.DEFAULT)
+    val limit: kotlinx.coroutines.flow.StateFlow<Pair<Entitled, Int>> = _limit
+    fun setLimit(e: Entitled, n: Int) { if (_limit.value != (e to n)) _limit.value = e to n }
 
     fun get(id: String): DlJob? = _jobs.value.firstOrNull { it.id == id }
 
@@ -131,27 +137,49 @@ object Downloads {
 
 class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     private val c = ctx.applicationContext
-    private var lastNote = 0L
+    @Volatile private var lastNote = 0L
 
     private class Stop : Exception()
     private class Transient(msg: String) : IOException(msg)
     private class Fatal(msg: String) : Exception(msg)
 
-    override suspend fun doWork(): Result {
+    /** Wave B 18: per-part SHA-256 as bytes arrive (key "<job>.<part>"); a resumed part re-hashes its file once. */
+    private val hashers = java.util.concurrent.ConcurrentHashMap<String, PartHasher>()
+    @Volatile private var needRetry = false
+
+    /**
+     * Wave B 18: runs up to [DlQuota.limit] jobs at once (plan cap from /v1/entitlements, cached offline; 2 on small
+     * phones; fewer under memory / thermal pressure). The limit is re-read every loop, so pressure only holds back new
+     * starts and never kills a running download.
+     */
+    override suspend fun doWork(): Result = kotlinx.coroutines.coroutineScope {
         Downloads.ensure(c); MediaLib.ensure(c)
-        try { setForeground(info("Getting ready…", 0, 0)) } catch (_: Exception) { }
+        try { setForeground(info("Getting ready\u2026", 0, 0)) } catch (_: Exception) { }
+        var ent = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { DlQuota.current(c) }
+        var entAt = System.currentTimeMillis()
+        val running = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
         while (!isStopped) {
             val now = System.currentTimeMillis()
-            val job = DlLogic.next(Downloads.jobs.value, now)
-            if (job == null) {
-                val wake = DlLogic.nextWake(Downloads.jobs.value, now)
-                if (wake <= 0) break
-                delay((wake - now).coerceIn(500, 60_000)); continue
+            if (now - entAt > 10 * 60_000L) { ent = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { DlQuota.current(c) }; entAt = now }
+            val limit = DlQuota.limit(c, ent)
+            Downloads.setLimit(ent, limit)
+            val start = if (needRetry) emptyList() else DlConcurrency.toStart(Downloads.jobs.value, now, running.keys, limit)
+            for (j in start) {
+                val jb = launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                    try { if (runJob(j) != null) needRetry = true } finally { running.remove(j.id) }
+                }
+                running[j.id] = jb; jb.start()
             }
-            val r = runJob(job)
-            if (r != null) return r
+            if (running.isEmpty()) {
+                if (needRetry) break
+                val wake = DlLogic.nextWake(Downloads.jobs.value, now)
+                if (wake <= 0 && DlConcurrency.toStart(Downloads.jobs.value, System.currentTimeMillis(), emptySet(), limit).isEmpty()) break
+                delay(if (wake > 0) (wake - now).coerceIn(500, 60_000) else 500); continue
+            }
+            delay(500)
         }
-        return Result.success()
+        running.values.toList().forEach { it.join() }
+        if (needRetry) Result.retry() else Result.success()
     }
 
     /** null = carry on with the queue; a Result = stop the worker (no network: WorkManager waits for it). */
@@ -225,13 +253,16 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
             }
             val total = DlLogic.totalFromContentRange(conn.getHeaderField("Content-Range")).takeIf { it > 0 }
                 ?: if (code == 200) conn.contentLengthLong.takeIf { it > 0 } ?: p.total else p.total
+            val hk = "${job.id}.$i"
+            val hasher = hashers[hk]?.takeIf { it.bytes == have } ?: PartHasher.resume(file, have)
+            hashers[hk] = hasher
             FileOutputStream(file, have > 0).use { out ->
                 conn.inputStream.use { inp ->
                     val buf = ByteArray(64 * 1024)
                     var n: Int
                     var since = 0L
                     while (inp.read(buf).also { n = it } >= 0) {
-                        out.write(buf, 0, n); have += n; since += n
+                        out.write(buf, 0, n); hasher.update(buf, n); have += n; since += n
                         if (since >= 512 * 1024) {
                             since = 0
                             val now = Downloads.update(job.id) { DlLogic.onProgress(it, i, have, total) }
@@ -244,6 +275,7 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
             val j = Downloads.update(job.id) { DlLogic.onProgress(it, i, have, total) } ?: throw Stop()
             note(j)
             if (j.status != DlStatus.RUNNING) throw Stop()
+            if (total > 0 && have > total) { file.delete(); hashers.remove(hk); Downloads.update(job.id) { DlLogic.onProgress(it, i, 0, total) }; throw Transient("The download came out the wrong size; starting that part again") }
             return if (total > 0 && have >= total) Chunk.DONE else if (total <= 0 && code == 200) { Downloads.update(job.id) { DlLogic.onProgress(it, i, have, have) }; Chunk.DONE } else Chunk.MORE
         } finally { conn.disconnect() }
     }
@@ -260,10 +292,20 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
         } ?: throw Stop()
     }
 
-    private suspend fun finish(job: DlJob) {
-        note(job, "Saving…")
-        val work = MediaFiles.workDir(c)
+    private suspend fun finish(job0: DlJob) {
+        // Wave B 19: Verifying… (every part the size the server said) → Saving… (merge, hash, atomic move) → Saved ✓.
+        var job = Downloads.update(job0.id) { it.copy(phase = DlVerify.PHASE_VERIFY) } ?: throw Stop()
+        note(job, "Verifying\u2026")
         val parts = job.parts.indices.map { Downloads.partFile(c, job.id, it) }
+        val bad = DlVerify.badParts(job.parts, parts.map { if (it.isFile) it.length() else -1L })
+        if (bad.isNotEmpty()) {
+            bad.forEach { parts[it].delete(); hashers.remove("${job.id}.$it") }
+            Downloads.update(job.id) { j -> j.copy(phase = "", parts = j.parts.mapIndexed { i, p -> if (i in bad) p.copy(done = 0) else p }) }
+            throw Transient("A part didn't check out; downloading it again")
+        }
+        job = Downloads.update(job.id) { it.copy(phase = DlVerify.PHASE_SAVE) } ?: throw Stop()
+        note(job, "Saving\u2026")
+        val work = MediaFiles.workDir(c)
         val out = File(work, job.id + ".out." + job.ext)
         var ext = job.ext
         val src: File = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { try {
@@ -280,7 +322,15 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
             parts[0]
         } }
         val name = DlLogic.fileName(job.title, ext)
-        val uri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { MediaFiles.publish(c, src, job.kind, name, job.title, job.channel, job.durationSec * 1000L) }
+        val (uri, sha) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val len = src.length()
+            val sha = hashers["${job.id}.0"]?.takeIf { src == parts[0] && it.bytes == len }?.hex() ?: PartHasher.ofFile(src)
+            val u = MediaFiles.publish(c, src, job.kind, name, job.title, job.channel, job.durationSec * 1000L)
+            val moved = File(u.path ?: "")
+            if (moved.length() != len) { moved.delete(); throw Transient("The saved file didn't check out; trying again") }
+            u to sha
+        }
+        job.parts.indices.forEach { hashers.remove("${job.id}.$it") }
         val art = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { saveArt(job) }
         MediaLib.addDownload(Track(uri.toString(), uri.toString(), job.title, job.channel, "", job.durationSec * 1000L, art, "download",
             System.currentTimeMillis(), job.videoId, job.kind, job.licence, job.source))
@@ -291,9 +341,9 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
                 runCatching { val cues = SubsLoader.fetchYouTube(t); if (cues.isNotEmpty()) SubsLoader.save(c, uri.toString(), t, cues) }
             }
         }
-        Downloads.update(job.id) { it.copy(status = DlStatus.DONE, outUri = uri.toString(), error = "") }
+        Downloads.update(job.id) { it.copy(status = DlStatus.DONE, outUri = uri.toString(), error = "", phase = "", sha256 = sha, verified = true) }
         Downloads.clean(c, job.id)
-        done(job.title, if (job.kind == "video") "Saved to Videos" else "Saved to Music", true)
+        done(job.title, if (job.kind == "video") "Saved \u2713 to Videos" else "Saved \u2713 to Music", true)
     }
 
     private fun saveArt(job: DlJob): String = try {
@@ -332,11 +382,20 @@ class MediaDownloadWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
         val now = System.currentTimeMillis()
         if (line.isEmpty() && now - lastNote < 1000) return
         lastNote = now
-        val left = Downloads.jobs.value.count { it.active } - 1
+        val all = Downloads.jobs.value
+        val run = all.filter { it.status == DlStatus.RUNNING }
+        val left = all.count { it.status == DlStatus.QUEUED }
+        if (line.isEmpty() && run.size > 1) {
+            val tot = run.sumOf { it.total }; val dn = run.sumOf { it.done }
+            val pct = if (tot > 0) (dn * 100 / tot).toInt() else 0
+            val text = "$pct% \u00b7 ${TimeText.size(dn)} of ${TimeText.size(tot)}" + if (left > 0) " \u00b7 $left queued" else ""
+            try { setForeground(info(text, 100, pct, "Downloading ${run.size}", j.kind)) } catch (_: Exception) { }
+            return
+        }
         val text = line.ifEmpty {
             "${(j.progress * 100).toInt()}% · ${TimeText.size(j.done)} of ${TimeText.size(j.total)}" + if (left > 0) " · $left more queued" else ""
         }
-        try { setForeground(info(text, 100, (j.progress * 100).toInt(), j.title, j.kind)) } catch (_: Exception) { }
+        try { setForeground(info(text, if (line.isEmpty()) 100 else 0, (j.progress * 100).toInt(), j.title, j.kind)) } catch (_: Exception) { }
     }
 
     private fun done(title: String, text: String, ok: Boolean) {

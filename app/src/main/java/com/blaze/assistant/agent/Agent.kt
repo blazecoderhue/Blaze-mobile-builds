@@ -1174,10 +1174,9 @@ When you finish, say what you did in one short sentence.
             s("phone_save", SaveFile.RULE + ToolTruth.RULE)
             // v0.28.1: models sometimes wrote "[/find_tool need=…]" as the reply instead of calling the tool.
             s("leak", "\n" + ToolLeak.PROMPT_RULE)
-            // v0.43.0: Blaze told a user the Linux desktop and Dillo were running when nothing listened on its port.
+            // v0.43.0: Blaze once claimed things were running when nothing confirmed it.
             s("verify", "\nVERIFY BEFORE CLAIMING: say something is running, open, started, sent or done only when a tool result in this turn confirms it. " +
-                "For the Linux desktop only a desktop result starting VERIFIED counts; FAILED or NOT running means tell the user plainly it isn't working and offer desktop action=repair. " +
-                "An app you asked the desktop to open counts as open only after a screenshot shows its window. Earlier messages saying it worked are not proof.")
+                "Earlier messages saying it worked are not proof.")
             // v0.28.4 blaze-docs: one static line + the repo URL; the docs themselves are looked up (blaze_docs_search), never pasted here.
             s("docs", BlazeDocs.PROMPT_LINE)
             s("ids", "\nEverything you create that keeps running (alarms, timers, routines, triggers, calendar events, jobs) gets an ID like R4. To change, stop or delete one, call processes to find the ID, then process(id, action). Only use action=details when the user asks for specifics.")
@@ -1304,9 +1303,7 @@ When you finish, say what you did in one short sentence.
         // v0.29.0 Home board: Blaze adds / changes / removes / lists the user's widgets.
         com.blaze.assistant.home.HomeTools.tools().forEach { t.put(it) }
         t.put(BlazeRouter.tool())
-        t.put(com.blaze.assistant.desktop.LinuxDesktop.tool())
-        // v0.39.0: the hands-free desktop loop, and every / command for Blaze itself.
-        t.put(com.blaze.assistant.desktop.DesktopAgent.tool())
+        // v0.39.0: every / command for Blaze itself. (The on-phone Linux desktop tools were removed in wave B-4.)
         t.put(CommandRegistry.tool())
         if (Settings.longChat || Mind.ready) LongChat.tools().forEach { t.put(it) }
         t.put(Flashcards.tool())
@@ -1520,12 +1517,6 @@ When you finish, say what you did in one short sentence.
         @Volatile var lastTurnDesign = false
         /** v0.23.2: the follow-on hint for this turn ("" = none). */
         @Volatile var turnDesignNote = ""
-        /** v0.45.2: this turn is about the Linux desktop (DesktopRoute): desktop tools on, the steering hint in the prompt. */
-        @Volatile var turnDesk = false
-        /** The text of the last [n] history messages (DesktopRoute: was the desktop just talked about?). */
-        fun recentText(n: Int): String = buildString {
-            for (i in maxOf(0, history.length() - n) until history.length()) (history.optJSONObject(i)?.opt("content") as? String)?.let { append(it.take(600)).append('\n') }
-        }
         val history = JSONArray()
         val historyMark = HashMap<Long, Int>()
         val trace = JSONArray()
@@ -1797,15 +1788,6 @@ When you finish, say what you did in one short sentence.
                 if (!after && book === turnBook) synchronized(turnDone) { if (di in turnDone.indices) turnDone[di] = turnDone[di].copy(status = v.status, why = v.why) }
                 if (after) updateReceipt(book.msgId, book.log.toList())
             }
-        }
-
-        /** v0.45.2: after Blaze worked in the Linux desktop, a "View desktop" chip in the chat (when it runs and isn't on screen). */
-        fun offerDesktopView() {
-            if (agentId != null) return
-            try {
-                if (com.blaze.assistant.desktop.LinuxDesktop.state.value.phase == com.blaze.assistant.desktop.DesktopPlan.Phase.RUNNING &&
-                    com.blaze.assistant.ui.Views.showing.value != "linux") com.blaze.assistant.ui.Views.offer.value = com.blaze.assistant.ui.Views.Offer("linux")
-            } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: offerDesktopView", e) }
         }
 
         fun addMeta(id: Long, chip: String) {
@@ -2463,7 +2445,7 @@ When you finish, say what you did in one short sentence.
                 var n = 0
                 var next: Duo.Who? = null
                 var prevWho: Duo.Who? = null; var prevSig: Duo.Signal? = null
-                val facts = duoFacts(task)
+                val facts = ""   // v0.43.0 duoFacts was a live check of the Linux desktop (removed in wave B-4)
                 // v0.43.0: an @all chat message gets both answers at once (parallel, streamed, 45 s cap each) instead of a
                 // race + a second, sequential answer + more back-and-forth, which took about two minutes on a phone.
                 // 0.45.20 (item 9): Blaze answers, then Halo adds only what Blaze missed or stays quiet (DuoAll).
@@ -2529,22 +2511,6 @@ When you finish, say what you did in one short sentence.
             }
         }
 
-        /**
-         * v0.43.0: what the app can check itself right now, for the duo lanes (they have no tools). Only when the talk is
-         * about the Linux desktop: "is it really running?" gets the truth from the port, not from earlier messages.
-         */
-        private suspend fun duoFacts(task: String): String = try {
-            val recent = buildString {
-                append(task)
-                for (i in maxOf(0, history.length() - 6) until history.length()) (history.optJSONObject(i)?.opt("content") as? String)?.let { append('\n').append(it.take(400)) }
-            }
-            if (!Regex("(?i)desktop|linux|dillo|xfce|vnc|browser|running").containsMatchIn(recent) || !com.blaze.assistant.desktop.LinuxDesktop.installed()) ""
-            else {
-                val up = com.blaze.assistant.desktop.LinuxDesktop.alive()
-                "\n[Live check by the app just now: Blaze's Linux desktop is " + (if (up) "running (port 5901 answered)." else
-                    "NOT running (nothing answers on port 5901), so no app in it is open either. Don't say it is running; @blaze can start or repair it.") + "]"
-            }
-        } catch (e: CancellationException) { throw e } catch (_: Throwable) { "" }
 
         /**
          * v0.43.0 @all chat: Blaze and Halo answer at the same time, each streaming into its own bubble, each capped at
@@ -2736,8 +2702,6 @@ When you finish, say what you did in one short sentence.
                 GoalPin.block(turnGoal) +
                 (agentId?.let { "\nYou are background agent $it, not the main chat. Work alone and finish with the result only." } ?: BgAgents.leadLine()) +
                 (turnDesignNote.ifEmpty { turnView?.let { ViewRouter.hint(it) } ?: "" }) + SkillMatch.block(turnSkills) + SpecialistMatch.hint(turnSpecs) +
-                // v0.45.2: desktop requests → desktop_task with the live card; no run_shell installs, no VNC-client advice.
-                (if (turnDesk && agentId == null) DesktopRoute.HINT else "") +
                 // v0.27.x: "how do I install X" → lead with the action and end with one concrete offer to do it.
                 AnswerStyle.turnHint(lastUserText()) +
                 // v0.28.4: "take me to the blaze-agent repo" / "what version are you": look it up in Blaze's docs, never guess.
@@ -2900,12 +2864,7 @@ When you finish, say what you did in one short sentence.
                 // specialists, plan memory) start together instead of one after another. Each is cheap to throw away.
                 val stateQ0 = !routine && PhoneState.kind(userNow) != null
                 val selfQ0 = !routine && BlazeDocs.isAboutBlaze(userNow)
-                // v0.45.2: a request about the Linux desktop goes to the desktop agent (live view in chat), never the phone's fast path.
-                val desk0 = !routine && !bulk && DesktopRoute.wants(userNow,
-                    try { com.blaze.assistant.desktop.LinuxDesktop.state.value.phase == com.blaze.assistant.desktop.DesktopPlan.Phase.RUNNING } catch (_: Throwable) { false },
-                    DesktopRoute.mentioned(recentText(6)))
-                turnDesk = desk0
-                val plainDev0 = !routine && !bulk && !desk0 && FastActions.plainDevice(userNow)
+                val plainDev0 = !routine && !bulk && FastActions.plainDevice(userNow)
                 val par = kotlinx.coroutines.CoroutineScope(kotlin.coroutines.coroutineContext + Dispatchers.IO)
                 // v0.31.1 jank: the tool list (hundreds of JSON objects) is built off the main thread.
                 val dTools = par.async(Dispatchers.Default) { tools().apply { put(ToolPick.loadTool()) }.let { if (isPrivate) PrivateChat.filterTools(it) else it }
@@ -2934,7 +2893,6 @@ When you finish, say what you did in one short sentence.
                     if (!bulk && agentId == null && !isPrivate) addAll(kotlinx.coroutines.withContext(Dispatchers.Default) { LearnedRoutes.predict(lu, g0) })
                     // v0.45.0 (#20): a request in another language that no English cue matched still gets the core action groups.
                     if (!bulk) addAll(ToolRouter.fallback(lu, this))
-                    if (desk0) add(DesktopRoute.GROUP)
                     // v0.45.9: a calendar / meetings / schedule question always gets the calendar and reminder tools.
                     if (!bulk && TurnContext.scheduleAsk(lu)) add("schedule")
                     // v0.45.9: "@halo Yes" to "I can check your Google Calendar, want me to?" gets them too.
@@ -2988,7 +2946,6 @@ When you finish, say what you did in one short sentence.
                 var echoNudged = false
                 var leakNudged = false
                 var credGuarded = false   // 0.45.19 CredAsk: one swap per turn
-                var vncNudged = false
                 var refusalNudged = false
                 var lastOkStep = ""
                 var savedPath: String? = null   // v0.45.9: a save_file this turn; the final answer names its path
@@ -3034,8 +2991,7 @@ When you finish, say what you did in one short sentence.
                     if (ToolTruth.full) { sizeLine = "tools all ${allTools.length()}"; return ToolTruth.forRequest(allTools) { allTools } }
                     val diet = ToolRouter.select(allTools, groupsOn)
                     val sent = ToolPick.keepOrder(sentOrder, ToolPick.pick(diet, userNow, usedNames + synchronized(turnTools) { turnTools.toSet() }, groupsOn, keepAll = bulk,
-                        must = (if (DesktopRoute.GROUP in groupsOn) DesktopRoute.TOOLS else emptySet()) +
-                            (if (TurnContext.scheduleAsk(userNow)) TurnContext.SCHEDULE_TOOLS else emptySet())))
+                        must = (if (TurnContext.scheduleAsk(userNow)) TurnContext.SCHEDULE_TOOLS else emptySet())))
                     sizeLine = ToolPick.sizeLine(sent, allTools, diet)
                     sentOrder = ToolPick.names(sent)
                     return sent
@@ -3410,20 +3366,6 @@ When you finish, say what you did in one short sentence.
                         add(Role.STEP, "Using my tools instead of refusing")
                         history.put(JSONObject().put("role", "user").put("content", RetryGuard.anchor(ToolTruth.NUDGE, lastUserText())))
                         continue
-                    }
-                    // v0.45.2: Blaze shows the Linux desktop itself: a reply telling the user to use a VNC client / localhost:5901 gets one
-                    // re-prompt (desktop tools on), then the plain line pointing at the live view.
-                    if ((calls == null || calls.length() == 0) && !routine && agentId == null && DesktopRoute.vncAdvice(ReplyParts.split(textOut, final = true).text)) {
-                        if (!vncNudged && nudgesLeft > 0 && step < maxSteps - 2) {
-                            vncNudged = true; nudgesLeft--
-                            groupsOn += DesktopRoute.GROUP; turnDesk = true
-                            if (liveId >= 0) { msgs = msgs.filterNot { it.id == liveId }; liveId = -1L }
-                            add(Role.STEP, "Showing the desktop here instead")
-                            history.put(JSONObject().put("role", "user").put("content", RetryGuard.anchor(DesktopRoute.VNC_NUDGE, lastUserText())))
-                            continue
-                        }
-                        textOut = DesktopRoute.NO_VNC_LINE; reply.put("content", textOut)
-                        if (agentId == null) com.blaze.assistant.ui.Views.offer.value = com.blaze.assistant.ui.Views.Offer("linux")
                     }
                     // v0.23.2 no fake claims: "I've updated the design" / "view it in the design section" with no
                     // design or open_view call that succeeded this turn → one re-prompt, then an honest line instead.
@@ -4063,6 +4005,19 @@ When you finish, say what you did in one short sentence.
 
         /** Every tool call goes through here: a crash or an empty result becomes a plain error with a fix. */
         /** 0.45.18: the prompt-injection card for a screen action, or null to go ahead. */
+        /** 0.45.20: the in-chat card for phone control; null = it's on now (go on), else the honest "not done" result. */
+        private suspend fun phoneControlGate(name: String): String? {
+            add(Role.STEP, "Needs phone control")
+            if (!confirm(PermissionGate.TITLE, PermissionGate.REASON, PermissionGate.ACTION, always = true))
+                return PermissionGate.notDone(name, PermissionGate.Outcome.DECLINED)
+            val on = { com.blaze.assistant.phone.BlazeAccessibilityService.instance != null }
+            com.blaze.assistant.ui.ComeBack.watch(app) { on() }
+            try { app.startActivity(com.blaze.assistant.phone.PhoneControl.fixIntent(app)) }
+            catch (_: Exception) { return PermissionGate.notDone(name, PermissionGate.Outcome.TIMED_OUT) }
+            val o = PermissionGate.await(on, kotlinx.coroutines.CompletableDeferred<Boolean>().apply { complete(true) })
+            return if (o == PermissionGate.Outcome.GRANTED) { add(Role.STEP, "Phone control on"); null } else PermissionGate.notDone(name, o)
+        }
+
         private suspend fun screenGate(name: String, args: JSONObject): String? {
             val taint = kotlin.coroutines.coroutineContext[ConfirmGate.Taint] ?: return null
             val label = args.optString("text").ifBlank { if (args.has("element")) com.blaze.assistant.phone.BlazeAccessibilityService.instance?.labelOf(args.optInt("element")).orEmpty() else "" }
@@ -4092,6 +4047,9 @@ When you finish, say what you did in one short sentence.
             if (com.blaze.assistant.bank.BankMode.active && (name in Orient.acting || name in Orient.looking || name == "open_app" || name == "search_in_app"))
                 return "Bank mode is on: Blaze has stepped back so the user's banking app works, and doesn't read or use the screen. " +
                     "Tell the user, and offer to turn Bank mode off (bank_mode action=off) when they're done banking."
+            // 0.45.20 (item 15): phone control is asked for the first time a task needs it, with the reason, not in setup.
+            if (PermissionGate.shouldAsk(name, com.blaze.assistant.phone.BlazeAccessibilityService.instance != null, Settings.phoneControl))
+                phoneControlGate(name)?.let { return it }
             // 0.45.18: screen actions after outside content (web, messages, email…) need the user's OK (ConfirmGate.screenAct).
             if (name in ConfirmGate.screenActs) screenGate(name, args)?.let { return it }
             // Visible pointer (v0.21.0): while the user has the pointer, screen actions wait for them.
@@ -4201,12 +4159,6 @@ When you finish, say what you did in one short sentence.
         private fun cmdOf(name: String, args: JSONObject): Pair<CommandPolicy.Kind, String>? = when (name) {
             "run_shell" -> if (InAppRoute.toolFor(args.optString("command")) != null) null else CommandPolicy.Kind.SHELL to args.optString("command")
             com.blaze.assistant.terminal.Git.NAME -> CommandPolicy.Kind.GIT to ("git " + args.optString("action").takeIf { it.isNotBlank() && it != "raw" }.orEmpty() + " " + args.optString("args")).trim()
-            "desktop" -> when (args.optString("action")) {
-                "type" -> CommandPolicy.Kind.DESKTOP_TYPE to args.optString("text")
-                "key" -> CommandPolicy.Kind.DESKTOP_KEY to args.optString("keys")
-                "run", "launch" -> CommandPolicy.Kind.DESKTOP_OPEN to args.optString("app").ifBlank { args.optString("text") }
-                else -> null
-            }
             else -> null
         }
 
@@ -4376,12 +4328,6 @@ When you finish, say what you did in one short sentence.
                     val a = JSONObject(args.toString()).put("url", ToolLeak.fixBlazeUrl(args.optString("url")))
                     ToolCache.cached(name, a, lastUserText(), isPrivate) { Web.fetch(a.optString("url")) } }
                 "blazerouter" -> { add(Role.STEP, "BlazeRouter: " + args.optString("action")); BlazeRouter.run(app, args) }
-                com.blaze.assistant.desktop.DesktopAgent.TOOL -> {
-                    add(Role.STEP, "Using the computer: " + args.optString("title").ifBlank { args.optString("goal") }.take(50))
-                    com.blaze.assistant.desktop.DesktopAgent.run(app, args,
-                        confirm = { title, detail, always -> confirm(title, detail, if (always) "Allow" else "Start", always) },
-                        open = { com.blaze.assistant.ui.Views.open("linux") }).also { offerDesktopView() }
-                }
                 CommandRegistry.TOOL -> {
                     val cn = args.optString("command").trim().removePrefix("/").substringBefore(' ').lowercase()
                     val input = args.optString("input").ifBlank { args.optString("command").trim().substringAfter(' ', "") }.trim()
@@ -4401,13 +4347,6 @@ When you finish, say what you did in one short sentence.
                             when { r == null -> "No /$cn command."; r.isBlank() -> "Ran /$cn."; else -> "Ran /$cn. Follow this now: $r" }
                         }
                     }
-                }
-                "desktop" -> {
-                    // v0.25.5: the step line comes from Friendly.say (DesktopNarration), the same words as the live desktop card.
-                    com.blaze.assistant.desktop.LinuxDesktop.run(app, args, shots,
-                        confirm = { title, detail -> confirm(title, detail, "Allow") },
-                        cmdOk = { kind, text, title, detail, risky, legacy -> cmdOk(kind, text, title, detail, "Allow", risky, legacy) },
-                        open = { com.blaze.assistant.ui.Views.open("linux") }).also { offerDesktopView() }
                 }
                 in com.blaze.assistant.home.HomeTools.NAMES -> { add(Role.STEP, com.blaze.assistant.home.HomeTools.step(name, args)); kotlinx.coroutines.withContext(Dispatchers.IO) { com.blaze.assistant.home.HomeBoard.runTool(name, args) } }
                 BlazeDocs.TOOL_SEARCH -> { add(Role.STEP, "Looking it up in Blaze's docs"); kotlinx.coroutines.withContext(Dispatchers.IO) { BlazeDocs.search(args) } }

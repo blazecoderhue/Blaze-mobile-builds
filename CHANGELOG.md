@@ -1,3 +1,12 @@
+## v0.45.22: private downloads, usage meters, permissions when needed, steadier playback (versionCode 167)
+- Downloads stay in Blaze's private storage; export songs and videos to Music, Movies, Downloads or any folder, one at a time or in bulk.
+- Usage meters in Account and Downloads show what's left this month; downloads run in parallel up to your plan and are checked while they download.
+- The on-phone Linux desktop is gone, and what it left behind is cleaned up once after the update. Pairing with Blaze Desktop on your computer stays.
+- Permissions are asked only when a task needs them: phone control in chat the first time, notifications when a download starts; downloads need no storage permission.
+- Playback resumes from the same spot when a stream link expires; when you're offline Blaze says so, skips what isn't saved and plays what is.
+- Video steps down to a lower quality after repeated stalls instead of freezing.
+- Store: clear error card with Retry, a note when it's slow, faster search while you type, and saved results when offline.
+
 ## v0.45.21: new chat bubbles, Sending/Sent/Read, live step pills (versionCode 166)
 - Chat bubbles: yours on the right, Blaze on the left, with tails, the time inside, Today/Yesterday chips and a long-press menu; readable in every theme.
 - Your latest message shows Sending, Sent or Read; offline messages retry on their own without duplicates.

@@ -19,7 +19,7 @@ class LoopGuard {
     companion object {
         const val SAME_MAX = 2
         const val NO_EFFECT_MAX = 3
-        val EXEMPT = setOf("tap", "scroll", "swipe", "press_button", "type_text", "read_screen", "look_at_screen", "screenshot", "desktop",
+        val EXEMPT = setOf("tap", "scroll", "swipe", "press_button", "type_text", "read_screen", "look_at_screen", "screenshot",
             "wait", "wait_for", "terminal_jobs", "check_agent", "browser_scroll", "browser_read", "ask_user", "find_tool", "load_tools", "run_plan")
         private val noEffect = Regex("""(?i)^(nothing matched|nothing deleted|no saved line|not found|no such|nothing to (save|delete|remove)|couldn't find|no match)|\bnothing matched\b|\bnot found\b""")
         fun noEffect(result: String): Boolean = noEffect.containsMatchIn(result.trim().take(200))

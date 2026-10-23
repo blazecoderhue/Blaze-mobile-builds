@@ -6,9 +6,8 @@ import java.io.File
 import java.util.Calendar
 
 /**
- * v0.44.0: the phone side of [ToolVerify.Probes]: what is in front (phone control), the next system alarm, whether the
- * Linux desktop answers on its port and whether an app's process runs in it, and whether a written file is there.
- * Each check is cheap and returns null when it can't tell (no accessibility, desktop not installed), so the result
+ * v0.44.0: the phone side of [ToolVerify.Probes]: what is in front (phone control), the next system alarm, and whether
+ * a written file is there. Each check is cheap and returns null when it can't tell (no accessibility), so the result
  * stays "couldn't confirm" instead of guessing.
  */
 class VerifyProbes(private val ctx: Context) : ToolVerify.Probes {
@@ -16,28 +15,6 @@ class VerifyProbes(private val ctx: Context) : ToolVerify.Probes {
 
     override suspend fun foreground(): String? =
         com.blaze.assistant.phone.BlazeAccessibilityService.instance?.currentPkg()?.takeIf { it.isNotBlank() }
-
-    override suspend fun desktopAlive(): Boolean? = try {
-        if (!com.blaze.assistant.desktop.LinuxDesktop.installed()) false else com.blaze.assistant.desktop.LinuxDesktop.alive()
-    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { null }
-
-    override suspend fun desktopProcess(command: String): Boolean? = try {
-        val bin = com.blaze.assistant.desktop.DesktopPlan.appCommand(command).trim().substringBefore(' ').substringAfterLast('/')
-        if (bin.isBlank() || !Regex("^[A-Za-z0-9._+-]+$").matches(bin)) null
-        else {
-            // Give a just-launched app a moment, then look for its process (pgrep is in every desktop distro's procps).
-            kotlinx.coroutines.delay(1200)
-            // "[d]illo" so the shell running this check (its command line holds the name too) never matches itself.
-            val pat = "[" + bin.first() + "]" + bin.drop(1)
-            val out = com.blaze.assistant.terminal.Terminal.run("pgrep -f -- '$pat' >/dev/null 2>&1 && echo up || echo down", timeoutSec = 10,
-                linux = true, distro = com.blaze.assistant.desktop.LinuxDesktop.distro().id)
-            when {
-                out.lines().any { it.trim() == "up" } -> true
-                out.lines().any { it.trim() == "down" } -> false
-                else -> null
-            }
-        }
-    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Throwable) { null }
 
     override suspend fun nextAlarm(): Pair<Int, Int>? = try {
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager

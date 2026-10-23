@@ -19,7 +19,7 @@ class SimpleModeTest {
             assertFalse(it, SimpleMode.viewVisible(it, simple = true)); assertTrue(it, SimpleMode.viewVisible(it, simple = false))
         }
         // No feature is removed: the everyday views all stay in Simple.
-        listOf("music", "video", "gallery", "phone", "linux", "design", "browser", "projects", "doing", "look", "home", "settings").forEach {
+        listOf("music", "video", "gallery", "phone", "design", "browser", "projects", "doing", "look", "home", "settings").forEach {
             assertTrue(it, SimpleMode.viewVisible(it, simple = true))
         }
     }
@@ -30,8 +30,8 @@ class SimpleModeTest {
 
     @Test fun pagesPlusAndMcp() {
         assertFalse(SimpleMode.pageVisible("ai", true)); assertTrue(SimpleMode.pageVisible("ai", false))
-        assertTrue(SimpleMode.pageVisible("linux", true)); assertTrue(SimpleMode.pageVisible("voice", true))
-        assertFalse(SimpleMode.plusVisible("plan", true)); assertTrue(SimpleMode.plusVisible("approval", true)); assertTrue(SimpleMode.plusVisible("linux", true))
+        assertTrue(SimpleMode.pageVisible("desktop", true)); assertTrue(SimpleMode.pageVisible("voice", true))
+        assertFalse(SimpleMode.plusVisible("plan", true)); assertTrue(SimpleMode.plusVisible("approval", true)); assertTrue(SimpleMode.plusVisible("views", true))
         assertFalse(SimpleMode.showMcp(true)); assertTrue(SimpleMode.showMcp(false))
         assertTrue(SimpleMode.commandRuns("terminal", true))
     }

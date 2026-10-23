@@ -56,7 +56,6 @@ object Commands {
         Command("doing", "", "Things Blaze is doing: routines, reminders, today's diary"),
         Command("look", "", "Look & feel: living backgrounds, theme, accent"),
         Command("sync", "", "Cloud sync: chats, memory, settings and designs on all your phones (end-to-end encrypted)"),
-        Command("linux", "", "Open the Linux desktop"),
         Command("simple", "", "Simple mode: hide technical tools (nothing is removed)"),
         Command("advanced", "", "Advanced mode: show every tool and setting"),
         Command("help", "", "List all commands")

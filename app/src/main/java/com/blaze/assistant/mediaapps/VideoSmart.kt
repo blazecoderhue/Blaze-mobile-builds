@@ -33,6 +33,13 @@ object VideoSmart {
         return pick.keys.mapNotNull { k -> d.formats.firstOrNull { it.key == k } }.ifEmpty { src.streamPick(kind, d) }
     }
 
+    /** 0.45.20 step-down: the best choice at or under [cap] px tall (null when no cap or nothing fits). */
+    fun capped(kind: String, d: com.blaze.assistant.mediaapps.store.StoreDetail, src: com.blaze.assistant.mediaapps.store.StoreSource, cap: Int): List<com.blaze.assistant.mediaapps.store.StoreFormat>? {
+        if (cap <= 0) return null
+        val ch = src.choices(kind, d).filter { it.height in 1..cap }.maxByOrNull { it.height } ?: return null
+        return ch.keys.mapNotNull { k -> d.formats.firstOrNull { it.key == k } }.ifEmpty { null }
+    }
+
     fun saverChoice(kind: String, ch: List<com.blaze.assistant.mediaapps.store.Choice>): com.blaze.assistant.mediaapps.store.Choice? {
         val sized = ch.filter { it.bytes > 0 }
         if (kind == "video") {

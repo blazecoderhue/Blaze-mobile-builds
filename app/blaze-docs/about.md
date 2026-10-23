@@ -25,7 +25,7 @@ How to update: type /update in the chat (or Settings › Updates › Check for u
 - Brain: Blaze Cloud, a Cloudflare Workers gateway written in TypeScript (gateway/ in the repo) at https://ai.blaze-app.workers.dev . It picks the best free model for every message from free AI providers, so you never need a key or a paid plan. BlazeRouter (Go) can also route on the phone.
 - On-device: Vosk speech recognition (wake word, life logs), ML Kit text recognition (Magic Hand), sherpa-onnx PocketTTS (My voice), mermaid (diagrams), three.js (3D designs).
 - Go helpers shipped as native libraries: wgproxy (browser VPN, WireGuard / Cloudflare WARP) and BlazeRouter.
-- Linux: Alpine Linux in proot (terminal, Python, Node, git) and an optional XFCE desktop.
+- Linux: Alpine Linux in proot (terminal, Python, Node, git). The on-phone Linux desktop was removed in wave B-4.
 
 ## Feature map
 - Chat: one continuous conversation with rich replies (diagrams, charts, tables, compare cards, buttons, forms, mini tools), follow-up chips, private chat (ghost: nothing saved or learned), projects.
@@ -40,7 +40,7 @@ How to update: type /update in the chat (or Settings › Updates › Check for u
 - Views: /views opens Design (live preview of 3D, sites, diagrams), Memory, Learn (flashcards), Seller, Jobs, Schedule, Agents, Accounts, Skills, Gallery, Browser, Doctor, Usage, Voice, Desktop and more.
 - Routines: things Blaze does on a schedule or when something happens (triggers), alarms, timers, scheduled commands.
 - Mind memory: one mind. Facts about you live as rows in blaze.db (searched with memory_search, saved with memory_save); the journal keeps every conversation turn searchable (search_chat). Only a short pinned core and a subject index ride in each prompt.
-- Terminal and code: a real Linux shell, run_code (Python/Node), git, background jobs, preview servers, a Linux desktop.
+- Terminal and code: a real Linux shell, run_code (Python/Node), git, background jobs, preview servers.
 - Media: free image generation, beats and music in the terminal, Gallery.
 - Life logs and brainstorm: transcribe what the mic hears into memory, on the phone.
 - Blaze Link: pair with Blaze Desktop by QR code to use your PC from the phone (ask_pc) and the phone from the PC.

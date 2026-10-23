@@ -11,12 +11,10 @@ import org.junit.Test
 class ToolVerifyTest {
     private fun a(vararg kv: Pair<String, Any>) = JSONObject().apply { kv.forEach { put(it.first, it.second) } }
 
-    private class Fake(val fg: String? = null, val alive: Boolean? = null, val proc: Boolean? = null,
+    private class Fake(val fg: String? = null,
                        val alarm: Pair<Int, Int>? = null, val size: Long? = null) : ToolVerify.Probes {
         override suspend fun foreground() = fg
         override val self = "com.blaze.assistant"
-        override suspend fun desktopAlive() = alive
-        override suspend fun desktopProcess(command: String) = proc
         override suspend fun nextAlarm() = alarm
         override fun fileSize(path: String) = size
     }
@@ -44,20 +42,9 @@ class ToolVerifyTest {
         assertEquals(Status.UNVERIFIED, ToolVerify.classify("call_number", a(), "Calling 0977.").status)
     }
 
-    @Test fun desktopStartIsCheckedOnItsPort() {
-        val dead = check("desktop", a("action" to "start"), "Started Debian at 1280x720.", Fake(alive = false))
-        assertEquals(Status.FAILED, dead.status)
-        assertTrue(dead.why.contains("5901"))
-        assertEquals(Status.VERIFIED, check("desktop", a("action" to "start"), "Started Debian.", Fake(alive = true)).status)
-        assertEquals(Status.UNVERIFIED, check("desktop", a("action" to "start"), "Started.", Fake(alive = null)).status)
-        assertEquals(Status.UNVERIFIED, check("desktop", a("action" to "start"), "Installing the Debian desktop in the background", Fake(alive = false)).status)
-    }
-
-    @Test fun desktopAppNeedsItsProcess() {
-        assertEquals(Status.FAILED, check("desktop", a("action" to "run", "app" to "dillo"), "Opened dillo.", Fake(alive = false)).status)
-        assertEquals(Status.UNVERIFIED, check("desktop", a("action" to "run", "app" to "dillo"), "Opened dillo.", Fake(alive = true, proc = false)).status)
-        assertEquals(Status.VERIFIED, check("desktop", a("action" to "run", "app" to "dillo"), "Opened dillo.", Fake(alive = true, proc = true)).status)
-        assertEquals(Status.VERIFIED, check("desktop", a("action" to "status"), "Running Debian at 1280x720", Fake()).status)
+    @Test fun desktopToolIsGone() {
+        // Wave B-4: the on-phone Linux desktop and its `desktop` tool were removed; nothing probes it any more.
+        assertFalse("desktop" in ToolVerify.PROBED)
     }
 
     @Test fun appLaunchNeedsTheAppInFront() {

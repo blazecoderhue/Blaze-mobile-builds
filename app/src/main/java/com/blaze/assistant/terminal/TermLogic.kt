@@ -30,6 +30,18 @@ object TermLogic {
 
     private const val PD = "https://github.com/termux/proot-distro/releases/download"
 
+    /** The package manager hint for a Linux by id ("apk add <package>", "apt install <package>"…). Unknown = Alpine's. */
+    fun installHint(id: String): String = when (id.trim().lowercase()) {
+        "ubuntu", "debian" -> "apt install <package>"
+        "archlinux", "manjaro" -> "pacman -S <package>"
+        "fedora" -> "dnf install <package>"
+        else -> "apk add <package>"
+    }
+
+    /** The Linux `linux=true` uses by default: Alpine, else the first other installed one (wave B-4; no saved choice). */
+    fun defaultDistro(installed: Set<String>): String =
+        if ("alpine" in installed || installed.isEmpty()) "alpine" else DISTROS.map { it.id }.firstOrNull { it in installed } ?: "alpine"
+
     val DISTROS: List<Distro> = listOf(
         Distro("alpine", "Alpine Linux", "", mapOf("aarch64" to 4, "arm" to 4), emptyMap(),
             listOf("Search:  apk search <query>", "Install: apk add <package>", "Upgrade: apk update && apk upgrade")),

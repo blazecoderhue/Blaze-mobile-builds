@@ -22,7 +22,7 @@ object ToolTruth {
     val full: Boolean get() = try { Settings.bool("tool_full", true) } catch (_: Throwable) { true }
 
     const val RULE = "\nYOUR TOOLS ARE REAL: every tool in your list works on this phone. Never say \"I don't have the capability\", \"I can't access\", " +
-        "\"I'm unable to\" or \"as an AI I can't\" about anything a tool in your list does (terminal, Linux desktop and browser, opening views and screens, " +
+        "\"I'm unable to\" or \"as an AI I can't\" about anything a tool in your list does (terminal, browser, opening views and screens, " +
         "files and save_file, calendar, reminders, web search, memory). Call the tool instead. If a tool fails, say what it returned. After a tool works, say in one short line what it did (for save_file, the saved path). "
 
     /** Requests that need a tool (any lane that sends no tools hands these to the full lane). */
@@ -39,7 +39,7 @@ object ToolTruth {
 
     fun refusal(text: String): Boolean = refusalRe.containsMatchIn(text)
 
-    const val NUDGE = "[Check: you just said you can't do that, but your tool list has a tool for it. Don't refuse and don't give desktop advice: call the tool now (save_file saves the last code block; run_shell runs commands; browser_open / desktop_task for the Linux browser; open_view for app views and settings; calendar_events / create_routine for the calendar and reminders; web_search; memory_search).]"
+    const val NUDGE = "[Check: you just said you can't do that, but your tool list has a tool for it. Don't refuse and don't give desktop advice: call the tool now (save_file saves the last code block; run_shell runs commands; browser_open for the browser; open_view for app views and settings; calendar_events / create_routine for the calendar and reminders; web_search; memory_search).]"
 
     private fun nameOf(t: Any?): String = (t as? JSONObject)?.optJSONObject("function")?.optString("name").orEmpty()
 
@@ -80,7 +80,7 @@ object ToolTruth {
     }
 
     /** The tools the strict cases need; every lane that sends tools must have these (ToolTruthTest). */
-    val MUST = setOf("run_shell", "browser_open", "desktop_task", "open_view", SaveFile.TOOL, "calendar_events", "create_routine", "web_search", "memory_search", "remember")
+    val MUST = setOf("run_shell", "browser_open", "open_view", SaveFile.TOOL, "calendar_events", "create_routine", "web_search", "memory_search", "remember")
 
     /**
      * v0.45.9 replay fix: on the first step of a turn whose ask names exactly one tool, the request names that tool in
@@ -91,9 +91,7 @@ object ToolTruth {
     private val calView = Regex("""(?i)^\s*(?:@\w+\s+)?(?:please\s+)?(?:view|show|open|check|see)(?:\s+me)?(?:\s+(?:my|the))?\s+(?:google\s+)?calendar\b[\s.!?]*$""")
     private val calOffer = Regex("""(?i)\b(?:check|look at|open|view|see)\b[^.?!\n]{0,30}\bcalendar\b""")
 
-    // Live 0.8.7, 5 runs: "open example.com in the Linux browser" went to browser_open (Blaze's built-in browser) 5 of 5,
-    // and "open Settings" was refused 2 of 5 ("I don't have the capability to open settings").
-    private val linux = Regex("""(?i)\b(?:linux|xfce|alpine)\s+(?:browser|desktop)\b|\bin\s+(?:the\s+)?linux\b|\bfirefox\b""")
+    // Live 0.8.7, 5 runs: "open Settings" was refused 2 of 5 ("I don't have the capability to open settings").
     private val viewAsk = Regex("""(?i)^\s*(?:@\w+\s+)?(?:please\s+)?(?:open|show|go to|switch to)\s+(?:me\s+)?(?:the\s+|my\s+)?(?:blaze\s+)?(?:settings|design|terminal|schedule|memory|projects|home)(?:\s+(?:view|page|screen|tab))?[\s.!]*$""")
 
     // v0.45.13 round 2 (rpS terminal-ls 3/5: codestral wrote ```sh ls``` as text with no run_shell call): "run X in the
@@ -171,7 +169,6 @@ object ToolTruth {
 
     fun choiceFor(userText: String, assistantTexts: List<String>, toolNames: Collection<String>): String? {
         val u = userText.trim().replace('\u2019', '\'')
-        if ("desktop_task" in toolNames && linux.containsMatchIn(u) && Regex("(?i)\\b(open|go to|browse|visit|load)\\b").containsMatchIn(u)) return "desktop_task"
         if ("open_view" in toolNames && viewAsk.matches(u)) return "open_view"
         if ("run_shell" in toolNames && shellAsk(u)) return "run_shell"
         if (SaveFile.TOOL in toolNames && SaveFile.wantsSave(u) && SaveFile.lastCode(assistantTexts) != null) return SaveFile.TOOL

@@ -92,52 +92,6 @@
    "category": "Utilities",
    "package": "asset:blazeos/apps/calculator.zip",
    "size": 4221
-  },
-  {
-   "id": "blazeos.xeyes",
-   "name": "X Eyes",
-   "version": "1.0",
-   "versionCode": 1,
-   "icon": {
-    "glyph": "eyes",
-    "from": "#5AC8FA",
-    "to": "#0A60C2"
-   },
-   "entry": {
-    "type": "linux",
-    "command": "xeyes",
-    "packages": [
-     "xeyes"
-    ]
-   },
-   "permissions": [],
-   "description": "A Linux app: the classic eyes that follow the pointer, run in the Linux desktop.",
-   "author": "X.Org",
-   "category": "Linux",
-   "size": 0
-  },
-  {
-   "id": "blazeos.xcalc",
-   "name": "X Calc",
-   "version": "1.0",
-   "versionCode": 1,
-   "icon": {
-    "glyph": "terminal",
-    "from": "#8E8E93",
-    "to": "#3A3A3C"
-   },
-   "entry": {
-    "type": "linux",
-    "command": "xcalc",
-    "packages": [
-     "xcalc"
-    ]
-   },
-   "permissions": [],
-   "description": "A Linux app: the X11 scientific calculator, run in the Linux desktop.",
-   "author": "X.Org",
-   "category": "Linux",
-   "size": 0
   }
  ]
 }

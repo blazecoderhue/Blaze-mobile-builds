@@ -42,7 +42,7 @@ class PhoneContrastTest {
     @Test fun theOldChipFailedAndTheNewOnesPass() = fiveTimes("regression") {
         // What the screenshots showed: white on Glass.blue (#E6E6EA).
         assertTrue(PhoneColors.contrast(0xFFFFFFFFL, 0xFFE6E6EAL) < 1.5)
-        // StatusPill's default pair (the desktop cards use it too).
+        // StatusPill's default pair (Blaze Phone surfaces that pass no palette).
         assertTrue(PhoneColors.contrast(PhoneColors.STATUS_ON_CHIP, PhoneColors.STATUS_CHIP) >= PhoneColors.AA)
     }
 
@@ -95,7 +95,7 @@ class PhoneContrastTest {
         }
         assertTrue(tile.contains("StatusPill(pill, working = live.mode == PhonePolicy.Mode.AGENT, chip = Color(pal.chip), onChip = Color(pal.onChip))"))
         assertTrue(screen.contains("chip = Color(pal.chip), onChip = Color(pal.onChip)"))
-        val pill = src("ui/DesktopLiveCard.kt").substringAfter("fun StatusPill(").substringBefore("\n}\n")
+        val pill = src("ui/StatusPill.kt").substringAfter("fun StatusPill(").substringBefore("\n}\n")
         assertFalse("StatusPill text is no longer white", pill.contains("color = Color.White"))
         assertTrue(pill.contains("color = onChip"))
     }

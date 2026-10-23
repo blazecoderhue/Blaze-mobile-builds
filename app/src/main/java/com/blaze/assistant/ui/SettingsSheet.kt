@@ -93,7 +93,6 @@ val topPages = listOf(
 /** Pages under Advanced (the old list without the router dashboard). */
 val advancedPages = listOf(
     SettingsPage("connections", "Connected accounts", "Google, GitHub, Spotify, Notion, Slack"),
-    SettingsPage("linux", "Desktop (Linux)", "A real Linux desktop inside Blaze on this phone"),
     SettingsPage("desktop", "Blaze Desktop", "Pair with Blaze on your computer"),
     SettingsPage("control", "Phone control", "Accessibility, skills, the pointer"),
     SettingsPage("persona", "Personality", "How Blaze talks"),
@@ -175,7 +174,6 @@ fun SettingsScreen(start: String?, a11yOn: Boolean, onOpenAccessibility: () -> U
                 "bank" -> BankModePage()
                 "connections" -> ConnectionsPage()
                 "desktop" -> DesktopPage()
-                "linux" -> LinuxDesktopPage()
                 "persona" -> PersonaSection()
                 "control" -> ControlPage(a11yOn, onOpenAccessibility)
                 "commands" -> CommandsSection()

@@ -4,4 +4,5 @@
     <cache-path name="cache" path="." />
     <files-path name="home" path="home/" />
     <files-path name="gallery" path="gallery/" />
+    <files-path name="media" path="media/" />
 </paths>

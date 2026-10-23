@@ -93,7 +93,7 @@ private data class Need(val id: String, val title: String, val why: String, val 
 private fun granted(ctx: Context, p: String) = ContextCompat.checkSelfPermission(ctx, p) == PackageManager.PERMISSION_GRANTED
 
 private val needs = listOf(
-    Need("accessibility", "Use your screen", "So Blaze can tap and type in other apps for you. It always asks before sending, paying or deleting.") { BlazeAccessibilityService.isEnabled(it) },
+    // 0.45.20 (item 15): phone control is no longer asked here; the first task that needs it asks in chat (PermissionGate).
     Need("mic", "Hear you", "For talking to Blaze instead of typing.") { granted(it, Manifest.permission.RECORD_AUDIO) },
     Need("notifications", "Tell you when it's done", "A quick heads-up when a task finishes.") { Build.VERSION.SDK_INT < 33 || granted(it, Manifest.permission.POST_NOTIFICATIONS) },
     Need("overlay", "Show up over other apps", "So Blaze can pop up wherever you are.") { android.provider.Settings.canDrawOverlays(it) },

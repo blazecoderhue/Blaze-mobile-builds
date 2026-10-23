@@ -232,6 +232,7 @@ class ResumingDataSource(
     chunks: MediaNet.Chunks = MediaNet.Chunks.NONE,
     clock: MediaNet.Clock = MediaNet.Clock.REAL,
     graceMs: Long = MediaNet.SHORT_DROP_MS,
+    private val renewer: (String, String, Long) -> String? = { k, u, t -> StreamRenew.renew(k, u, t) },
 ) : DataSource {
     private var spec: DataSpec? = null
     private val reader = MediaNet.NetReader(object : MediaNet.RangeSource {
@@ -245,10 +246,23 @@ class ResumingDataSource(
         override fun close() = up.close()
     }, clock, graceMs, chunks,
         fatal = { it is HttpDataSource.InvalidResponseCodeException && it.responseCode != 416 },
-        eof = { DataSourceException.isCausedByPositionOutOfRange(it) || (it is HttpDataSource.InvalidResponseCodeException && it.responseCode == 416) })
+        eof = { DataSourceException.isCausedByPositionOutOfRange(it) || (it is HttpDataSource.InvalidResponseCodeException && it.responseCode == 416) },
+        // 0.45.20: an expired signed url is re-resolved through its source (same rendition) and read on at the same byte.
+        expired = { it is HttpDataSource.InvalidResponseCodeException && UrlRenew.expired(it.responseCode) },
+        renew = { renewSpec() })
+
+    /** Swaps the open spec's url for a fresh one of the same rendition ([renewer], keyed by the stable cache key). */
+    private fun renewSpec(): Boolean {
+        val s = spec ?: return false
+        val key = s.key ?: return false
+        val fresh = renewer(key, s.uri.toString(), reader.totalSize) ?: return false
+        spec = s.withUri(Uri.parse(fresh))
+        return true
+    }
 
     val requests: Int get() = reader.requests
     val reopens: Int get() = reader.reopens
+    val renewals: Int get() = reader.renewals
 
     override fun addTransferListener(transferListener: TransferListener) = up.addTransferListener(transferListener)
     override fun open(dataSpec: DataSpec): Long {
@@ -267,4 +281,19 @@ class ResumingDataSource(
         /** "bytes 0-262143/9876543" -> 9876543; "*" or missing -> -1. */
         fun totalOf(contentRange: String?): Long = contentRange?.substringAfterLast('/', "")?.trim()?.toLongOrNull() ?: -1L
     }
+}
+
+/**
+ * 0.45.20: the phone side of [UrlRenew]: asks the stream's Store source for fresh urls (blocking, 8 s at most, on the
+ * player's loader thread). No gateway resolve endpoint yet (spec 4a), so it goes to the source directly.
+ */
+object StreamRenew {
+    private val renewer = UrlRenew.Renewer({ src, id, kind ->
+        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.withTimeoutOrNull(8_000) {
+                com.blaze.assistant.mediaapps.store.StoreSources.get(src)?.refresh(id, kind)?.formats
+            }
+        }
+    })
+    fun renew(cacheKey: String, oldUrl: String, total: Long): String? = renewer.renew(cacheKey, oldUrl, total)
 }

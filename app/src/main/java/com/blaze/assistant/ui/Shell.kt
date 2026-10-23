@@ -592,7 +592,6 @@ fun plusItems(work: String, approval: String, model: String, hasClipImage: Boole
     add(PlusItem("plan", if (work == "plan") "Plan mode" else "Build mode", if (work == "plan") "Read and look only · tap for Build" else "Full access · tap for Plan", on = work == "plan"))
     add(PlusItem("approval", if (approval == "autopilot") "Autopilot" else "Auto", if (approval == "autopilot") "Works on without asking · tap for Auto" else "Asks before risky steps · tap for Autopilot", on = approval == "autopilot"))
     // v0.25.0: no Model row; Blaze Cloud picks the model for every message.
-    add(PlusItem("linux", "Desktop", "A real Linux desktop on this phone"))
     add(PlusItem("views", "Views", "Memory, jobs, design, accounts…"))
     // One mind: outside projects there is one conversation. v0.24.0: "Clear screen" (/clear) empties it, nothing is forgotten.
     if (inProject) add(PlusItem("new", "New chat", "A new thread in this project"))

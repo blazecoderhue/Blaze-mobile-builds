@@ -41,6 +41,9 @@ data class DlJob(
     val fileTitle: String = "",       // one track of an album item
     val subs: String = "",            // wave A 25: JSON (Subs.indexJson) of caption tracks saved with the video for offline
     val counted: Boolean = false,     // v0.45.18: POST /v1/downloads/consume said yes (counted once, never again on retry)
+    val phase: String = "",           // wave B 19: "" downloading | verifying | saving (DlVerify.PHASE_*)
+    val sha256: String = "",          // wave B 19: hash of the saved file
+    val verified: Boolean = false,    // wave B 19: length + hash re-checked after the move into private storage
 ) {
     val total: Long get() = parts.sumOf { it.total }
     val done: Long get() = parts.sumOf { it.done.coerceAtMost(if (it.total > 0) it.total else Long.MAX_VALUE) }
@@ -69,7 +72,7 @@ object DlLogic {
     /** Bytes written: progress made resets the attempt count (a flaky network shouldn't fail a long download). */
     fun onProgress(job: DlJob, partIndex: Int, done: Long, total: Long = -1): DlJob = job.copy(
         parts = job.parts.mapIndexed { i, p -> if (i == partIndex) p.copy(done = done, total = if (total >= 0) total else p.total) else p },
-        attempts = 0, error = "", status = DlStatus.RUNNING)
+        attempts = 0, error = "", status = DlStatus.RUNNING, phase = "")
 
     /** The Range header for the next chunk of a part: from what we have, at most [chunk] bytes. */
     fun range(done: Long, total: Long, chunk: Long = CHUNK): String {
@@ -119,7 +122,7 @@ object DlLogic {
     fun hasSpace(freeBytes: Long, job: DlJob): Boolean = freeBytes >= spaceNeeded(job)
 
     fun pause(job: DlJob): DlJob = if (job.active) job.copy(status = DlStatus.PAUSED, nextTryAt = 0) else job
-    fun resume(job: DlJob): DlJob = if (job.status == DlStatus.PAUSED || job.status == DlStatus.FAILED) job.copy(status = DlStatus.QUEUED, attempts = 0, error = "", nextTryAt = 0) else job
+    fun resume(job: DlJob): DlJob = if (job.status == DlStatus.PAUSED || job.status == DlStatus.FAILED) job.copy(status = DlStatus.QUEUED, attempts = 0, error = "", nextTryAt = 0, phase = "") else job
 
     /** A safe file name for a title ("AC/DC: Back in Black" → "AC-DC- Back in Black"). */
     fun fileName(title: String, ext: String): String {
@@ -130,7 +133,7 @@ object DlLogic {
     // ---- JSON ----
     fun toJson(j: DlJob): JSONObject = JSONObject().put("id", j.id).put("vid", j.videoId).put("kind", j.kind).put("title", j.title)
         .put("ch", j.channel).put("dur", j.durationSec).put("thumb", j.thumb).put("q", j.quality).put("cid", j.choiceId).put("ext", j.ext)
-        .put("src", j.source).put("lic", j.licence).put("ft", j.fileTitle).put("st", j.status.name).put("att", j.attempts).put("err", j.error).put("next", j.nextTryAt).put("at", j.createdAt).put("out", j.outUri).put("subs", j.subs).put("cnt", j.counted)
+        .put("src", j.source).put("lic", j.licence).put("ft", j.fileTitle).put("st", j.status.name).put("att", j.attempts).put("err", j.error).put("next", j.nextTryAt).put("at", j.createdAt).put("out", j.outUri).put("subs", j.subs).put("cnt", j.counted).put("ph", j.phase).put("sha", j.sha256).put("ver", j.verified)
         .put("parts", JSONArray().also { a -> j.parts.forEach { p -> a.put(JSONObject().put("key", p.key).put("url", p.url).put("total", p.total).put("done", p.done).put("c", p.container)) } })
 
     fun fromJson(o: JSONObject): DlJob {
@@ -141,7 +144,8 @@ object DlLogic {
             runCatching { DlStatus.valueOf(o.optString("st")) }.getOrDefault(DlStatus.QUEUED), o.optInt("att"), o.optString("err"),
             o.optLong("next"), o.optLong("at"), o.optString("out"), o.optString("src", "youtube"), o.optString("lic"), o.optString("ft"), o.optString("subs"),
             // v0.45.18: a job saved by an older app that already has bytes was started before counting existed; don't charge it now.
-            if (o.has("cnt")) o.optBoolean("cnt") else parts.any { it.done > 0 })
+            if (o.has("cnt")) o.optBoolean("cnt") else parts.any { it.done > 0 },
+            o.optString("ph"), o.optString("sha"), o.optBoolean("ver"))
     }
 
     fun listToJson(jobs: List<DlJob>): String = JSONArray().also { a -> jobs.forEach { a.put(toJson(it)) } }.toString()

@@ -53,7 +53,7 @@ class Review1022Test {
         assertEquals(2, RetryGuard.MAX)
         val src = listOf(java.io.File("src/main/java/com/blaze/assistant/agent/Agent.kt"), java.io.File("app/src/main/java/com/blaze/assistant/agent/Agent.kt")).first { it.exists() }.readText()
         // Every re-prompt kind spends the same per-turn budget.
-        for (k in listOf("leakNudged", "refusalNudged", "vncNudged", "echoNudged", "emptyNudged", "learnNudged"))
+        for (k in listOf("leakNudged", "refusalNudged", "echoNudged", "emptyNudged", "learnNudged"))
             assertTrue(k, Regex(k + " = true; nudgesLeft--").containsMatchIn(src))
         assertTrue(FastLane.FAIL_STARTS.containsAll(listOf("No app", "Error", "Couldn't")))
         val fl = listOf(java.io.File("src/main/java/com/blaze/assistant/agent/FastLane.kt"), java.io.File("app/src/main/java/com/blaze/assistant/agent/FastLane.kt")).first { it.exists() }.readText()

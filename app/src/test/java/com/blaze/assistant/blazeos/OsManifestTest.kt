@@ -57,15 +57,11 @@ class OsManifestTest {
         assertEquals(m, (OsManifest.parse(OsManifest.toJson(m)) as OsManifest.Parsed.Ok).m)
     }
 
-    @Test fun hostedBuiltinAndLinuxEntries() {
+    @Test fun hostedAndBuiltinEntries() {
         assertEquals("https://example.org/app/", ok("""{"id":"org.example.app","name":"Hosted","entry":{"type":"web","url":"https://example.org/app/"}}""").entry.url)
         assertEquals("clock", ok("""{"id":"blazeos.clock","name":"Clock","entry":{"type":"builtin","key":"clock"}}""").entry.key)
-        val l = ok("""{"id":"linux.xeyes","name":"Eyes","entry":{"type":"linux","command":"xeyes -geometry 300x200","packages":["xeyes"]}}""")
-        assertEquals(OsEntry(OsManifest.LINUX, command = "xeyes -geometry 300x200", packages = listOf("xeyes")), l.entry)
-        // v0.33.5: per-Linux package names; bad ids and names are dropped.
-        val d = ok("""{"id":"linux.xeyes","name":"Eyes","entry":{"type":"linux","command":"xeyes","packages":["xeyes"],"distro_packages":{"fedora":["xeyes","Bad;rm"],"ubuntu":["x11-apps"],"BAD ID":["x"]}}}""")
-        assertEquals(mapOf("fedora" to listOf("xeyes"), "ubuntu" to listOf("x11-apps")), d.entry.distroPackages)
-        assertEquals(d.entry.distroPackages, (OsManifest.parse(OsManifest.toJson(d).toString()) as OsManifest.Parsed.Ok).m.entry.distroPackages)
+        // Wave B-4: "linux" entries (apps for the removed on-phone Linux desktop) are refused.
+        assertEquals("Bad entry", bad("""{"id":"linux.xeyes","name":"Eyes","entry":{"type":"linux","command":"xeyes","packages":["xeyes"]}}"""))
         // A web entry with no path opens index.html.
         assertEquals("index.html", ok("""{"id":"a.b","name":"X","entry":{"type":"web"}}""").entry.path)
         assertEquals("1.0", ok("""{"id":"a.b","name":"X","entry":{"type":"web"}}""").version)
@@ -80,7 +76,7 @@ class OsManifestTest {
         assertTrue(bad("""{"id":"a.b","name":"${"x".repeat(31)}","entry":{"type":"web"}}""").startsWith("Name"))
         assertTrue(bad("""{"id":"a.b","name":"X","version":"one","entry":{"type":"web"}}""").startsWith("Bad version"))
         assertEquals("No entry", bad("""{"id":"a.b","name":"X"}"""))
-        // Path escapes, plain http, unknown types, unknown built-ins, shell tricks in a Linux command.
+        // Path escapes, plain http, unknown types (incl. the removed "linux"), unknown built-ins.
         for (e in listOf("""{"type":"web","path":"../../etc/passwd"}""", """{"type":"web","path":"/sdcard/x.html"}""",
                 """{"type":"web","url":"http://example.org"}""", """{"type":"web","url":"file:///data/x"}""", """{"type":"apk"}""",
                 """{"type":"builtin","key":"phone"}""", """{"type":"linux","command":"rm -rf / ; reboot"}""",
@@ -110,10 +106,10 @@ class OsManifestTest {
             {"id":"a.four","name":"Four","entry":{"type":"web"},"package":"asset:../secret.zip"},
             {"id":"Nope","name":"Bad"},
             {"id":"a.five","name":"Five","entry":{"type":"linux","command":"xclock"}}]}""")
-        assertEquals(listOf("a.one", "a.three", "a.five"), c.apps.map { it.manifest.id })
+        assertEquals(listOf("a.one", "a.three"), c.apps.map { it.manifest.id })
         assertEquals(1200L, c.apps[0].size)
         assertEquals("https://store.example.org/catalog.json", c.remote)
-        assertEquals(4, c.errors.size)
+        assertEquals(5, c.errors.size)   // + the "linux" entry (wave B-4)
         assertTrue(OsManifest.catalog("[]").apps.isEmpty())
     }
 

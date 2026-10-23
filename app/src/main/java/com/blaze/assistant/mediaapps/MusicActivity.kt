@@ -156,8 +156,11 @@ class MusicActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT < 29 && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
                 storagePerm.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
+        // 0.45.20 (item 15): no notification prompt on opening Music (the media notification needs none); downloads ask when started.
+        StoragePermission.notifAsker = {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                runCatching { notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS) }
+        }
         setContent { BlazeTheme { MusicApp(controller.value, tab.value, { tab.value = it }, onClose = { BackToChat.go(this) }) } }
     }
 
@@ -189,6 +192,7 @@ class NowPlaying {
     var count by mutableIntStateOf(0)
     var playing by mutableStateOf(false)
     var buffering by mutableStateOf(false)
+    var wants by mutableStateOf(false)   // 0.45.20: playWhenReady (a stall = buffering while it should play)
     var pos by mutableLongStateOf(0L)
     var dur by mutableLongStateOf(0L)
     var shuffle by mutableStateOf(false)
@@ -200,7 +204,7 @@ class NowPlaying {
 
     fun read(p: Player) {
         item = p.currentMediaItem; index = p.currentMediaItemIndex; count = p.mediaItemCount
-        playing = p.isPlaying; buffering = p.playbackState == Player.STATE_BUFFERING
+        playing = p.isPlaying; buffering = p.playbackState == Player.STATE_BUFFERING; wants = p.playWhenReady
         pos = p.currentPosition.coerceAtLeast(0); dur = p.duration.takeIf { it > 0 } ?: 0
         shuffle = p.shuffleModeEnabled
         repeat = when (p.repeatMode) { Player.REPEAT_MODE_ALL -> Repeat.ALL; Player.REPEAT_MODE_ONE -> Repeat.ONE; else -> Repeat.OFF }
@@ -229,6 +233,16 @@ class NowPlaying {
         PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED, PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED -> "This phone can't play this file's format."
         else -> "Couldn't play this: " + (e.message ?: e.errorCodeName)
     }
+}
+
+/** 0.45.20: the player's honest network line for the item on screen ([NetHonesty.play]) and whether there's a network. */
+@Composable
+fun rememberMusicNet(np: NowPlaying): Pair<NetHonesty.Play, Boolean> {
+    val ctx = LocalContext.current
+    val online by remember { NetWatch.start(ctx) }.collectAsState()
+    val stalled = rememberStallMs(np.buffering && np.wants)
+    val stream = np.item?.mediaId?.startsWith("stream:") == true
+    return NetHonesty.play(stalled, online, stream) to online
 }
 
 /** The Track behind a queue item: the library's when we have it, else built from the item's metadata (streams). */
@@ -309,7 +323,9 @@ private fun playStream(ctl: MediaController?, item: StoreItem, d: StoreDetail, s
 @Composable
 private fun MiniPlayer(ctl: MediaController?, np: NowPlaying, onOpen: () -> Unit) {
     val t = trackOf(np.item)
-    MiniBar(t, np.error.ifBlank { t?.artist.orEmpty() }, np.playing, if (np.dur > 0) np.pos.toFloat() / np.dur else 0f, onOpen,
+    val (net, online) = rememberMusicNet(np)
+    val skipped by MusicService.offlineNote.collectAsState()
+    MiniBar(t, np.error.ifBlank { skipped }.ifBlank { NetHonesty.playText(net, online) }.ifBlank { t?.artist.orEmpty() }, np.playing, if (np.dur > 0) np.pos.toFloat() / np.dur else 0f, onOpen,
         onPlayPause = { ctl?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_IDLE) it.prepare(); it.play() } } },
         // v0.34.1 close: stops the music and empties the queue (the mini-player goes away with it).
         onClose = { ctl?.let { it.stop(); it.clearMediaItems() } }) {
@@ -383,6 +399,14 @@ private fun PlayerPage(ctl: MediaController?, np: NowPlaying, playList: (List<Tr
                 MText(np.error, 12.5.sp, com.blaze.assistant.ui.BlazeBrush.orange, maxLines = 3, modifier = Modifier.weight(1f))
                 PillButton("Skip", primary = false) { ctl?.let { it.seekToNext(); it.prepare(); it.play() } }
             }
+        }
+        // 0.45.20: honest network line (weak network / retrying with Retry / offline from saved) and the offline skip chip.
+        val (net, online) = rememberMusicNet(np)
+        val skipped by MusicService.offlineNote.collectAsState()
+        if (np.error.isBlank() && (net != NetHonesty.Play.NONE || skipped.isNotBlank())) {
+            Spacer(Modifier.height(6.dp))
+            if (skipped.isNotBlank()) MText(skipped, 12.5.sp, c.sub, FontWeight.Medium)
+            else NetNote(net, online, onRetry = { ctl?.let { it.seekTo(it.currentPosition); it.prepare(); it.play() } })
         }
         // Seek bar: drag shows the target time; the player jumps on release.
         var dragging by remember { mutableStateOf<Float?>(null) }
@@ -616,6 +640,8 @@ private fun LibraryPage(np: NowPlaying, playList: (List<Track>, Int, Boolean) ->
     // Registered after the group handler, so Back leaves selection mode first.
     BackHandler(LibrarySelection.backClears(sel)) { sel = LibrarySelection.clear() }
 
+    val export = rememberExportActions()
+
     @Composable
     fun SongRow(t: Track, list: List<Track>, i: Int, playlist: Playlist? = null, pIndex: Int = -1) {
         var menu by remember { mutableStateOf(false) }
@@ -633,7 +659,7 @@ private fun LibraryPage(np: NowPlaying, playList: (List<Track>, Int, Boolean) ->
                         if (pIndex > 0) add("Move up" to { MediaLib.setPlaylists(PlaylistOps.move(lists, playlist.id, pIndex, pIndex - 1, System.currentTimeMillis())) })
                         if (pIndex < playlist.keys.size - 1) add("Move down" to { MediaLib.setPlaylists(PlaylistOps.move(lists, playlist.id, pIndex, pIndex + 1, System.currentTimeMillis())) })
                     }
-                    if (t.source == "download") add("Delete from phone" to { confirmDel = t })
+                    if (t.source == "download") { addAll(export.menu({ listOf(t) }, false)); add("Delete from phone" to { confirmDel = t }) }
                 })
             }
         }
@@ -647,6 +673,11 @@ private fun LibraryPage(np: NowPlaying, playList: (List<Track>, Int, Boolean) ->
                 if (i == null) Toast.makeText(ctx, "These can't be shared", Toast.LENGTH_SHORT).show() else runCatching { ctx.startActivity(i) }
             },
             onExport = { runCatching { exportTree.launch(null) }.onFailure { Toast.makeText(ctx, "No file picker on this phone", Toast.LENGTH_SHORT).show() } },
+            exportItems = listOf(
+                "Export to Music" to { export.run(LibrarySelection.picked(sel, shown), MediaStorePolicy.Target.DEFAULT); sel = LibrarySelection.clear() },
+                "Export to Downloads" to { export.run(LibrarySelection.picked(sel, shown), MediaStorePolicy.Target.DOWNLOADS); sel = LibrarySelection.clear() },
+                "Export to folder\u2026" to { runCatching { exportTree.launch(null) }.onFailure { Toast.makeText(ctx, "No file picker on this phone", Toast.LENGTH_SHORT).show() } },
+            ),
             onDelete = {
                 val p = LibrarySelection.picked(sel, shown)
                 if (LibrarySelection.deletable(p).isEmpty()) Toast.makeText(ctx, "Gallery songs are deleted in Gallery", Toast.LENGTH_SHORT).show() else confirmMany = p

@@ -27,14 +27,14 @@ object ClaimCheck {
     private val ic = setOf(RegexOption.IGNORE_CASE)
     private fun r(s: String) = Regex(s, ic)
 
-    /** "The Linux desktop is running", "Dillo is open now", "the server is up", "I've started the desktop". */
+    /** "The server is up", "it's running now", "I've started it". */
     val RUNNING = ActionProof.Action("running", "get that running",
         r("""\b(?:is|are|it's|they're)\s+(?:now\s+|already\s+|all\s+)?(?:running|up and running|listening|started|booted)\b|""" +
             """\b(?:i|i've|i have|i just|i've just)\s+(?:also\s+|now\s+|just\s+|successfully\s+)?(?:started|launched|booted|brought up|spun up|fired up)\b|""" +
             """^\s*(?:started|launched|booted)\b"""),
-        setOf("desktop", "desktop_task", "run_shell", "termux_run", "preview_server", "linux_install", "open_app", "start_agent", "ask_pc",
+        setOf("run_shell", "termux_run", "preview_server", "linux_install", "open_app", "start_agent", "ask_pc",
             "process", "terminal_jobs", "browser_open", "open_url"),
-        r("""\b(start|launch|run|running|boot|desktop|linux|vnc|xfce|dillo|server|serve)\b"""))
+        r("""\b(start|launch|run|running|boot|linux|server|serve)\b"""))
 
     /**
      * 0.45.19 Blaze Phone, no false done: "booked", "your table is confirmed", "order placed", "paid" need the newest

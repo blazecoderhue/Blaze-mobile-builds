@@ -166,6 +166,8 @@ object Settings {
     }
     fun listen(l: SharedPreferences.OnSharedPreferenceChangeListener) = prefs.registerOnSharedPreferenceChangeListener(l)
     fun setBool(name: String, v: Boolean) = prefs.edit().putBoolean(name, v).apply()
+    /** Wave B-4: drops saved keys that no feature reads any more (e.g. the removed Linux desktop's prefs). */
+    fun removeKeys(names: Collection<String>) { if (names.isNotEmpty()) prefs.edit().apply { names.forEach { remove(it) } }.apply() }
 
     /** Fast lane (on-device Needle model) for direct commands. */
     var fastLane: Boolean

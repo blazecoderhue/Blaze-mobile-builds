@@ -81,7 +81,7 @@ class PhoneRound2Test {
     }
 
     @Test fun shellAsksNameRunShell() {
-        val tools = listOf("run_shell", "open_view", "desktop_task", "web_search")
+        val tools = listOf("run_shell", "open_view", "browser_open", "web_search")
         for (u in listOf("run ls in the terminal", "@halo run ls in the terminal", "run ls -la in the terminal", "please run git status in the shell",
                 "execute python3 hello.py in the terminal", "run `df -h`", "run ls", "ls", "ls -la ~/projects", "pwd", "git status", "can you run whoami in the terminal?"))
             assertEquals(u, "run_shell", ToolTruth.choiceFor(u, emptyList(), tools))

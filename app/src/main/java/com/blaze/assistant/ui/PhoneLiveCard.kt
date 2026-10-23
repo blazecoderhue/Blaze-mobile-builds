@@ -64,7 +64,7 @@ fun phonePalette(): PhoneColors.Palette {
 /**
  * 0.45.19 Blaze Phone live tile: while Blaze works on its own phone (or waits for the user to take over), a compact
  * Glass card above the composer shows the newest frame, the site and the step. Tap it for the full screen (watch);
- * "Take control" gives the user the real page. Same card language as the desktop card (DesktopLiveCard), sized for
+ * "Take control" gives the user the real page. Same card language as the old desktop card, sized for
  * 360 dp: a 54 dp phone-shaped frame, two text lines, one button.
  */
 @Composable

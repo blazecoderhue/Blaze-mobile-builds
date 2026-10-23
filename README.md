@@ -53,8 +53,8 @@ The browser's VPN (⋯ › VPN & privacy, or the `browser_vpn` tool) works with 
 ## Terminal that always starts (v0.30.2)
 The phone tab checks BusyBox once per build and starts on Android's own shell when BusyBox can't run, and a BusyBox tab that dies at once is swapped for one on Android's shell with a note, so it never opens as "[Process completed (signal 31)]". Linux tabs run Termux's PRoot 5.1.107.96, so `cd ~/phone`, `cd /sdcard` and every other cd work under Android's sandbox; `blaze-doctor` inside any Linux checks cd, getcwd, stat, the file tools and fork. Details: `tools/busybox/README.md`, `tools/proot/README.md`.
 
-## Linux desktop (v0.25.1)
-Settings › Advanced › Desktop (Linux) installs and runs a real XFCE desktop inside Blaze's Alpine Linux, shown full screen with touch-mouse and keyboard. Blaze can use it too (`desktop` tool). See CHANGELOG.md.
+## Linux desktop (removed)
+The on-phone XFCE/VNC Linux desktop (v0.25.1–v0.45.x: Desktop (Linux) page, `desktop` / `desktop_task` tools, BlazeOS Linux apps) was removed in wave B-4. Blaze's Alpine Linux terminal (run_shell linux=true, run_code, git) stays. After the update Blaze frees the desktop's packages, caches and settings once (terminal/LinuxDesktopCleanup.kt).
 
 ## Blaze docs (v0.28.4)
 Blaze knows itself by looking it up, not from prompt text. At build time `BlazeDocsTask` (`app/build.gradle.kts`) writes `assets/blaze-docs/` from this repo: README, CHANGELOG (one file per version), STATUS, `docs/`, and `app/blaze-docs/about.md` (repos and exact URLs, releases, /update, tech stack, feature and settings maps, privacy, limits) filled in with the build's version, commit and SDK levels; secrets, account IDs and e-mail addresses are scrubbed. On the first launch after an update the app chunks it by heading into blaze.db (`blaze_docs` + FTS5 `blaze_docs_fts`, with a tool reference built from the real tool list) and the model uses `blaze_docs_search` / `blaze_docs_read`. The system prompt only gets one line and the repo URL. Edit `app/blaze-docs/about.md` when something it states changes.

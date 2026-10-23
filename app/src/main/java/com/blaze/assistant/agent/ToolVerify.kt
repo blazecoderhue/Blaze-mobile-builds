@@ -5,14 +5,12 @@ import org.json.JSONObject
 /**
  * v0.44.0 verify before claiming. Every tool result the model sees now ends with an explicit status line:
  *
- *  - `[verified=true]` the tool read back what it did (a file's size, a setting's new state, the app in front, the
- *    desktop's port answering), or it only looked something up, or it changed Blaze's own data (memory, routines,
+ *  - `[verified=true]` the tool read back what it did (a file's size, a setting's new state, the app in front),
+ *    or it only looked something up, or it changed Blaze's own data (memory, routines,
  *    designs) where success IS the result.
  *  - `[verified=false: …]` it ran but nothing confirmed the effect: an intent handed to another app (timer, call,
- *    media), a settings page opened instead of the setting changed, an app that isn't in front, a desktop app whose
- *    process never showed up.
- *  - `[verified=false: FAILED …]` it failed, or its check failed (the desktop said it started but nothing answers on
- *    port 5901: the exact case where Blaze told the user the Linux desktop and Dillo were running).
+ *    media), a settings page opened instead of the setting changed, an app that isn't in front.
+ *  - `[verified=false: FAILED …]` it failed, or its check failed.
  *
  * [classify] is pure (the result's own words); [check] adds cheap post-condition probes for the tools that act outside
  * Blaze ([Probes], Android side in VerifyProbes). The system prompt ([PROMPT_RULE]) forbids claiming success without
@@ -31,10 +29,6 @@ object ToolVerify {
         suspend fun foreground(): String? = null
         /** Blaze's own package (an app that "opened" while Blaze is still in front didn't open). */
         val self: String get() = "com.blaze.assistant"
-        /** The Linux desktop answers on its VNC port. */
-        suspend fun desktopAlive(): Boolean? = null
-        /** A process for [command] runs in the Linux desktop. */
-        suspend fun desktopProcess(command: String): Boolean? = null
         /** (hour, minute) of the next alarm the system knows about. */
         suspend fun nextAlarm(): Pair<Int, Int>? = null
         /** Size in bytes of a file Blaze wrote (-1 = missing, null = can't tell). */
@@ -76,7 +70,7 @@ object ToolVerify {
     )
 
     /** Tools whose effect is checked by a probe in [check]. */
-    val PROBED = setOf("open_app", "open_settings_page", "open_camera", "open_url", "navigate_to", "set_alarm", "desktop",
+    val PROBED = setOf("open_app", "open_settings_page", "open_camera", "open_url", "navigate_to", "set_alarm",
         "export_file", "download_file", "device_setting", "toggle_setting",
         // v0.45.13 verify-after-act: these are read back too.
         "set_timer", "add_calendar_event", "add_contact", "compose_sms", "search_in_app")
@@ -122,10 +116,6 @@ object ToolVerify {
                 stateRead.containsMatchIn(r) -> Verdict(Status.VERIFIED)
                 openedOnly.containsMatchIn(r) -> Verdict(Status.UNVERIFIED, "only the settings screen was opened; the setting itself was not changed")
                 else -> Verdict(Status.UNVERIFIED, "the new state wasn't read back")
-            }
-            "desktop" -> when (args.optString("action")) {
-                "start", "run" -> Verdict(Status.UNVERIFIED, "not checked yet")
-                else -> Verdict(Status.VERIFIED)
             }
             "file_write", "file_edit" -> if (Regex("""\(\d+ bytes""").containsMatchIn(r)) Verdict(Status.VERIFIED) else Verdict(Status.UNVERIFIED, "the file wasn't read back")
             "add_calendar_event" -> if (r.startsWith("Opened the calendar", true)) Verdict(Status.UNVERIFIED, "the event form was opened; the user still has to tap Save")
@@ -239,27 +229,6 @@ object ToolVerify {
             else if (pid != null && p.clockAlarmOn(pid, "%02d:%02d".format(h, m)) == true) Verdict(Status.VERIFIED, "the Clock app lists alarm $pid at %02d:%02d, switched on".format(h, m))
             else Verdict(Status.UNVERIFIED, "the Clock app didn't list an alarm at %02d:%02d as the next one".format(h, m))
         }
-        "desktop" -> when (args.optString("action")) {
-            "start" -> when (p.desktopAlive()) {
-                true -> Verdict(Status.VERIFIED, "the desktop answers on port 5901")
-                false -> if (result.contains("Installing", true)) Verdict(Status.UNVERIFIED, "still installing; it isn't running yet")
-                    else Verdict(Status.FAILED, "the desktop is NOT running: nothing answers on port 5901")
-                null -> null
-            }
-            "run" -> when (p.desktopAlive()) {
-                false -> Verdict(Status.FAILED, "the desktop is NOT running (nothing on port 5901), so the app can't be open")
-                null -> null
-                true -> {
-                    val app = args.optString("app")
-                    when (if (app.isBlank()) null else p.desktopProcess(app)) {
-                        true -> Verdict(Status.VERIFIED, "$app is running in the desktop")
-                        false -> Verdict(Status.UNVERIFIED, "$app didn't show up as a running process in the desktop")
-                        null -> Verdict(Status.UNVERIFIED, "the desktop is up, but nothing confirmed $app opened (take a screenshot to check)")
-                    }
-                }
-            }
-            else -> null
-        }
         "set_timer" -> when (p.timerRunning()) {
             null -> null
             true -> Verdict(Status.VERIFIED, "the Clock app shows a running timer")
@@ -359,7 +328,7 @@ object ToolVerify {
     const val PROMPT_RULE = "\nVERIFIED RESULTS: every tool result ends with [verified=true] or [verified=false: why]. " +
         "Say something worked (sent, set, opened, started, running, saved, turned on, installed, playing) ONLY when its result in THIS turn says verified=true. " +
         "When it says verified=false, say plainly \u201cI tried to … but couldn't confirm it\u201d (or that it failed and why) and offer the next step; " +
-        "for a check you can do (a screenshot, read_screen, desktop action=status) do it first. Earlier messages saying it worked are not proof. " +
+        "for a check you can do (a screenshot, read_screen) do it first. Earlier messages saying it worked are not proof. " +
         "A result marked \u201cchecked on the phone\u201d needs no extra check. verified=pending means the phone is still checking: say you started it, not that it's done. " +
         "Opening an app or a settings page is only the first step of a task, never the task: keep going (read_screen, tap, type, search) until the thing the user asked for is read back verified=true. " +
         "Say the exact time, name or value the tool result reports (an alarm set for 18:15 is 18:15)."

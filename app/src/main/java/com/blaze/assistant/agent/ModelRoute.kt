@@ -7,7 +7,7 @@ package com.blaze.assistant.agent
  * vision / long / agent, each an ordered list of free models set in its admin) and takes `blaze_avoid`, a list of
  * "provider/model" routes to try last. So routing here is: which lineup, and which weak routes go to the back.
  *
- *  - An action turn ([heavy]: phone control, the Linux desktop, the PC, coding, files, the browser, messages,
+ *  - An action turn ([heavy]: phone control, the PC, coding, files, the browser, messages,
  *    settings, alarms, several steps in a row, or a tool chain already under way) always asks for the `agent`
  *    lineup, even when the conversation is long or looks like code (those used to go to `long` / `code`, whose
  *    fallbacks include Flash-Lite and 8B models that write tool calls as text). Small models go last

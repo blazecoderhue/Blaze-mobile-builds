@@ -301,7 +301,7 @@ private fun AppLibrary(apps: List<OsApp>, dock: List<String>, onOpen: (OsApp) ->
                         Column(Modifier.weight(1f)) {
                             Text(a.label, style = osText(look, 15f, FontWeight.Medium, Color.White))
                             val where = listOfNotNull(if (a.id in dock) "In the dock" else null, if (a.id in prefs.removed) "Not on the home screen" else null,
-                                when (a.kind) { OsManifest.WEB -> "Web app"; OsManifest.LINUX -> "Linux app"; OsManifest.WASM -> "Native app"; else -> null })
+                                when (a.kind) { OsManifest.WEB -> "Web app"; OsManifest.WASM -> "Native app"; else -> null })
                             if (where.isNotEmpty()) Text(where.joinToString(" · "), style = osText(look, 12f, color = Color.White.copy(alpha = 0.6f)))
                         }
                     }
@@ -389,7 +389,6 @@ private fun builtinLook(key: String): Look = when (key) {
     "weather" -> Look(0xFF5AC8FA, 0xFF0A60C2, Icons.Rounded.WbSunny, 0xFFFFD60A)
     "files" -> Look(0xFF3D9BFF, 0xFF0040DD, Icons.Rounded.Folder)
     "terminal" -> Look(0xFF2C2C2E, 0xFF000000, Icons.Rounded.Terminal, 0xFF30D158)
-    "linux" -> Look(0xFFFFA62B, 0xFFB35C00, Icons.Rounded.DesktopWindows)
     "store" -> Look(0xFF2FB4FF, 0xFF0A6CFF, Icons.Rounded.Storefront)
     "settings" -> Look(0xFF9A9AA0, 0xFF48484A, Icons.Rounded.Settings)
     else -> Look(0xFF8E8E93, 0xFF3A3A3C, Icons.Rounded.Apps)
@@ -445,7 +444,7 @@ fun OsAppIcon(a: OsApp, size: Dp) {
     }
 }
 
-/** An app icon from a manifest's glyph and colours (App Store listings before install, Linux apps). */
+/** An app icon from a manifest's glyph and colours (App Store listings before install). */
 @Composable
 fun OsGlyphIcon(ic: OsIcon, size: Dp) {
     val prefs by BlazeOs.prefs.collectAsState()

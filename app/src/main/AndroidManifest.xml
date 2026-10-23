@@ -26,8 +26,6 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- v0.45.2 Keep desktop running: the Linux desktop's foreground service (Android 14 specialUse type). -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- v0.30.1 Blaze Music: background playback (media session foreground service). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- v0.30.1 Music / Video downloads into Music/Blaze/Music and Movies/Blaze/Videos: only Android 8–9 need this. -->
@@ -352,13 +350,6 @@
             android:foregroundServiceType="dataSync" />
         <service android:name=".terminal.JobKeeper" android:exported="false"
             android:foregroundServiceType="dataSync" />
-        <service android:name=".desktop.DesktopKeeper" android:exported="false"
-            android:foregroundServiceType="dataSync" />
-        <service android:name=".desktop.DesktopAliveService" android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps a user-started Linux desktop (proot + VNC server on 127.0.0.1) running while the user works in other apps; started only when the user turns on Keep desktop running." />
-        </service>
         <service android:name=".bank.BankModeService" android:exported="false"
             android:foregroundServiceType="dataSync" />
 

@@ -19,7 +19,7 @@ import org.junit.Test
 class PhoneToolsRoutingTest {
     private val names = listOf("phone_open", "phone_read", "phone_act", "phone_screenshot", "phone_wait", "phone_handoff", "phone_status",
         "browser_open", "browser_read", "web_search", "add_calendar_event", "create_routine", "set_alarm", "open_app", "memory_search", "run_shell",
-        "open_view", "desktop_task", "calendar_events", "search_in_app", "device_setting")
+        "open_view", "calendar_events", "search_in_app", "device_setting")
 
     private val phoneAsks = listOf(
         "book a table at Nando's Lusaka for 2 tonight",

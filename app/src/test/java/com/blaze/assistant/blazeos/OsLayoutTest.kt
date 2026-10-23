@@ -101,12 +101,12 @@ class OsLayoutTest {
     }
 
     @Test fun firstRunIsBuiltinsThenInstalledAppsAToZ() {
-        val all = OsApps.merge(listOf(OsApp("pkg:z", "Zed", OsManifest.WEB), OsApp("pkg:b", "bravo", OsManifest.LINUX)))
+        val all = OsApps.merge(listOf(OsApp("pkg:z", "Zed", OsManifest.WEB), OsApp("pkg:b", "bravo", OsManifest.WASM)))
         val o = OsHome.order(emptyList(), all, emptySet(), emptyList())
         assertEquals(OsApps.builtinApps().map { it.id } + listOf("pkg:b", "pkg:z"), o)
         // Every built-in the brief lists is there, once, and only BlazeOS's own apps (never the host phone's).
-        assertEquals(14, OsApps.builtins.size)
-        assertTrue(listOf("blaze", "camera", "photos", "music", "video", "browser", "calendar", "clock", "weather", "files", "terminal", "linux", "store", "settings")
+        assertEquals(13, OsApps.builtins.size)   // wave B-4: the "linux" Desktop built-in was removed
+        assertTrue(listOf("blaze", "camera", "photos", "music", "video", "browser", "calendar", "clock", "weather", "files", "terminal", "store", "settings")
             .all { it in OsApps.builtinKeys })
         assertTrue(all.all { it.id.startsWith(OsApps.BUILTIN) || it.id.startsWith(OsApps.PKG) })
         assertEquals("z", all.first { it.id == "pkg:z" }.key)

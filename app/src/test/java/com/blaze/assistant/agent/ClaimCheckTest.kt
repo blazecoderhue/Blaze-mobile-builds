@@ -9,29 +9,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ClaimCheckTest {
-    @Test fun theDesktopCaseIsRewritten() {
-        val ask = "start the linux desktop and open dillo"
-        val reply = "The Linux desktop is running and Dillo is open. Have fun browsing!"
-        val done = listOf(Done("desktop", Status.FAILED, "the desktop is NOT running: nothing answers on port 5901"))
+    @Test fun theFailedStartCaseIsRewritten() {
+        val ask = "start the preview server and run it"
+        val reply = "The server is running and the site is up. Have fun browsing!"
+        val done = listOf(Done("preview_server", Status.FAILED, "nothing answers on port 8080"))
         val o = ClaimCheck.review(reply, done, ask)
         assertTrue(o is Outcome.Rewrite)
         val t = (o as Outcome.Rewrite).text
-        assertTrue(t, t.startsWith("I tried to get that running, but it didn't work: the desktop is NOT running"))
-        assertFalse(t.contains("is running and Dillo"))
+        assertTrue(t, t.startsWith("I tried to get that running, but it didn't work: nothing answers on port 8080"))
+        assertFalse(t.contains("is running and the site"))
         assertTrue(t.contains("Have fun"))
     }
 
     @Test fun verifiedClaimsStand() {
-        val o = ClaimCheck.review("The desktop is running.", listOf(Done("desktop", Status.VERIFIED)), "start the desktop")
+        val o = ClaimCheck.review("The server is running.", listOf(Done("preview_server", Status.VERIFIED)), "start the server")
         assertEquals(Outcome.Ok, o)
         assertEquals(Outcome.Ok, ClaimCheck.review("Alarm set for 7:00.", listOf(Done("set_alarm", Status.VERIFIED)), "set an alarm for 7"))
     }
 
     @Test fun theNewestCallDecides() {
-        val done = listOf(Done("desktop", Status.VERIFIED), Done("desktop", Status.UNVERIFIED, "dillo didn't show up as a running process"))
-        val o = ClaimCheck.review("Dillo is running now.", done, "open dillo in the desktop")
+        val done = listOf(Done("run_shell", Status.VERIFIED), Done("run_shell", Status.UNVERIFIED, "the server didn't show up as a running process"))
+        val o = ClaimCheck.review("The server is running now.", done, "run the server")
         assertTrue(o is Outcome.Rewrite)
-        assertTrue((o as Outcome.Rewrite).text.contains("couldn't confirm it worked (dillo didn't show up"))
+        assertTrue((o as Outcome.Rewrite).text.contains("couldn't confirm it worked (the server didn't show up"))
         val fixed = listOf(Done("open_app", Status.UNVERIFIED), Done("open_app", Status.VERIFIED))
         assertEquals(Outcome.Ok, ClaimCheck.review("I opened WhatsApp.", fixed, "open whatsapp"))
     }
@@ -51,9 +51,9 @@ class ClaimCheckTest {
     }
 
     @Test fun honestRepliesAndUnrelatedTalkPass() {
-        assertEquals(Outcome.Ok, ClaimCheck.review("The desktop isn't running yet. Want me to repair it?", emptyList(), "is the desktop running?"))
+        assertEquals(Outcome.Ok, ClaimCheck.review("The server isn't running yet. Want me to start it?", emptyList(), "is the server running?"))
         assertEquals(Outcome.Ok, ClaimCheck.review("Paris is the capital of France.", emptyList(), "what is the capital of france"))
-        assertEquals(Outcome.Ok, ClaimCheck.review("I tried to start it but couldn't confirm it.", listOf(Done("desktop", Status.UNVERIFIED)), "start the desktop"))
+        assertEquals(Outcome.Ok, ClaimCheck.review("I tried to start it but couldn't confirm it.", listOf(Done("preview_server", Status.UNVERIFIED)), "start the server"))
         assertEquals(Outcome.Ok, ClaimCheck.review("", emptyList(), "open whatsapp"))
     }
 

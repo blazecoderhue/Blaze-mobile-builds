@@ -181,7 +181,7 @@ class HaloReplayRequestTest {
         assertTrue(choiceOf("reminder-create").contains("create_routine") && choiceOf("reminders-list").contains("list_routines"))
         assertTrue(choiceOf("memory-save").contains("memory_save") && choiceOf("memory-recall").contains("memory_search"))
         assertTrue(choiceOf("web-search") == "auto" && choiceOf("prior-tool-history") == "auto" && choiceOf("halo-tool-terminal").contains("run_shell"))
-        assertTrue(choiceOf("linux-browser").contains("desktop_task") && choiceOf("open-settings").contains("open_view") && choiceOf("open-design").contains("open_view"))
+        assertTrue(choiceOf("linux-browser") == "auto" && choiceOf("open-settings").contains("open_view") && choiceOf("open-design").contains("open_view"))
         val out = JSONObject().put("persona", persona()).put("persona_version", "1.0.1").put("scenarios", scenarios)
         val dir = File(System.getProperty("user.dir"), "build/qa").apply { mkdirs() }
         File(dir, "replay-0459.json").writeText(out.toString(1))

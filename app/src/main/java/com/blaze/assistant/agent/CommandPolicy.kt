@@ -2,8 +2,7 @@ package com.blaze.assistant.agent
 
 /**
  * v0.45.3 (user: "normal build mode makes me have to approve every single command"): what the Normal approval mode
- * (Build + Auto, the + menu's "Auto") asks before running a command the agent wants to run: shell (run_shell), git,
- * and typing / keys / opening apps in the Linux desktop.
+ * (Build + Auto, the + menu's "Auto") asks before running a command the agent wants to run: shell (run_shell) and git.
  *
  *  - [Level.SAFE] runs with no card: read-only commands (ls, cat, grep, git status/diff/log…), and build / test commands
  *    inside the project workspace (gradle, make, cargo/go build+test, npm/yarn run|test|build, pytest, tsc…).
@@ -18,7 +17,7 @@ package com.blaze.assistant.agent
  */
 object CommandPolicy {
     enum class Level { SAFE, ASK, RISKY }
-    enum class Kind { SHELL, GIT, DESKTOP_TYPE, DESKTOP_KEY, DESKTOP_OPEN }
+    enum class Kind { SHELL, GIT }
 
     /** v0.45.6: music_ops actions that run with no card in Normal mode (play, pause, next…: local, undoable). */
     val IN_APP_SAFE = setOf("play", "pause", "resume", "next", "previous", "prev", "stop", "now", "skip")
@@ -195,26 +194,16 @@ object CommandPolicy {
         return segs.map { segLevel(it, roots) }.maxByOrNull { it.ordinal } ?: Level.SAFE
     }
 
-    /** The level for any [kind] of command. [risky] = the caller's own danger check (DesktopExtras.dangerous, Git.risky…). */
+    /** The level for any [kind] of command. [risky] = the caller's own danger check (Git.risky…). */
     fun level(kind: Kind, text: String, risky: Boolean = false, roots: List<String> = DEFAULT_ROOTS): Level = when {
         risky -> Level.RISKY
         kind == Kind.SHELL -> shell(text, roots)
         kind == Kind.GIT -> gitLevel(words(text).let { if (it.firstOrNull() == "git") it.drop(1) else it })
-        kind == Kind.DESKTOP_TYPE -> {
-            // Typed into the desktop: a recognisable command is judged as one; other text (prose into an app) asks once.
-            val first = words(text.trim().lineSequence().firstOrNull().orEmpty()).firstOrNull().orEmpty()
-            val known = first in readOnly || buildSubs.containsKey(first) || first == "git" || first in superUser || first in deleters || first in pkgMgr || langInstall.containsKey(first)
-            if (known) max(shell(text, roots), Level.SAFE) else Level.ASK
-        }
-        kind == Kind.DESKTOP_KEY -> if (Regex("""(?i)ctrl\+alt\+(delete|backspace)|super\+l""").containsMatchIn(text)) Level.RISKY else Level.ASK
         else -> Level.ASK
     }
 
     /** What "Always allow this command" remembers: the program and its sub-command ("npm run", "git commit", "desktop type"). */
     fun key(kind: Kind, text: String): String = when (kind) {
-        Kind.DESKTOP_TYPE -> "desktop type"
-        Kind.DESKTOP_KEY -> "desktop keys"
-        Kind.DESKTOP_OPEN -> "desktop open " + text.trim().take(60).lowercase()
         Kind.GIT -> "git " + words(text).let { if (it.firstOrNull() == "git") it.drop(1) else it }.firstOrNull { !it.startsWith("-") }.orEmpty()
         Kind.SHELL -> segments(text).joinToString(" && ") { s ->
             val w = words(s); val c = w.firstOrNull().orEmpty().substringAfterLast('/')
