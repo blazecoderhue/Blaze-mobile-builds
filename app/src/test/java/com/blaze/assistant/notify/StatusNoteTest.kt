@@ -40,10 +40,11 @@ class StatusNoteTest {
 
     @Test fun notifierStateFeedsTheLine() {
         Notifier.resetStatus()
+        // v0.45.18 ack/background: "Blaze is working" is gone (WORKING_NOTE=false), so working() feeds no status line.
         Notifier.working("Opening youtube.com")
-        assertEquals("Browsing…", StatusNote.line(Notifier.statusInput())!!.title)
+        assertNull(StatusNote.line(Notifier.statusInput()))
         Notifier.update(55, "Blaze v0.24.4")
-        assertTrue(StatusNote.line(Notifier.statusInput())!!.text.endsWith("Downloading update 55%"))
+        assertEquals("Downloading update 55%", StatusNote.line(Notifier.statusInput())!!.title)
         Notifier.doneWorking()
         assertEquals("Downloading update 55%", StatusNote.line(Notifier.statusInput())!!.title)
         Notifier.update(null)
