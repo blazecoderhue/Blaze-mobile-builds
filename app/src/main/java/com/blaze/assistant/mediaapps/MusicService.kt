@@ -177,7 +177,8 @@ class MusicService : MediaLibraryService() {
         super.onCreate()
         MediaLib.ensure(this)
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(StreamCache.factory(this, http)))
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(StreamCache.factory(this, http))
+                .setLoadErrorHandlingPolicy(StreamCache.dropPolicy()))   // 0.45.19: drops play on from buffer + cache
             .setLoadControl(StreamCache.loadControl(this))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)

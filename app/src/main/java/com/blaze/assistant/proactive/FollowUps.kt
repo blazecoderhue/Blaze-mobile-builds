@@ -121,21 +121,17 @@ object FollowUps {
         val text = FollowUpLogic.askText(i)
         try { com.blaze.assistant.agent.Agent.recordHeadsUp(text) } catch (_: Throwable) { }
         if (Proactive.quietNow()) return
-        if (Build.VERSION.SDK_INT >= 26) ctx.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
-            NotificationChannel(CH, "Blaze follow-ups", NotificationManager.IMPORTANCE_HIGH).apply { description = "Plans and messages Blaze keeps an eye on for you" })
         fun act(a: String, code: Int) = PendingIntent.getBroadcast(ctx, (i.id + a).hashCode() + code, Intent(ctx, FollowUpReceiver::class.java).setAction(a).putExtra("id", i.id),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let { PendingIntent.getActivity(ctx, 7300, it, PendingIntent.FLAG_IMMUTABLE) }
         val goingWord = if (i.ask.isBlank() || i.ask.contains("going", true) || i.ask.contains("coming", true)) "Yes, I'm going" else "Yes"
-        val b = NotificationCompat.Builder(ctx, CH).setSmallIcon(com.blaze.assistant.R.drawable.ic_stat_blaze).setColor(0xFF1F4BD8.toInt())
-            .setContentTitle("Blaze").setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text)).setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH).setContentIntent(open)
-            .addAction(0, goingWord, act(FollowUpReceiver.GOING, 1)).addAction(0, "No", act(FollowUpReceiver.NOT_GOING, 2))
-        if (i.needsReply) b.addAction(0, "I replied", act(FollowUpReceiver.REPLIED, 3))
-        try { NotificationManagerCompat.from(ctx).notify(9100 + Math.floorMod(i.id.hashCode(), 400), b.build()) } catch (_: SecurityException) { }
+        // 0.45.19: a follow-up is a text in the one Blaze thread (avatar, alerting channel), with its own buttons.
+        val acts = mutableListOf(NotificationCompat.Action.Builder(0, goingWord, act(FollowUpReceiver.GOING, 1)).build(),
+            NotificationCompat.Action.Builder(0, "No", act(FollowUpReceiver.NOT_GOING, 2)).build())
+        if (i.needsReply) acts.add(1, NotificationCompat.Action.Builder(0, "I replied", act(FollowUpReceiver.REPLIED, 3)).build())
+        com.blaze.assistant.notify.Notifier.post(text, com.blaze.assistant.notify.BlazeThread.Kind.FOLLOW_UP, context = text, extra = acts, reply = false)
     }
 
-    fun cancelNotification(ctx: Context, id: String) { try { NotificationManagerCompat.from(ctx).cancel(9100 + Math.floorMod(id.hashCode(), 400)) } catch (_: Throwable) { } }
+    fun cancelNotification(ctx: Context, id: String) { try { NotificationManagerCompat.from(ctx).cancel(9100 + Math.floorMod(id.hashCode(), 400)); com.blaze.assistant.notify.Notifier.clearReplies() } catch (_: Throwable) { } }
 
     // ---------------- answers ----------------
 

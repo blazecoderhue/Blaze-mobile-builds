@@ -28,7 +28,7 @@ object ToolTruth {
     /** Requests that need a tool (any lane that sends no tools hands these to the full lane). */
     private val shaped = Regex("""(?i)\b(run|execute|terminal|shell|command|ls|cd|pwd|cat|python|script|linux|desktop|browser|browse|open|launch|show me|go to|navigate|settings|design view|view|screen|tab|page|file|files|folder|save|download|export|upload|calendar|schedule|agenda|event|meeting|remind|reminder|alarm|timer|routine|search|look ?up|google|web|fetch|memory|remember|forget|recall|what do you know|weather|send|text|call|message|email|install|make|create|build|generate|draw|play|set|turn (?:on|off)|enable|disable)\b|https?://|\b[\w-]+\.(com|org|net|io|dev|zm|app)\b""")
 
-    fun toolShaped(text: String): Boolean = shaped.containsMatchIn(text)
+    fun toolShaped(text: String): Boolean = shaped.containsMatchIn(text) || com.blaze.assistant.browser.phone.PhonePolicy.phoneAsk(text)
 
     /** Plain talk that happens to contain a cue word ("what do you think, should I make tea?") stays with the talker. */
     private val chatty = Regex("""(?i)^\s*(?:@\w+\s*)?(?:what do you think|how do you feel|do you like|tell me a joke|joke)\b""")
@@ -179,6 +179,8 @@ object ToolTruth {
                 TurnContext.scheduleFollowUp(u, assistantTexts.lastOrNull().orEmpty()) && calOffer.containsMatchIn(assistantTexts.lastOrNull().orEmpty()))) return "calendar_events"
         if ("create_routine" in toolNames && remindAsk.containsMatchIn(u)) return "create_routine"
         if ("list_routines" in toolNames && remindList.containsMatchIn(u)) return "list_routines"
+        // 0.45.19 Blaze Phone: "book a table at X", "log into Y", "sign up for Z", "order … from shop.com" start on Blaze Phone.
+        if ("phone_open" in toolNames && com.blaze.assistant.browser.phone.PhonePolicy.phoneAsk(u)) return "phone_open"
         if (memRecall.containsMatchIn(u)) return listOf("memory_search", "recall_memory").firstOrNull { it in toolNames }
         if (memSave.containsMatchIn(u) && MemoryGate.allows(u)) return listOf("memory_save", "remember").firstOrNull { it in toolNames }
         return phoneChoice(u, toolNames)
@@ -337,6 +339,9 @@ object ToolTruth {
             addAll(follow(user).values)
             // the first-step choice too on a later step, so the flow's own tool never drops mid-turn
             choiceFor(user, emptyList(), names)?.let { add(it) }
+            // 0.45.19: a Blaze Phone flow keeps all its tools (open → read → act → verify) once it started or was asked for.
+            if (used.any { it in com.blaze.assistant.browser.phone.PhonePolicy.TOOLS } || com.blaze.assistant.browser.phone.PhonePolicy.phoneAsk(user))
+                addAll(com.blaze.assistant.browser.phone.PhonePolicy.TOOLS)
         }
         val text = user.lowercase()
         val words = word.findAll(text).map { it.value }.filter { it !in stop }.toSet()

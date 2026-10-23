@@ -124,12 +124,15 @@ object AppStore {
             val gate = CompletableDeferred<Unit>()
             val job = scope.async {
                 gate.await()
-                try {
+                val r: PipelineResult = try {
                     InstallPipeline(env(confirm)).run(a, update, report = { s, m, done, total -> put(Job(a.id, s, m, done, total, update)) }, cancelled = { flag.get() })
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     PipelineResult(StoreStep.FAILED, "Not installed: ${e.message ?: "error"}.")
-                }.also { r -> put(Job(a.id, r.step, r.message, update = update)); if (r.ok) scanInstalledAfter(a) }
+                }
+                put(Job(a.id, r.step, r.message, update = update))
+                if (r.ok) scanInstalledAfter(a)
+                r
             }
             running[a.id] = job
             put(Job(a.id, StoreStep.QUEUED, "Waiting", update = update))

@@ -73,6 +73,8 @@ class BlazeAccessibilityService : AccessibilityService() {
         // v0.45.1: Blaze's own orb / overlay redraws don't change another app's tree (ScreenReadCache).
         eventSeq++
         if (event.packageName?.toString() != packageName) otherEventSeq++
+        // 0.45.19: the cached tree re-walks only what changed (ScreenTree); events of other windows don't touch it.
+        try { treeEvent(event) } catch (_: Throwable) { tree.onWindowChanged() }
         // v0.43.0 Bank mode: a banking app in front turns it on (this service then switches itself off); nothing in a
         // banking app is watched, remembered or recorded.
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -133,6 +135,19 @@ class BlazeAccessibilityService : AccessibilityService() {
             }
             kotlinx.coroutines.delay(40)
         }
+    }
+    /**
+     * 0.45.19: wait until the next accessibility event or [maxMs], whichever comes first (verification polls on events,
+     * not on fixed sleeps). Returns true when an event arrived.
+     */
+    suspend fun awaitEvent(maxMs: Long): Boolean {
+        val seq = eventSeq
+        val end = android.os.SystemClock.uptimeMillis() + maxMs
+        while (android.os.SystemClock.uptimeMillis() < end) {
+            if (eventSeq != seq) return true
+            kotlinx.coroutines.delay(15)
+        }
+        return eventSeq != seq
     }
     private val settleAvg = java.util.concurrent.ConcurrentHashMap<String, Double>()
     private val settleN = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -232,10 +247,52 @@ class BlazeAccessibilityService : AccessibilityService() {
         }
     }
 
+    // ---------- 0.45.19: event-driven cached accessibility tree ----------
+
+    private object NodeAccess : ScreenTree.Access<AccessibilityNodeInfo> {
+        override fun key(n: AccessibilityNodeInfo): Long = (n.windowId.toLong() shl 32) xor (n.hashCode().toLong() and 0xffffffffL)
+        override fun visible(n: AccessibilityNodeInfo) = n.isVisibleToUser
+        override fun text(n: AccessibilityNodeInfo) = n.text?.toString().orEmpty()
+        override fun desc(n: AccessibilityNodeInfo) = n.contentDescription?.toString().orEmpty()
+        override fun hint(n: AccessibilityNodeInfo) = if (android.os.Build.VERSION.SDK_INT >= 26) n.hintText?.toString().orEmpty() else ""
+        override fun cls(n: AccessibilityNodeInfo) = n.className?.toString().orEmpty()
+        override fun clickable(n: AccessibilityNodeInfo) = n.isClickable
+        override fun editable(n: AccessibilityNodeInfo) = n.isEditable
+        override fun scrollable(n: AccessibilityNodeInfo) = n.isScrollable
+        override fun checkable(n: AccessibilityNodeInfo) = n.isCheckable
+        override fun checked(n: AccessibilityNodeInfo) = n.isChecked
+        override fun selected(n: AccessibilityNodeInfo) = n.isSelected
+        override fun enabled(n: AccessibilityNodeInfo) = n.isEnabled
+        override fun childCount(n: AccessibilityNodeInfo) = n.childCount
+        override fun child(n: AccessibilityNodeInfo, i: Int): AccessibilityNodeInfo? = n.getChild(i)
+    }
+    private val tree = ScreenTree(NodeAccess)
+    /** The window the cached tree belongs to (events of other windows are ignored). */
+    @Volatile private var treeWindow = -1
+    /** Threads for a parallel cold walk of a big window (per-thread accessibility clients). */
+    private val treePool: java.util.concurrent.ExecutorService by lazy {
+        java.util.concurrent.Executors.newFixedThreadPool(3) { r -> Thread(r, "blaze-a11y-walk").apply { isDaemon = true } }
+    }
+    /** Cached-tree counters (speed_stats). */
+    val treeStats: String get() = "tree full ${tree.fullWalks}, partial ${tree.partialWalks}, subtrees reused ${tree.reusedSubtrees}, fetches ${tree.childFetches}"
+
+    private fun treeEvent(e: AccessibilityEvent) {
+        when (e.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED, AccessibilityEvent.TYPE_WINDOWS_CHANGED -> tree.onWindowChanged()
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED, AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED, AccessibilityEvent.TYPE_VIEW_SCROLLED,
+            AccessibilityEvent.TYPE_VIEW_SELECTED -> {
+                if (treeWindow < 0 || e.windowId != treeWindow) return
+                val src = e.source
+                tree.onContentChanged(src?.let { NodeAccess.key(it) })
+            }
+            else -> { }
+        }
+    }
+
     /** Full read. With [diff], a read of the same screen returns only what changed. */
     fun readScreen(diff: Boolean = false): String {
         val root = rootInActiveWindow ?: run { elements.clear(); return "I can't see the screen right now (no active window)." }
-        if (bankInFront()) { elements.clear(); lastWalk = null; return com.blaze.assistant.bank.BankModeLogic.REFUSE }
+        if (bankInFront()) { elements.clear(); lastWalk = null; tree.clear(); return com.blaze.assistant.bank.BankModeLogic.REFUSE }
         val pkg = root.packageName?.toString() ?: "unknown"
         val t0 = android.os.SystemClock.uptimeMillis()
         val w = lastWalk
@@ -244,7 +301,15 @@ class BlazeAccessibilityService : AccessibilityService() {
                     eventMark(pkg) != w.eventMark, actSeq != w.actMark, t0 - w.at)) { walksReused++; w.found }
             else {
                 val evMark = eventMark(pkg); val acMark = actSeq   // taken before the walk: a change during it means "walk again"
-                ArrayList<Pair<AccessibilityNodeInfo, String>>().also { walk(root, it, 0)
+                // 0.45.19: the cached tree (only the subtrees events marked dirty are walked again); the old full walk is the fallback.
+                val list: List<Pair<AccessibilityNodeInfo, String>> = try {
+                    treeWindow = root.windowId
+                    tree.read(root, t0, treePool)
+                } catch (e: Throwable) {
+                    tree.clear()
+                    ArrayList<Pair<AccessibilityNodeInfo, String>>().also { walk(root, it, 0) }
+                }
+                list.also {
                     val t1 = android.os.SystemClock.uptimeMillis()
                     walksDone++; walkMsTotal += t1 - t0
                     lastWalk = Walk(root.windowId, pkg, evMark, acMark, t1, it) }

@@ -126,9 +126,11 @@ object ToolLeak {
      * so they're stripped when drawn too. Text with no leak comes back unchanged (byte for byte).
      */
     fun forDisplay(text: String): String {
-        if (text.isEmpty() || (!text.contains('[') && !text.contains('<'))) return text
-        if (find(text).isEmpty()) return text
-        return strip(text, final = true)
+        if (text.isEmpty()) return text
+        // 0.45.19: the final sanitizer (CallScan) too: multi-line Python calls, JSON call payloads mid-prose and fenced
+        // tool blocks for any known tool. Text with nothing to hide still comes back byte for byte.
+        val t = if ((!text.contains('[') && !text.contains('<')) || find(text).isEmpty()) text else strip(text, final = true)
+        return try { CallScan.clean(t, final = true) } catch (_: Throwable) { t }
     }
 
     /** [forDisplay] for a reply bubble: a reply that was only a leaked call becomes [STORED_EMPTY] instead of an empty bubble. */
@@ -136,6 +138,7 @@ object ToolLeak {
         // v0.43.0: a saved reply that is only a Python-style call (`browser_show()`) shows the plain line too.
         if (text.isNotBlank() && text.length < 400 && DuoText.onlyCalls(text)) return STORED_EMPTY
         val t = forDisplay(text)
+        // 0.45.19: a reply that was nothing but call text (even cut off or unreadable) is the plain line, never code.
         return if (t.isBlank() && text.isNotBlank()) STORED_EMPTY else t
     }
 

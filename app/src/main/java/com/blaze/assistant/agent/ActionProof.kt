@@ -30,6 +30,8 @@ object ActionProof {
         "send" to setOf("share_to_app"),
         "music" to setOf("spotify_now_playing", "open_url", "open_app", "search_in_app"),
         "download" to setOf("browser_click"),
+        // 0.45.19: no Blaze Phone step proves a booking on its own; only a page read back as VERIFIED does (ClaimCheck.readBack).
+        "booked" to com.blaze.assistant.browser.phone.PhonePolicy.TOOLS,
     )
 
     /**
