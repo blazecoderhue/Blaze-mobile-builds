@@ -127,7 +127,7 @@ object RefusalClassifier {
         "ITextServicesManager" to "textservices", "IUiModeManager" to "uimode", "IWallpaperManager" to "wallpaper",
     )
 
-    private val PROXY = Regex("""^(?:.*\.)?(I[A-Za-z0-9_]+)\$Stub\$Proxy$""")
+    private val PROXY = Regex("^(?:.*\\.)?(I[A-Za-z0-9_]+)\\\$Stub\\\$Proxy\$")
     private val MANAGER = Regex("""^android\.[a-z.]+\.([A-Z][A-Za-z0-9]*(?:Manager|Resolver))$""")
 
     /** One stack frame as (className, methodName). */

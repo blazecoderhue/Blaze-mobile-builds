@@ -57,7 +57,7 @@ class DiagTest {
         }
 
     @Test
-    fun unhookedServiceNamedFromBinderProxyFrame() {
+    fun hookedServiceNamedFromBinderProxyFrame() {
         val t = throwableWith("x",
             "android.os.Parcel" to "createExceptionOrNull",
             "android.os.Parcel" to "readException",
