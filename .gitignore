@@ -1,0 +1,45 @@
+# Android · Orion Store 2.0 (native)
+.gradle/
+.kotlin/
+build/
+captures/
+local.properties
+keystore.properties
+*.jks
+*.keystore
+/app/release/
+/shots-readme/
+.idea/
+*.iml
+
+# Orion Legacy · web build (React + Capacitor)
+node_modules/
+dist/
+.env
+.env.local
+Orion Legacy/android/app/release/
+Orion Legacy/android/.gradle/
+Orion Legacy/android/local.properties
+
+# OS, logs, editors
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vscode/
+
+# Data files (managed in the Orion-Data repo)
+apps.json
+config.json
+mirror.json
+mirror_config.json
+notice_v1.2.3.json
+release_notes.json
+RELEASE_NOTES_*.md
+storefront_modules.example.json
+
+# Utility scripts and scratch text
+*.py
+__pycache__/
+*.txt

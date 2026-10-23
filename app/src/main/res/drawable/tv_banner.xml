@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV launcher banner (320 x 180 dp): the Blaze drop on Blaze night -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <size android:width="320dp" android:height="180dp" />
+            <gradient android:angle="315" android:startColor="#090E14" android:endColor="#1C2533" />
+        </shape>
+    </item>
+    <item android:width="120dp" android:height="120dp" android:gravity="center" android:drawable="@drawable/ic_splash_logo" />
+</layer-list>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blaze palette: Blaze night background, halo gold cookie, night drop (matches the launcher icon). -->
+<resources>
+    <color name="splash_bg">#090E14</color>
+    <color name="splash_shape">#F2C14E</color>
+    <color name="splash_logo">#090E14</color>
+</resources>

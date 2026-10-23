@@ -1,0 +1,97 @@
+# Blaze Store CI on the public build repo blazecoderhue/Blaze-mobile-builds (branches store/*).
+# Builds the release APK UNSIGNED (R8, not debuggable) and runs the JVM unit tests.
+# Signing happens outside GitHub with the private Blaze release key: no key, keystore or password is ever in this repo or in Actions.
+# Blaze Store is GPL-3.0 (fork of Orion Store by RookieEnough); its source is published by Blaze Site next to each APK.
+name: Store build
+
+on:
+  push:
+    branches: [ "store/**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37" > /dev/null || echo "android-37 not in sdkmanager; AGP will provision it"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+      - name: Build unsigned release APK
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleRelease --stacktrace --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" 2>&1 | tee build.log
+          VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          mkdir -p out
+          cp app/build/outputs/apk/release/*-unsigned.apk "out/BlazeStore-v${VER}-release-unsigned.apk"
+          (cd out && sha256sum *.apk | tee SHA256SUMS)
+          echo "${GITHUB_SHA}" > out/COMMIT
+      - name: Errors
+        if: failure()
+        run: grep -E '^e: |error:|FAILURE|What went wrong' -A3 build.log | head -80 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apk-unsigned
+          retention-days: 7
+          path: |
+            out/
+            build.log
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-37" > /dev/null || echo "android-37 not in sdkmanager; AGP will provision it"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+      - name: Unit tests
+        run: set -o pipefail; ./gradlew :app:testDebugUnitTest --continue --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" 2>&1 | tee test.log
+      - name: Summary
+        if: always()
+        run: |
+          python3 - <<'PY' | tee units.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, xml.etree.ElementTree as ET
+          t=f=e=s=0; bad=[]
+          for p in glob.glob('app/build/test-results/testDebugUnitTest/*.xml'):
+              r=ET.parse(p).getroot()
+              t+=int(r.get('tests',0)); f+=int(r.get('failures',0)); e+=int(r.get('errors',0)); s+=int(r.get('skipped',0))
+              for c in r.iter('testcase'):
+                  if c.find('failure') is not None or c.find('error') is not None: bad.append(c.get('classname')+'.'+c.get('name'))
+          print(f"UNITS tests={t} failures={f} errors={e} skipped={s}")
+          for b in bad: print("FAIL", b)
+          PY
+          grep -E '^e: |What went wrong' -A3 test.log | head -60 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-tests
+          retention-days: 7
+          path: |
+            test.log
+            units.txt
+            app/build/test-results/testDebugUnitTest/*.xml

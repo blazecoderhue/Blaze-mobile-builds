@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blaze icon (same art as the Blaze app): glass drop in a gold halo on Blaze night. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_frozen_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_frozen" />
+    <monochrome android:drawable="@drawable/ic_launcher_monochrome" />
+</adaptive-icon>
