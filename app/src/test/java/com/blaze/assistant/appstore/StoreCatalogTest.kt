@@ -69,8 +69,9 @@ class StoreCatalogTest {
 
     @Test fun noProviderOrOwnerNamesInStoreStrings() {
         val text = storeStrings()
-        for (n in listOf("lackson", "kapapa")) assertFalse("'$n' in store strings", text.lowercase().contains(n))
-        assertFalse("'Luke' in store strings", Regex("\\bluke\\b", RegexOption.IGNORE_CASE).containsMatchIn(text))
+        // Split like OwnerName19Test, so this test doesn't carry the names it bans.
+        for (n in listOf("lack" + "son", "kap" + "apa")) assertFalse("owner name in store strings", text.lowercase().contains(n))
+        assertFalse("owner first name in store strings", Regex("\\b" + "lu" + "ke" + "\\b", RegexOption.IGNORE_CASE).containsMatchIn(text))
     }
 
     @Test fun toolsAreStorePrefixedAndHonest() {
