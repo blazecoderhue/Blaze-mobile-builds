@@ -49,7 +49,7 @@ class StreamSpecCacheTest {
 
     private fun cached(c: SimpleCache, up: DataSource) = CacheDataSource(c, up, CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-    @Test fun t4_cacheStaysUnderCapOldestUnplayedEvictedFirst_5of5() {
+    @Test(timeout = 120_000) fun t4_cacheStaysUnderCapOldestUnplayedEvictedFirst_5of5() {
         val lines = ArrayList<String>(); var pass = 0
         // (cap MB, streams, size MB each, which stream is played again before the rest are written)
         val variants = listOf(Triple(12L, 6, 3), Triple(18L, 8, 3), Triple(16L, 6, 4), Triple(24L, 8, 4), Triple(8L, 6, 2))
@@ -94,7 +94,7 @@ class StreamSpecCacheTest {
         override fun close() = inner.close()
     }
 
-    @Test fun expiredUrlRenewedAtTheSameByteThroughTheRealCache() {
+    @Test(timeout = 120_000) fun expiredUrlRenewedAtTheSameByteThroughTheRealCache() {
         val data = bytes(6 * 1024 * 1024, 77)
         val clock = VClock()
         val http = ExpiringHttp(data, clock, expireFrom = 3L * 1024 * 1024)

@@ -8,7 +8,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import java.io.IOException
 import java.security.MessageDigest
 
@@ -19,6 +21,9 @@ import java.security.MessageDigest
  * runs on the real media3 SimpleCache in [StreamSpecCacheTest]. These are model runs, not phone measurements.
  */
 class StreamSpecTest {
+    /** A model that stops making progress fails here in seconds instead of stalling CI (every test is virtual time). */
+    @get:Rule val timeout: Timeout = Timeout.seconds(120)
+
     private val root = listOf(java.io.File("src/main/java"), java.io.File("app/src/main/java")).first { it.isDirectory }
     private fun src(path: String) = java.io.File(root, "com/blaze/assistant/$path").readText()
 
@@ -88,7 +93,7 @@ class StreamSpecTest {
      * (MusicService.offlineSkip) or pauses.
      */
     class QueueSim(val clock: VClock, val net: SpecNet, val songs: List<ByteArray>, val rate: Double, val readAheadMs: Long,
-                   val prefetchBytes: Long, val untilMs: Long = Long.MAX_VALUE) {
+                   val prefetchBytes: Long, val untilMs: Long = 4 * 3_600_000L) {
         private val n = songs.size
         private val streams = songs.mapIndexed { i, b -> net.Stream(b, "https://cdn/s$i?itag=140") }
         private val loaded = LongArray(n)
@@ -149,7 +154,10 @@ class StreamSpecTest {
         fun run(): QueueRun {
             last = clock.t; switchAt = clock.now()
             var idleFor = 0L
+            var stuck = 0; var seen = clock.t
             while (!paused && cur < n && clock.now() < untilMs) {
+                // Every pass must move virtual time or bytes; a model that spins in place fails instead of hanging.
+                if (clock.t != seen) { seen = clock.t; stuck = 0 } else if (++stuck > 10_000) throw AssertionError("QueueSim made no progress at ${clock.now()} ms (song $cur)")
                 val t = target()
                 if (t < 0) {
                     // Nothing to load: play on for a moment (the loader wakes when the buffer is 5 s under its target).
@@ -396,7 +404,10 @@ class StreamSpecTest {
                 val rate = kbps[height]!! / 8.0
                 try {
                     if (loadedMs - mediaPos < ra && loadedMs < totalMs) {
-                        val k = rd!!.read(buf, 0, buf.size); if (k > 0) loadedMs += k / rate
+                        // The rendition's bytes are sized with toInt() and summed as k / rate in floating point, so at its
+                        // end loadedMs can sit a hair under totalMs; -1 means everything is in (else this spun forever).
+                        val k = rd!!.read(buf, 0, buf.size)
+                        if (k > 0) loadedMs += k / rate else { loadedMs = totalMs.toDouble(); clock.advance(1.0) }
                     } else clock.advance(100.0)
                 } catch (e: IOException) { clock.advance(1_000.0); open(loadedMs) }
                 val dt = clock.t - last; last = clock.t

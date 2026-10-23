@@ -1,26 +1,44 @@
 package com.blaze.assistant.agent
 
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.Timeout
 import java.io.File
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * 0.45.20 item 15: phone control asked just in time (an in-chat card with the reason), not in setup. The wait is driven
  * by fake probes on a fake clock; each flow 5 runs, strict 5/5.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class PermissionGateTest {
+    @get:Rule val timeout: Timeout = Timeout.seconds(60)
+
     private val root = listOf(File("src/main/java"), File("app/src/main/java")).first { it.isDirectory }
     private fun src(p: String) = File(root, "com/blaze/assistant/$p").readText()
 
-    private fun flow(grantAfterPolls: Int?, answer: Boolean?, waitMs: Long = 10_000): PermissionGate.Outcome = runBlocking {
-        var t = 0L; var polls = 0
-        val d = CompletableDeferred<Boolean>()
-        if (answer != null) d.complete(answer)
-        PermissionGate.await({ polls++; grantAfterPolls != null && polls > grantAfterPolls }, d, waitMs, pollMs = 1, now = { t.also { t += 600 } })
+    /** The real poll (600 ms) and wait on runTest's virtual clock: delay() skips ahead, nothing really waits. */
+    private fun flow(grantAfterPolls: Int?, answer: Boolean?, waitMs: Long = 10_000): PermissionGate.Outcome {
+        var out: PermissionGate.Outcome? = null
+        runTest(timeout = 10.seconds) {
+            var polls = 0
+            val d = CompletableDeferred<Boolean>()
+            if (answer != null) d.complete(answer)
+            out = PermissionGate.await({ polls++; grantAfterPolls != null && polls > grantAfterPolls }, d, waitMs,
+                pollMs = PermissionGate.POLL_MS, now = { currentTime })
+        }
+        return out!!
+    }
+
+    @Test fun fullThreeMinuteWaitIsVirtual() {
+        assertEquals(PermissionGate.Outcome.TIMED_OUT, flow(grantAfterPolls = null, answer = true, waitMs = PermissionGate.WAIT_MS))
     }
 
     @Test fun grantedGoesOn_5of5() {
