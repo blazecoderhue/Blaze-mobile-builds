@@ -267,6 +267,12 @@ object PhonePolicy {
     val ACTIONS = setOf("click", "type", "key", "scroll", "select", "navigate", "back", "forward", "reload", "fill_login")
     val KEYS = setOf("enter", "back", "tab", "escape", "backspace", "space", "up", "down", "left", "right", "pageup", "pagedown")
 
+    /** A tap's finger-down time before the up event. */
+    const val TAP_HOLD_MS = 70L
+
+    /** Pause between typed characters (the live view shows letters appear). */
+    fun keyPaceMs(watching: Boolean): Long = 6L
+
     /** Bounds a wait: 0.5–30 s, default 10. */
     fun waitMs(timeoutSec: Double?): Long = ((timeoutSec ?: 10.0) * 1000).toLong().coerceIn(500, 30_000)
 }

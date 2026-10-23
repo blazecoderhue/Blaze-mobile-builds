@@ -1,0 +1,30 @@
+package com.blaze.assistant.browser.phone
+
+/**
+ * 0.45.19-speed: what [PhoneEngine] needs from a page. On the phone it is [PhoneBrowser]'s WebView (real taps, keys,
+ * evaluateJavascript, page-load events); in the JVM perf harness and sims it is a simulated page on a virtual clock, so
+ * the exact engine code is measured and tested without a device.
+ */
+interface PageHost {
+    /** Milliseconds on a monotonic clock. */
+    fun now(): Long
+    suspend fun sleep(ms: Long)
+    /** Runs a page script; the JSON result parsed (JSONObject, String, Number, Boolean) or null. */
+    suspend fun eval(code: String): Any?
+    fun hasPage(): Boolean
+    fun url(): String
+    /** A real tap at (x, y) in the WebView's pixels. */
+    suspend fun tap(x: Float, y: Float)
+    /** A real finger drag of [dy] pixels (positive = page moves up = scroll down). */
+    suspend fun drag(dy: Float)
+    /** Types as real key events into the focused field; false when a character has no key. */
+    suspend fun keys(text: String, clear: Boolean): Boolean
+    suspend fun key(k: String)
+    suspend fun viewHeight(): Int
+    /** back / forward / reload; returns the line for the agent. */
+    suspend fun history(what: String): String
+    /** Waits until the current navigation finished (true) or [ms] passed (false). */
+    suspend fun awaitLoad(ms: Long): Boolean
+    /** Marks the page as used (idle release clock). */
+    fun touch()
+}

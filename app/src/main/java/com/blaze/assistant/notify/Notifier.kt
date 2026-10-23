@@ -21,7 +21,8 @@ import com.blaze.assistant.agent.Agent
 /** System notifications: one combined ongoing status line with Stop (v0.24.4), and replies you can answer inline. */
 object Notifier {
     private const val CH_WORK = "blaze_work"
-    private const val CH_REPLY = "blaze_reply"
+    /** 0.45.19: the one alerting channel of the Blaze thread (was "blaze_reply"). */
+    private const val CH_REPLY = BlazeThread.CHANNEL
     /** v0.20.0: the background browser needs something only the user has (a sign-in, a code). */
     const val CH_ACTION = "blaze_action"
     private const val ID_ACTION = 11
@@ -51,9 +52,17 @@ object Notifier {
                 description = "What Blaze is doing right now (thinking, browsing, downloading an update, waiting for you), with a Stop button"
                 setShowBadge(false)
             })
-            nm.createNotificationChannel(NotificationChannel(CH_REPLY, "Blaze replies", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Blaze's answer when it finishes while you're in another app"
+            // 0.45.19: every Blaze message (replies, results, check-ins, heads-ups) on ONE alerting channel; the old
+            // message channels (one of them DEFAULT = no heads-up, and a channel can't be raised once made) are deleted.
+            nm.createNotificationChannel(NotificationChannel(BlazeThread.CHANNEL, BlazeThread.CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = BlazeThread.CHANNEL_DESC
+                setShowBadge(true)
+                // sound and vibration: the channel defaults, i.e. what the phone's own settings say. No DND bypass.
             })
+            try {
+                val existing = nm.notificationChannels.map { it.id }
+                BlazeThread.toDelete(existing).forEach { nm.deleteNotificationChannel(it) }
+            } catch (_: Throwable) { }
             nm.createNotificationChannel(NotificationChannel(CH_ACTION, "Action required", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "When Blaze's background browser needs a sign-in, a code or another detail only you have"
             })
@@ -163,60 +172,113 @@ object Notifier {
     internal fun resetStatus() { stBusy = false; stStep = ""; stNeeds = ""; stUpdatePct = null; stUpdateLabel = ""; appVisible = false }
 
     /** The last few lines Blaze sent while you were away (one conversation thread in the shade), cleared on open. */
-    private val thread = ArrayDeque<Pair<Long, String>>()
+    private val thread = ArrayDeque<BlazeThread.Msg>()
 
     /** Called when the user opens Blaze or the notification is dismissed: the next text starts a fresh thread. */
     fun clearThread() = synchronized(thread) { thread.clear() }
 
+    /** Blaze as a Person: its name, a bot, and the app icon as its avatar (not a letter "B"). */
+    @Volatile private var blazePerson: androidx.core.app.Person? = null
+    @Volatile private var avatar: androidx.core.graphics.drawable.IconCompat? = null
+    @Volatile private var shortcutPushed = false
+
+    private fun avatarIcon(): androidx.core.graphics.drawable.IconCompat? {
+        avatar?.let { return it }
+        val icon = try {
+            val d = ContextCompat.getDrawable(app, R.mipmap.ic_launcher) ?: return null
+            val size = 192
+            val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(bmp)
+            // adaptive icons draw past their bounds (the safe zone is the middle 66 %): round crop like a contact photo
+            val path = android.graphics.Path().apply { addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW) }
+            c.clipPath(path)
+            val pad = if (Build.VERSION.SDK_INT >= 26 && d is android.graphics.drawable.AdaptiveIconDrawable) -size / 6 else 0
+            d.setBounds(pad, pad, size - pad, size - pad)
+            d.draw(c)
+            androidx.core.graphics.drawable.IconCompat.createWithBitmap(bmp)
+        } catch (_: Throwable) { null }
+        avatar = icon
+        return icon
+    }
+
+    private fun blaze(): androidx.core.app.Person = blazePerson ?: androidx.core.app.Person.Builder()
+        .setName(BlazeThread.PERSON_NAME).setKey(BlazeThread.PERSON_KEY).setBot(true).setImportant(true)
+        .apply { avatarIcon()?.let { setIcon(it) } }.build().also { blazePerson = it }
+
+    /** The long-lived conversation shortcut the thread hangs on (Android 11+ puts it in the Conversations section). */
+    private fun ensureShortcut() {
+        if (shortcutPushed) return
+        try {
+            val sc = androidx.core.content.pm.ShortcutInfoCompat.Builder(app, BlazeThread.SHORTCUT)
+                .setShortLabel(BlazeThread.PERSON_NAME).setLongLabel("Chat with Blaze")
+                .setLongLived(true).setPerson(blaze())
+                .setIcon(avatarIcon() ?: androidx.core.graphics.drawable.IconCompat.createWithResource(app, R.mipmap.ic_launcher))
+                .setIntent(Intent(app, MainActivity::class.java).setAction(Intent.ACTION_VIEW).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                .setCategories(setOf("com.blaze.assistant.category.CONVERSATION"))
+                .build()
+            androidx.core.content.pm.ShortcutManagerCompat.pushDynamicShortcut(app, sc)
+            shortcutPushed = true
+        } catch (_: Throwable) { }
+    }
+
     /**
-     * Blaze's message (its ack, its reply, its Done ✓ or an honest failure) as a text from Blaze: MessagingStyle,
-     * with an inline Reply box. Ack-and-background (HQ 22 Oct 20:36).
+     * 0.45.19: THE builder for every Blaze message (ack, reply, Done ✓, honest failure, check-in, heads-up, question,
+     * follow-up, call offer). One MessagingStyle conversation with one Person "Blaze" (app-icon avatar), one shortcut,
+     * one notification id, quick replies that fit ([QuickReplies]) plus an inline Reply, on the alerting channel.
+     * [extra] = buttons beyond Reply (a suggestion, Going / No, Call me). [tap] = what tapping opens (default: the chat).
      */
-    fun reply(raw: String, isError: Boolean, chatId: String? = null) {
+    fun post(raw: String, kind: BlazeThread.Kind, chatId: String? = null, context: String? = null, urgent: Boolean = false,
+             extra: List<NotificationCompat.Action> = emptyList(), tap: PendingIntent? = null, reply: Boolean = true) {
+        if (!::app.isInitialized) return
         val text = com.blaze.assistant.ui.Md.plain(raw)
-        if (!allowed()) return
-        val now = System.currentTimeMillis()
-        val lines = synchronized(thread) {
-            thread.addLast(now to text.take(1000)); while (thread.size > MessageThread.KEEP) thread.removeFirst(); thread.toList()
-        }
-        val blaze = androidx.core.app.Person.Builder().setName("Blaze").setKey("blaze").setBot(true).build()
+        if (text.isBlank() || !allowed()) return
+        val lines = synchronized(thread) { BlazeThread.push(thread, BlazeThread.Msg(System.currentTimeMillis(), text, kind)) }
+        val chips = QuickReplies.forMessage(text, kind)
+        val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply to Blaze")
+            .apply { if (chips.isNotEmpty()) setChoices(Array<CharSequence>(chips.size) { chips[it] }) }.build()
+        val replyA = NotificationCompat.Action.Builder(0, "Reply", replyIntent(7101, chatId, context ?: if (chatId == null) text else null))
+            .addRemoteInput(input)
+            // Android's generated replies offered "Weird" / "Great!" under a result: only Blaze's own choices.
+            .setAllowGeneratedReplies(false)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).setShowsUserInterface(false).build()
+        ensureShortcut()
         val me = androidx.core.app.Person.Builder().setName("You").setKey("me").build()
-        val style = NotificationCompat.MessagingStyle(me)
-        lines.forEach { (at, t) -> style.addMessage(t, at, blaze) }
-        val inputM = RemoteInput.Builder(KEY_REPLY).setLabel("Reply to Blaze").build()
-        val replyM = NotificationCompat.Action.Builder(0, "Reply", replyIntent(7101, chatId, if (chatId == null) text else null))
-            .addRemoteInput(inputM).setAllowGeneratedReplies(true)
-            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build()
-        val nm = NotificationCompat.Builder(app, CH_REPLY)
+        val b = NotificationCompat.Builder(app, CH_REPLY)
             .setSmallIcon(R.drawable.ic_stat_blaze)
             .setColor(ACCENT)
-            .setStyle(style)
-            .setContentTitle(if (isError) MessageThread.FAILED_TITLE else "Blaze")
+            .setContentTitle(BlazeThread.title(kind, urgent))
             .setContentText(text)
             .setAutoCancel(true)
             .setOnlyAlertOnce(false)
-            .setContentIntent(openChat(chatId))
-            .addAction(replyM)
+            .setContentIntent(tap ?: openChat(chatId))
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        try { NotificationManagerCompat.from(app).notify(ID_REPLY, nm); return } catch (_: SecurityException) { return } catch (_: Throwable) { }
-        val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply to Blaze").build()
-        val replyAction = NotificationCompat.Action.Builder(0, "Reply", replyIntent(7101, chatId, if (chatId == null) text else null))
-            .addRemoteInput(input).setAllowGeneratedReplies(true).build()
-        val n = NotificationCompat.Builder(app, CH_REPLY)
-            .setSmallIcon(R.drawable.ic_stat_blaze)
-            .setColor(ACCENT)
-            .setContentTitle(if (isError) "Blaze hit a problem" else "Blaze")
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setAutoCancel(true)
-            .setContentIntent(openChat(chatId))
-            .addAction(replyAction)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        try { NotificationManagerCompat.from(app).notify(ID_REPLY, n) } catch (_: SecurityException) { }
+            .setShortcutId(BlazeThread.SHORTCUT)
+        if (reply) b.addAction(replyA)
+        extra.take(2).forEach { b.addAction(it) }
+        try {
+            val style = NotificationCompat.MessagingStyle(me)
+            lines.forEach { m -> style.addMessage(m.text, m.at, blaze()) }
+            b.setStyle(style)
+        } catch (_: Throwable) {
+            b.setStyle(NotificationCompat.BigTextStyle().bigText(text))
+        }
+        try { NotificationManagerCompat.from(app).notify(BlazeThread.NOTIF_ID, b.build()) } catch (_: SecurityException) { } catch (_: Throwable) { }
+    }
+
+    /**
+     * Blaze's message (its ack, its reply, its Done ✓ or an honest failure) as a text from Blaze: MessagingStyle,
+     * with an inline Reply box. Ack-and-background (HQ 22 Oct 20:36). 0.45.19: through [post].
+     */
+    fun reply(raw: String, isError: Boolean, chatId: String? = null) {
+        val t = raw.trim()
+        val kind = when {
+            isError -> BlazeThread.Kind.FAILED
+            t.startsWith(com.blaze.assistant.agent.Ack.DONE) -> BlazeThread.Kind.RESULT
+            t.startsWith("Got it, ") -> BlazeThread.Kind.ACK
+            else -> BlazeThread.Kind.REPLY
+        }
+        post(raw, kind, chatId)
     }
 
     /** Fallback when Android blocks opening Blaze from the background: a full-screen / heads-up prompt. */
@@ -252,46 +314,42 @@ object Notifier {
     fun clearWakeBlocked() = try { NotificationManagerCompat.from(app).cancel(ID_WAKE_BLOCKED) } catch (_: Exception) { }
 
     private const val ID_PROACTIVE = 8
-    private const val CH_PROACTIVE = "blaze_proactive"
 
-    /** Blaze speaking up on its own, with a one-tap suggestion and an inline reply. */
-    fun proactive(text0: String, suggest: String, urgent: Boolean) {
+    /** Blaze speaking up on its own, with a one-tap suggestion and an inline reply. 0.45.19: one Blaze thread ([post]). */
+    fun proactive(text0: String, suggest: String, urgent: Boolean, kind: BlazeThread.Kind = BlazeThread.Kind.HEADS_UP) {
         // v0.28.1: notification text never shows markdown symbols.
         val text = com.blaze.assistant.ui.Md.plain(text0)
         // Kept in the Heads-ups chat (even when notifications are off) so a reply has the context (v0.8.0).
         val chatId = try { Agent.recordHeadsUp(text) } catch (_: Exception) { null }
-        if (!allowed()) return
-        if (Build.VERSION.SDK_INT >= 26) app.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CH_PROACTIVE, "Blaze heads-ups", NotificationManager.IMPORTANCE_HIGH).apply { description = "When Blaze notices something worth telling you" })
-        val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply to Blaze").build()
-        val b = NotificationCompat.Builder(app, CH_PROACTIVE).setSmallIcon(R.drawable.ic_stat_blaze).setColor(ACCENT)
-            .setContentTitle(if (urgent) "Blaze · important" else "Blaze").setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text)).setAutoCancel(true).setContentIntent(openApp())
-            .setPriority(if (urgent) NotificationCompat.PRIORITY_HIGH else NotificationCompat.PRIORITY_DEFAULT)
-            .addAction(NotificationCompat.Action.Builder(0, "Reply", replyIntent(7108, chatId, text)).addRemoteInput(input).build())
-        if (suggest.isNotBlank()) {
+        if (!::app.isInitialized || !allowed()) return
+        val extra: List<NotificationCompat.Action> = if (suggest.isBlank()) emptyList() else {
             val pi = PendingIntent.getBroadcast(app, ("do" + suggest).hashCode(), Intent(app, ActionReceiver::class.java).setAction(ActionReceiver.DO)
                 .putExtra("prompt", suggest).putExtra(ActionReceiver.EXTRA_CHAT, chatId).putExtra(ActionReceiver.EXTRA_CONTEXT, text),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            b.addAction(0, suggest.take(28), pi)
+            listOf(NotificationCompat.Action.Builder(0, suggest.take(28), pi).build())
         }
-        try { NotificationManagerCompat.from(app).notify(ID_PROACTIVE, b.build()) } catch (_: SecurityException) { }
+        post(text, kind, chatId, context = text, urgent = urgent, extra = extra)
     }
 
     private const val ID_QUESTION = 7
     fun question(q0: String) {
         val q = com.blaze.assistant.ui.Md.plain(q0)
         needs(q)
-        if (!allowed()) return
-        val n = NotificationCompat.Builder(app, CH_REPLY).setSmallIcon(R.drawable.ic_stat_blaze).setColor(ACCENT)
-            .setContentTitle("Blaze needs an answer").setContentText(q)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(q))
-            .setAutoCancel(true).setContentIntent(openApp()).setPriority(NotificationCompat.PRIORITY_HIGH).build()
-        try { NotificationManagerCompat.from(app).notify(ID_QUESTION, n) } catch (_: SecurityException) { }
+        // 0.45.19: a question from Blaze is a text in the Blaze thread too (the answer goes to the chat that asked).
+        // No inline Reply: the turn that asked is waiting on the answer in the app (tap opens it, as before).
+        post(q, BlazeThread.Kind.QUESTION, tap = openApp(), reply = false)
     }
-    fun clearQuestion() { try { needs(""); NotificationManagerCompat.from(app).cancel(ID_QUESTION) } catch (_: Exception) { } }
+    fun clearQuestion() {
+        try {
+            needs("")
+            NotificationManagerCompat.from(app).cancel(ID_QUESTION)
+            // 0.45.19: the question was a line in the Blaze thread: once answered, it leaves the shade
+            val wasLast = synchronized(thread) { (thread.lastOrNull()?.kind == BlazeThread.Kind.QUESTION).also { if (it) thread.removeLast() } }
+            if (wasLast) NotificationManagerCompat.from(app).cancel(BlazeThread.NOTIF_ID)
+        } catch (_: Exception) { }
+    }
 
-    fun clearReplies() = NotificationManagerCompat.from(app).cancel(ID_REPLY)
+    fun clearReplies() = try { NotificationManagerCompat.from(app).cancel(BlazeThread.NOTIF_ID); NotificationManagerCompat.from(app).cancel(ID_PROACTIVE) } catch (_: Throwable) { }
 
     /** Approval request with Allow / Don't buttons. */
     fun confirm(title: String, detail0: String, action: String) {
@@ -357,7 +415,7 @@ class ActionReceiver : BroadcastReceiver() {
             STOP -> Notifier.stopEverything()
             STOP_HAND -> com.blaze.assistant.phone.MagicHand.stop()
             DO -> intent.getStringExtra("prompt")?.let { p ->
-                androidx.core.app.NotificationManagerCompat.from(ctx).cancel(8)
+                Notifier.clearReplies()
                 Agent.doFromHeadsUp(intent.getStringExtra(EXTRA_CHAT), intent.getStringExtra(EXTRA_CONTEXT), p)
                 Notifier.working("Working on: " + p.take(60))
             }

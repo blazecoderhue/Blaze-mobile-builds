@@ -32,7 +32,7 @@ object PhoneScripts {
     """
 
     /** The accessibility-like tree: interactive elements (id, role, name, value, position), headings, page text. */
-    const val SNAPSHOT = """(function(){$COMMON
+    const val SNAPSHOT = """/*bz:snapshot*/(function(){$COMMON
       var els=[].slice.call(document.querySelectorAll(BZSEL)).filter(bzVis).slice(0,250);
       var nodes=[],pw=false;
       els.forEach(function(e){
@@ -57,7 +57,7 @@ object PhoneScripts {
     })()"""
 
     /** Where to touch element [id]: scrolled into view first; says whether something covers it. Null when gone. */
-    fun rect(id: String): String = """(function(id){$COMMON
+    fun rect(id: String): String = """/*bz:rect*/(function(id){$COMMON
       var e=document.querySelector('[data-bzp="'+id+'"]'); if(!e) return null;
       var r=e.getBoundingClientRect();
       if(r.top<0||r.bottom>innerHeight||r.left<0||r.right>innerWidth){ try{e.scrollIntoView({block:'center',inline:'center',behavior:'instant'});}catch(x){e.scrollIntoView();} r=e.getBoundingClientRect(); }
@@ -70,7 +70,7 @@ object PhoneScripts {
     })(${JSONObject.quote(id)})"""
 
     /** The best visible element whose words contain [text] (shortest label wins); returns its id or null. */
-    fun find(text: String, field: Boolean = false): String = """(function(q,field){$COMMON
+    fun find(text: String, field: Boolean = false): String = """/*bz:find*/(function(q,field){$COMMON
       q=q.toLowerCase().trim(); var sel=field?'input:not([type=hidden]),textarea,select,[contenteditable=true],[role=textbox],[role=combobox]':BZSEL+',label';
       var best=null,bs=1e9;
       [].slice.call(document.querySelectorAll(sel)).filter(bzVis).forEach(function(e){
@@ -81,46 +81,55 @@ object PhoneScripts {
     })(${JSONObject.quote(text)}, $field)"""
 
     /** The focused field's id (or the page's first text field), or null. */
-    const val FOCUSED_ID = """(function(){$COMMON
+    const val FOCUSED_ID = """/*bz:focused*/(function(){$COMMON
       var e=document.activeElement; if(!e||!(/INPUT|TEXTAREA|SELECT/.test(e.tagName)||e.isContentEditable)) e=[].slice.call(document.querySelectorAll('input[type=search],input[type=text],input[type=email],input:not([type]),textarea')).filter(bzVis)[0]||null;
       return e?bzId(e):null; })()"""
 
     /** JS fallback click (only when a touch can't land: zero-size or covered element). */
-    fun click(id: String): String = """(function(){var e=document.querySelector('[data-bzp="'+${JSONObject.quote(id)}+'"]');if(!e)return 'missing';
-      e.scrollIntoView({block:'center'});e.focus&&e.focus();e.click();return 'ok';})()"""
+    fun click(id: String): String = """/*bz:click*/(function(id){var e=document.querySelector('[data-bzp="'+id+'"]');if(!e)return 'missing';
+      e.scrollIntoView({block:'center'});e.focus&&e.focus();e.click();return 'ok';})(${JSONObject.quote(id)})"""
 
     /** JS fallback typing: sets the value the way frameworks notice (native setter + input/change). [secret] marks it. */
-    fun type(id: String, value: String, secret: Boolean, clear: Boolean): String = """(function(){var e=document.querySelector('[data-bzp="'+${JSONObject.quote(id)}+'"]');if(!e)return 'missing';
-      e.focus(); var v=${JSONObject.quote(value)};
-      if(e.isContentEditable){ if(${clear}) e.innerText=v; else e.innerText+=v; }
+    fun type(id: String, value: String, secret: Boolean, clear: Boolean): String = """/*bz:type*/(function(id,v,secret,clear){var e=document.querySelector('[data-bzp="'+id+'"]');if(!e)return 'missing';
+      e.focus();
+      if(e.isContentEditable){ if(clear) e.innerText=v; else e.innerText+=v; }
       else { var proto=e.tagName=='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
-        Object.getOwnPropertyDescriptor(proto,'value').set.call(e, ${clear}?v:(e.value||'')+v); }
-      if($secret) e.setAttribute('data-bz-secret','1');
-      e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return 'ok';})()"""
+        Object.getOwnPropertyDescriptor(proto,'value').set.call(e, clear?v:(e.value||'')+v); }
+      if(secret) e.setAttribute('data-bz-secret','1');
+      e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return 'ok';})(${JSONObject.quote(id)}, ${JSONObject.quote(value)}, $secret, $clear)"""
 
     /** Marks a field Blaze filled from the vault so reads never show it. */
-    fun markSecret(id: String): String = """(function(){var e=document.querySelector('[data-bzp="'+${JSONObject.quote(id)}+'"]');if(e)e.setAttribute('data-bz-secret','1');return 'ok';})()"""
+    fun markSecret(id: String): String = """/*bz:mark*/(function(id){var e=document.querySelector('[data-bzp="'+id+'"]');if(e)e.setAttribute('data-bz-secret','1');return 'ok';})(${JSONObject.quote(id)})"""
+
+    /** The field's current value length (what typing landed), -1 when it's gone. */
+    fun valueLen(id: String): String = """/*bz:len*/(function(id){var e=document.querySelector('[data-bzp="'+id+'"]');if(!e)return -1;var v=e.isContentEditable?e.innerText:(e.value||'');return v.length;})(${JSONObject.quote(id)})"""
+
+    /** Focuses an element (when a touch can't land). */
+    fun focus(id: String): String = """/*bz:focusel*/(function(id){var e=document.querySelector('[data-bzp="'+id+'"]');if(e&&e.focus)e.focus();return 'ok';})(${JSONObject.quote(id)})"""
+
+    /** Vertical scroll position (CSS px) as a string. */
+    const val SCROLL_Y = "/*bz:sy*/(function(){return String(Math.round(window.scrollY));})()"
 
     /** Picks an option of a <select> (or an ARIA listbox's option) by its text or value. */
-    fun select(id: String, option: String): String = """(function(){var e=document.querySelector('[data-bzp="'+${JSONObject.quote(id)}+'"]');if(!e)return 'missing';
-      var q=${JSONObject.quote(option)}.toLowerCase().trim();
+    fun select(id: String, option: String): String = """/*bz:select*/(function(id,q){var e=document.querySelector('[data-bzp="'+id+'"]');if(!e)return 'missing';
+      q=q.toLowerCase().trim();
       if(e.tagName=='SELECT'){var os=[].slice.call(e.options),hit=null;
         os.forEach(function(o){if(hit)return;if(o.text.toLowerCase().trim()==q||o.value.toLowerCase()==q)hit=o;});
         if(!hit)os.forEach(function(o){if(hit)return;if(o.text.toLowerCase().indexOf(q)>=0)hit=o;});
         if(!hit)return 'nooption:'+os.slice(0,20).map(function(o){return o.text.trim();}).join(' | ');
         var proto=HTMLSelectElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,hit.value);
         e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return 'ok:'+hit.text.trim();}
-      return 'notselect';})()"""
+      return 'notselect';})(${JSONObject.quote(id)}, ${JSONObject.quote(option)})"""
 
     /** What Enter would do: the focused field's form submit label, and whether the page has card fields. */
-    const val FOCUS = """(function(){$COMMON
+    const val FOCUS = """/*bz:focus*/(function(){$COMMON
       var e=document.activeElement; var f=e&&e.form; var b=f&&f.querySelector('button[type=submit],input[type=submit],button:not([type])');
       var card=[].slice.call(document.querySelectorAll('input,iframe')).some(function(x){return bzVis(x)&&(x.tagName=='IFRAME'?/card|payment|stripe|braintree|adyen|checkout/i.test((x.name||'')+' '+(x.title||'')+' '+(x.src||'')):bzCard(x));});
       return {tag:e?e.tagName.toLowerCase():'',inForm:!!f,submit:b?bzLab(b):'',card:card,editable:!!e&&(/INPUT|TEXTAREA/.test(e.tagName)||e.isContentEditable)};
     })()"""
 
     /** Is the condition met? [selector] (visible), or [text] on the page, or the page finished loading. */
-    fun waitCheck(selector: String?, text: String?, gone: Boolean): String = """(function(sel,txt,gone){
+    fun waitCheck(selector: String?, text: String?, gone: Boolean): String = """/*bz:wait*/(function(sel,txt,gone){
       function vis(e){var r=e.getBoundingClientRect();var s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!='hidden'&&s.display!='none';}
       var ok=document.readyState=='complete';
       if(sel){var e=null;try{e=document.querySelector(sel);}catch(x){return 'badselector';} ok=!!e&&vis(e);}
@@ -129,5 +138,5 @@ object PhoneScripts {
     })(${JSONObject.quote(selector.orEmpty())}, ${JSONObject.quote(text.orEmpty())}, $gone)"""
 
     /** Scrolls the page (fallback when a fling gesture doesn't move it, e.g. a scroll-locked body). */
-    fun scrollBy(down: Boolean, amount: Double = 0.85): String = "(function(){var h=window.innerHeight*$amount;window.scrollBy(0,${if (down) "" else "-"}h);return String(Math.round(window.scrollY));})()"
+    fun scrollBy(down: Boolean, amount: Double = 0.85): String = "/*bz:scrollby*/(function(){var h=window.innerHeight*$amount;window.scrollBy(0,${if (down) "" else "-"}h);return String(Math.round(window.scrollY));})()"
 }

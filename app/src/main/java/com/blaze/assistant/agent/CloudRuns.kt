@@ -279,7 +279,8 @@ object CloudRuns {
             when (ev.optString("type")) {
                 "status" -> { status = ev.optString("status"); retryInMs = ev.optLong("retry_in_ms", 0) }
                 "delta" -> texts.getOrPut(ev.optInt("step")) { StringBuilder() }.append(ev.optString("text"))
-                "reset" -> texts.remove(ev.optInt("step"))
+                // 0.45.19: a reset with no step drops all partial text (never a re-sent copy left beside the new one).
+                "reset" -> if (ev.has("step")) texts.remove(ev.optInt("step")) else texts.clear()
                 "tool_calls" -> if (ev.optString("where", "device") == "device") { calls = ev.optJSONArray("calls"); callsStep = ev.optInt("step", -1) }
                 "done" -> { reply = ev.optString("reply"); provider = ev.optString("provider"); model = ev.optString("model") }
                 "error" -> { errorCode = ev.optString("code"); errorMessage = ev.optString("message") }
