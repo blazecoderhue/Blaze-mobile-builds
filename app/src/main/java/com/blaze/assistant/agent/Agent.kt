@@ -3908,6 +3908,19 @@ When you finish, say what you did in one short sentence.
 
         /** Every tool call goes through here: a crash or an empty result becomes a plain error with a fix. */
         /** 0.45.18: the prompt-injection card for a screen action, or null to go ahead. */
+        /** 0.45.20: the in-chat card for phone control; null = it's on now (go on), else the honest "not done" result. */
+        private suspend fun phoneControlGate(name: String): String? {
+            add(Role.STEP, "Needs phone control")
+            if (!confirm(PermissionGate.TITLE, PermissionGate.REASON, PermissionGate.ACTION, always = true))
+                return PermissionGate.notDone(name, PermissionGate.Outcome.DECLINED)
+            val on = { com.blaze.assistant.phone.BlazeAccessibilityService.instance != null }
+            com.blaze.assistant.ui.ComeBack.watch(app) { on() }
+            try { app.startActivity(com.blaze.assistant.phone.PhoneControl.fixIntent(app)) }
+            catch (_: Exception) { return PermissionGate.notDone(name, PermissionGate.Outcome.TIMED_OUT) }
+            val o = PermissionGate.await(on, kotlinx.coroutines.CompletableDeferred<Boolean>().apply { complete(true) })
+            return if (o == PermissionGate.Outcome.GRANTED) { add(Role.STEP, "Phone control on"); null } else PermissionGate.notDone(name, o)
+        }
+
         private suspend fun screenGate(name: String, args: JSONObject): String? {
             val taint = kotlin.coroutines.coroutineContext[ConfirmGate.Taint] ?: return null
             val label = args.optString("text").ifBlank { if (args.has("element")) com.blaze.assistant.phone.BlazeAccessibilityService.instance?.labelOf(args.optInt("element")).orEmpty() else "" }
@@ -3937,6 +3950,9 @@ When you finish, say what you did in one short sentence.
             if (com.blaze.assistant.bank.BankMode.active && (name in Orient.acting || name in Orient.looking || name == "open_app" || name == "search_in_app"))
                 return "Bank mode is on: Blaze has stepped back so the user's banking app works, and doesn't read or use the screen. " +
                     "Tell the user, and offer to turn Bank mode off (bank_mode action=off) when they're done banking."
+            // 0.45.20 (item 15): phone control is asked for the first time a task needs it, with the reason, not in setup.
+            if (PermissionGate.shouldAsk(name, com.blaze.assistant.phone.BlazeAccessibilityService.instance != null, Settings.phoneControl))
+                phoneControlGate(name)?.let { return it }
             // 0.45.18: screen actions after outside content (web, messages, email…) need the user's OK (ConfirmGate.screenAct).
             if (name in ConfirmGate.screenActs) screenGate(name, args)?.let { return it }
             // Visible pointer (v0.21.0): while the user has the pointer, screen actions wait for them.

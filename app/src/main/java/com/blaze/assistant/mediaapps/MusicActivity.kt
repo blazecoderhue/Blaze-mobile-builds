@@ -156,8 +156,11 @@ class MusicActivity : ComponentActivity() {
             if (Build.VERSION.SDK_INT < 29 && ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
                 storagePerm.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
-        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS)
+        // 0.45.20 (item 15): no notification prompt on opening Music (the media notification needs none); downloads ask when started.
+        StoragePermission.notifAsker = {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                runCatching { notifPerm.launch(Manifest.permission.POST_NOTIFICATIONS) }
+        }
         setContent { BlazeTheme { MusicApp(controller.value, tab.value, { tab.value = it }, onClose = { BackToChat.go(this) }) } }
     }
 

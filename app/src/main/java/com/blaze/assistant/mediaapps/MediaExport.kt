@@ -143,7 +143,10 @@ class ExportActions(private val ctx: Context, private val pickFolder: (List<Trac
         when (target) {
             MediaStorePolicy.Target.SHARE -> runCatching { MediaExport.share(ctx, tracks) }.onFailure { toast("Couldn't share") }
             MediaStorePolicy.Target.FOLDER -> pickFolder(tracks)
-            else -> MediaExport.toShared(ctx, tracks, target) { toast(it) }
+            else -> if (StoragePermission.needsForExport(ctx)) {
+                // 0.45.20 (item 15): asked when exporting to a shared folder on Android 9 and older, with the reason.
+                StoragePermission.ask(ctx); toast("Allow storage so Blaze can copy to your shared folders, then export again")
+            } else MediaExport.toShared(ctx, tracks, target) { toast(it) }
         }
     }
     /** Menu entries for a track menu: "Export to Music / Movies", "Export to Downloads", "Export to folder…", "Share…". */

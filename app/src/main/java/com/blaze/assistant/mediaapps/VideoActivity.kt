@@ -366,7 +366,7 @@ class VideoActivity : ComponentActivity() {
                 pendingSub?.let { id -> if (selectSubtitle(id)) pendingSub = null }
             }
         })
-        StoragePermission.asker = null
+        StoragePermission.asker = null; StoragePermission.notifAsker = null
         setContent { BlazeTheme { VideoApp(this) } }
     }
 

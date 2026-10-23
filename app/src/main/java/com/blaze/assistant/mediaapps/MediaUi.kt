@@ -570,7 +570,8 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
     state.preview?.let { item -> if (s != null) PreviewSheet(kind, item, s, onDismiss = { state.preview = null; state.previewSource = null }, onPlay = { d -> state.preview = null; state.previewSource = null; onPlay(item, d, s) },
         onDownload = { d, ch ->
             state.preview = null; state.previewSource = null
-            if (Build.VERSION.SDK_INT < 29) StoragePermission.ask(ctx)
+            // 0.45.20: downloads are private (no storage permission); the progress notification is asked for now, when it's needed.
+            StoragePermission.askNotifications()
             Downloads.add(ctx, item, d, ch, kind)
             Toast.makeText(ctx, "Downloading \u201c${(ch.title.ifBlank { item.title }).take(40)}\u201d (${ch.label.take(30)})", Toast.LENGTH_SHORT).show()
         }) }
@@ -670,6 +671,12 @@ fun JamendoSetup(text: String, onSaved: () -> Unit) {
 object StoragePermission {
     var asker: (() -> Unit)? = null
     fun ask(ctx: Context) { asker?.invoke() }
+    /** 0.45.20 (item 15): the notification prompt, just in time (a download starting), set by the screen that can ask. */
+    var notifAsker: (() -> Unit)? = null
+    fun askNotifications() { notifAsker?.invoke() }
+    /** Android 9 and older: shared Music/Movies/Downloads need the storage permission (Blaze's own storage doesn't). */
+    fun needsForExport(ctx: Context): Boolean = Build.VERSION.SDK_INT < 29 &&
+        androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
 }
 
 @Composable

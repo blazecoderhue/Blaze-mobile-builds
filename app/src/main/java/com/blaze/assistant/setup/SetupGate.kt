@@ -27,7 +27,7 @@ object SetupGate {
     val deps = listOf(
         Dep("notifications", "Notifications", "So Blaze can show what it's doing (with Stop) and tell you when a task is done.", required = true),
         Dep("linux", "Terminal (Linux)", "A small Linux on the phone (about 3.5 MB) for scripts, files, code and the tools Blaze runs.", required = true),
-        Dep("accessibility", "Phone control", "So Blaze can tap and type in other apps for you. It always asks before sending, paying or deleting.", required = false),
+        // 0.45.20 (item 15): no "accessibility" step; the first task that needs phone control asks in chat (agent/PermissionGate).
         Dep("mic", "Microphone", "For talking to Blaze and \u201cHey Blaze\u201d.", required = false),
         Dep("overlay", "Show over other apps", "So Blaze can pop up wherever you are.", required = false),
         Dep("battery", "Keep working in the background", "Stops the phone putting Blaze to sleep halfway through a job.", required = false),
