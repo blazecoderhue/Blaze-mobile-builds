@@ -276,17 +276,21 @@ object Terminal {
         return "[ -f \"$envFile\" ] && . \"$envFile\"; cd ${q(cwd)} 2>/dev/null\n$cmd\n__rc=\$?; echo \"$MARK\$(pwd)\"; exit \$__rc"
     }
 
-    /** v0.33.5: the Linux a `linux=true` command runs in when the caller doesn't name one: the user's chosen desktop Linux (once installed), else Alpine. */
-    fun defaultDistro(): String = try { com.blaze.assistant.desktop.LinuxDesktop.shellDistro() } catch (_: Throwable) { "alpine" }
+    /**
+     * The Linux a `linux=true` command runs in when the caller doesn't name one: Alpine, or (when Alpine isn't installed)
+     * another installed Linux. Wave B-4: the old desktop Linux choice (pref linux_desktop_distro) belonged to the removed Linux desktop page
+     * and is ignored now.
+     */
+    fun defaultDistro(): String = try { TermLogic.defaultDistro(Distros.installedIds()) } catch (_: Throwable) { "alpine" }
 
     /** The package manager hint for [distro] ("apt install <package>"). */
-    fun installHint(distro: String): String = com.blaze.assistant.desktop.DesktopDistro.installHint(com.blaze.assistant.desktop.DesktopDistro.of(distro).pm)
+    fun installHint(distro: String): String = TermLogic.installHint(distro)
 
     suspend fun run(cmd: String, timeoutSec: Int = 60, linux: Boolean = false, distro: String? = null): String = withContext(Dispatchers.IO) {
         setup()
         val dist = if (linux) (distro ?: defaultDistro()) else "alpine"
         if (linux && !Distros.installed(dist)) return@withContext if (dist == "alpine") "Linux isn't installed yet. Call linux_install (one-time ~3.5 MB download), or use run_code which sets it up for you."
-            else "${TermLogic.distro(dist)?.name ?: dist} isn't installed yet. Start the Linux desktop once (Desktop page), or install it from the Terminal's + menu."
+            else "${TermLogic.distro(dist)?.name ?: dist} isn't installed yet. Install it from the Terminal's + menu."
         val full = wrap(cmd, linux)
         val p = try { if (linux) ProcessBuilder(Linux.command(full, distro = dist)).directory(home()).redirectErrorStream(true)
                 .also { it.environment().putAll(env()); it.environment().putAll(Linux.env()) }.start() else builder(full).start() } catch (e: Exception) { return@withContext "Error: ${e.message}" }
@@ -457,7 +461,7 @@ object Terminal {
     private fun linuxParam(): String {
         val d = defaultDistro()
         return if (d == "alpine") "Run inside Blaze's Alpine Linux (apk add python3/nodejs/git/openjdk17…) instead of the phone shell"
-        else "Run inside Blaze's ${TermLogic.distro(d)?.name ?: d} (the user's chosen Linux; ${installHint(d)}, e.g. python3, nodejs, git) instead of the phone shell"
+        else "Run inside Blaze's ${TermLogic.distro(d)?.name ?: d} (${installHint(d)}, e.g. python3, nodejs, git) instead of the phone shell"
     }
 
     /** v0.45.9: [tools] without the Termux check (no Context), so the full-list tests can build it on the JVM. */

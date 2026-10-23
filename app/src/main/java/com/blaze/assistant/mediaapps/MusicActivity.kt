@@ -616,6 +616,8 @@ private fun LibraryPage(np: NowPlaying, playList: (List<Track>, Int, Boolean) ->
     // Registered after the group handler, so Back leaves selection mode first.
     BackHandler(LibrarySelection.backClears(sel)) { sel = LibrarySelection.clear() }
 
+    val export = rememberExportActions()
+
     @Composable
     fun SongRow(t: Track, list: List<Track>, i: Int, playlist: Playlist? = null, pIndex: Int = -1) {
         var menu by remember { mutableStateOf(false) }
@@ -633,7 +635,7 @@ private fun LibraryPage(np: NowPlaying, playList: (List<Track>, Int, Boolean) ->
                         if (pIndex > 0) add("Move up" to { MediaLib.setPlaylists(PlaylistOps.move(lists, playlist.id, pIndex, pIndex - 1, System.currentTimeMillis())) })
                         if (pIndex < playlist.keys.size - 1) add("Move down" to { MediaLib.setPlaylists(PlaylistOps.move(lists, playlist.id, pIndex, pIndex + 1, System.currentTimeMillis())) })
                     }
-                    if (t.source == "download") add("Delete from phone" to { confirmDel = t })
+                    if (t.source == "download") { addAll(export.menu({ listOf(t) }, false)); add("Delete from phone" to { confirmDel = t }) }
                 })
             }
         }

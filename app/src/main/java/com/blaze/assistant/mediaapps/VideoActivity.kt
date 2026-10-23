@@ -1030,6 +1030,7 @@ private fun VideoLibrary(a: VideoActivity) {
     val recent by MediaLib.recentVideos.collectAsState()
     var q by remember { mutableStateOf("") }
     var confirmDel by remember { mutableStateOf<Track?>(null) }
+    val export = rememberExportActions()
     LaunchedEffect(Unit) { withContext(Dispatchers.IO) { MediaLib.refresh() } }
     val byKey = remember(videos) { videos.associateBy { it.key } }
     // Continue watching: recently played with a saved position.
@@ -1137,7 +1138,7 @@ private fun VideoLibrary(a: VideoActivity) {
                     }
                     if (t.source == "download" && !selecting) Box {
                         RoundIcon(Icons.Rounded.MoreVert, "More", size = 36, tint = c.sub) { menu = true }
-                        BlazeMenu(menu, { menu = false }, listOf("Delete from phone" to { confirmDel = t }))
+                        BlazeMenu(menu, { menu = false }, export.menu({ listOf(t) }, true) + ("Delete from phone" to { confirmDel = t }))
                     }
                 }
             }

@@ -16,8 +16,9 @@ import java.io.File
 import java.nio.ByteBuffer
 
 /**
- * v0.30.1: where Blaze Music and Blaze Video keep what they download. Shared, app-visible folders registered with
- * MediaStore so the phone's own apps and Blaze's Gallery see them:
+ * v0.30.1: where Blaze Music and Blaze Video keep what they download. Wave B 1: new downloads go to Blaze's private
+ * storage ([privateDir], .nomedia, no MediaStore); the shared folders below are now only the default Export targets
+ * (older downloads already saved there keep working):
  *
  *   songs  → Music/Blaze/Music   (MediaStore.Audio)
  *   videos → Movies/Blaze/Videos (MediaStore.Video)
@@ -46,23 +47,49 @@ object MediaFiles {
     fun freeBytes(ctx: Context): Long = try { StatFs(ctx.filesDir.path).availableBytes } catch (_: Exception) { Long.MAX_VALUE }
 
     /**
-     * Copies [src] into the shared folder for [kind] and registers it. Returns the content:// (Android 10+) or file://
-     * uri the library and the Gallery use.
+     * Wave B 1: Blaze's own private media folders (app storage + .nomedia, never MediaStore), so downloads stay out of
+     * the phone's gallery and music apps. Export (MediaExport) copies a file out when the user asks.
+     */
+    fun privateDir(ctx: Context, kind: String): File = File(ctx.filesDir, MediaStorePolicy.privateRel(kind)).apply {
+        mkdirs(); val nm = File(this, ".nomedia"); if (!nm.exists()) runCatching { nm.createNewFile() }
+    }
+
+    /** True when [uri] is one of Blaze's private media files (file:// inside filesDir/media). */
+    fun isPrivate(ctx: Context, uri: String): Boolean = runCatching {
+        val u = Uri.parse(uri); u.scheme == "file" && (u.path ?: "").startsWith(File(ctx.filesDir, MediaStorePolicy.ROOT).path + "/")
+    }.getOrDefault(false)
+
+    /**
+     * Wave B 1: moves [src] (a finished working file) into the private folder for [kind] atomically: a rename on the
+     * same volume, or a copy to a temp name in the target folder then a rename, so a half-written file never shows up
+     * in the library. Returns its file:// uri.
      */
     fun publish(ctx: Context, src: File, kind: String, name: String, title: String, artist: String, durationMs: Long): Uri {
+        val dir = privateDir(ctx, kind)
+        val ext = src.extension.ifBlank { name.substringAfterLast('.', "") }
+        val existing = dir.list()?.toSet() ?: emptySet()
+        val out = File(dir, MediaStorePolicy.uniqueName(name, ext, existing))
+        AtomicMove.move(src, out)
+        return Uri.fromFile(out)
+    }
+
+    /** The pre-wave-B behaviour, kept for Export: copies [src] into the shared folder for [kind] and registers it. */
+    fun exportShared(ctx: Context, src: File, kind: String, name: String, title: String, artist: String, durationMs: Long, relDir: String = relDir(kind)): Uri {
         val ext = src.extension.ifBlank { name.substringAfterLast('.', "") }
         val mime = mime(ext)
         if (Build.VERSION.SDK_INT >= 29) {
-            val coll = if (kind == "video") MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-                else MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val coll = when {
+                relDir.startsWith(Environment.DIRECTORY_DOWNLOADS) -> MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                kind == "video" -> MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                else -> MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            }
             val v = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
                 put(MediaStore.MediaColumns.MIME_TYPE, mime)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relDir(kind))
+                put(MediaStore.MediaColumns.RELATIVE_PATH, relDir)
                 put(MediaStore.MediaColumns.TITLE, title)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
-                if (kind != "video") { put(MediaStore.Audio.Media.ARTIST, artist); put(MediaStore.Audio.Media.IS_MUSIC, 1) }
-                if (durationMs > 0) put(MediaStore.MediaColumns.DURATION, durationMs)
+                if (kind != "video" && !relDir.startsWith(Environment.DIRECTORY_DOWNLOADS)) { put(MediaStore.Audio.Media.ARTIST, artist); put(MediaStore.Audio.Media.IS_MUSIC, 1) }
             }
             val uri = ctx.contentResolver.insert(coll, v) ?: throw IllegalStateException("The phone wouldn't save the file")
             try {
@@ -77,12 +104,10 @@ object MediaFiles {
         }
         // Android 8–9: plain files on shared storage, then a media scan.
         @Suppress("DEPRECATION")
-        val pub = File(Environment.getExternalStorageDirectory(), relDir(kind))
+        val pub = File(Environment.getExternalStorageDirectory(), relDir)
         val dir = if (runCatching { pub.mkdirs(); pub.isDirectory && pub.canWrite() }.getOrDefault(false)) pub
             else File(ctx.getExternalFilesDir(if (kind == "video") Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_MUSIC), "Blaze").apply { mkdirs() }
-        var out = File(dir, name)
-        var n = 2
-        while (out.exists()) out = File(dir, name.substringBeforeLast('.') + " ($n)." + ext).also { n++ }
+        val out = File(dir, MediaStorePolicy.uniqueName(name, ext, dir.list()?.toSet() ?: emptySet()))
         src.copyTo(out)
         MediaScannerConnection.scanFile(ctx, arrayOf(out.path), arrayOf(mime), null)
         return Uri.fromFile(out)

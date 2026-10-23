@@ -142,7 +142,6 @@ fun OsAppHost(id: String) {
             "clock" -> OsClockApp()
             "weather" -> OsWeatherApp()
             "files" -> OsFilesApp()
-            "linux" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) { com.blaze.assistant.ui.LinuxDesktopPage() }
             "store" -> OsStoreApp()
             "settings" -> OsSettingsApp()
             else -> OsMissing(id)
@@ -150,7 +149,6 @@ fun OsAppHost(id: String) {
             val inst = reg.get(id.removePrefix(OsApps.PKG))
             when {
                 inst == null -> OsMissing(id)
-                inst.manifest.entry.type == OsManifest.LINUX -> OsLinuxApp(inst)
                 inst.manifest.entry.type == OsManifest.WASM -> OsWasmApp(inst)
                 inst.manifest.entry.type == OsManifest.BUILTIN -> OsMissing("a BlazeOS app: open ${inst.manifest.entry.key} from the home screen")
                 else -> OsWebApp(inst)

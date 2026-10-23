@@ -37,8 +37,7 @@ import kotlinx.coroutines.launch
 
 /*
  * v0.33.2 BlazeOS App Store: the catalog (bundled assets/blazeos/catalog.json today; a remote catalog url can be named in
- * it later), Get / Update / Open, an app page with its permissions and size, and Uninstall (frees the space). Also the
- * screen of an installed Linux app (it runs in Blaze's Linux desktop, through proot).
+ * it later), Get / Update / Open, an app page with its permissions and size, and Uninstall (frees the space).
  */
 
 @Composable
@@ -65,7 +64,7 @@ fun OsStoreApp() {
     Column(Modifier.fillMaxSize().background(osBg()).verticalScroll(rememberScrollState())) {
         if (shown == null) {
             OsAppHeader("App Store")
-            Text("Apps for BlazeOS: web apps, Linux apps and Blaze's own. Free, no account.", style = osText(look, 14f, color = look.sub),
+            Text("Apps for BlazeOS: web apps, native apps and Blaze's own. Free, no account.", style = osText(look, 14f, color = look.sub),
                 modifier = Modifier.padding(horizontal = 16.dp))
             Text("BlazeOS disk: ${OsResources.size(used)} of ${OsResources.size(budget.diskQuota)} used", style = osText(look, 12f, color = look.sub),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
@@ -149,7 +148,7 @@ private fun StorePage(l: OsListing, reg: OsRegistry, busy: String, onBack: () ->
     Spacer(Modifier.height(12.dp))
     OsGroup {
         OsRow("Version", m.version)
-        OsRow("Kind", when (m.entry.type) { OsManifest.WEB -> if (m.entry.url.isNotEmpty()) "Web app (online)" else "Web app"; OsManifest.LINUX -> "Linux app (runs in the Linux desktop)"; OsManifest.WASM -> "Native app (WebAssembly)"; else -> "BlazeOS app" })
+        OsRow("Kind", when (m.entry.type) { OsManifest.WEB -> if (m.entry.url.isNotEmpty()) "Web app (online)" else "Web app"; OsManifest.WASM -> "Native app (WebAssembly)"; else -> "BlazeOS app" })
         OsRow("Size", if (l.size > 0) OsResources.size(l.size) else "Tiny")
         OsRow("Asks for", if (m.permissions.isEmpty()) "Nothing" else m.permissions.joinToString(", ") { OsPerms.label(it) })
     }
@@ -157,47 +156,3 @@ private fun StorePage(l: OsListing, reg: OsRegistry, busy: String, onBack: () ->
     Spacer(Modifier.height(24.dp))
 }
 
-// ---------------- Linux apps ----------------
-
-@Composable
-fun OsLinuxApp(inst: OsInstalled) {
-    val look = LocalOsLook.current
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val m = inst.manifest
-    var step by remember { mutableStateOf("") }
-    val installed = remember { com.blaze.assistant.desktop.LinuxDesktop.installed() }
-    Column(Modifier.fillMaxSize().background(osBg()).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(40.dp))
-        OsGlyphIcon(m.icon, 96.dp)
-        Spacer(Modifier.height(14.dp))
-        Text(m.name, style = osText(look, 24f, FontWeight.SemiBold))
-        Text("A Linux app. It opens in Blaze's Linux desktop (${com.blaze.assistant.desktop.LinuxDesktop.distro().name}, ${m.entry.command}).", style = osText(look, 14f, color = look.sub))
-        Spacer(Modifier.height(24.dp))
-        if (!installed) {
-            Text("The Linux desktop isn't set up yet. Set it up once in Desktop, then come back.", style = osText(look, 14f))
-            Spacer(Modifier.height(12.dp))
-            OsPillButton("Open Desktop", primary = true) { BlazeOs.launch("blaze:linux") }
-        } else if (step.isNotEmpty()) Text(step, style = osText(look, 15f, color = look.sub))
-        else OsPillButton("Open", primary = true) {
-            scope.launch {
-                try {
-                    val d = com.blaze.assistant.desktop.LinuxDesktop
-                    if (!d.alive()) { step = "Starting the Linux desktop…"; d.start(ctx) }
-                    // v0.33.5: installed with the chosen Linux's own package manager (apk / apt / pacman / dnf), in that Linux.
-                    val dist = d.distro()
-                    val pkgs = com.blaze.assistant.desktop.DesktopDistro.mapPackages(dist, m.entry.packages, m.entry.distroPackages)
-                    if (pkgs.isNotEmpty()) {
-                        step = "Getting ${pkgs.joinToString(", ")} (${dist.pm.tool})…"
-                        com.blaze.assistant.terminal.Terminal.run(com.blaze.assistant.desktop.DesktopDistro.appInstallScript(dist, pkgs), timeoutSec = 600, linux = true, distro = dist.id)
-                    }
-                    step = "Opening…"
-                    com.blaze.assistant.terminal.Terminal.run(com.blaze.assistant.desktop.DesktopPlan.runCmd(m.entry.command), timeoutSec = 15, linux = true, distro = dist.id)
-                    d.viewerRequest.value = true
-                    step = ""
-                    BlazeOs.launch("blaze:linux")
-                } catch (e: Exception) { step = "Couldn't open it: " + (e.message ?: "unknown error") }
-            }
-        }
-    }
-}

@@ -92,11 +92,7 @@ object SelfKnowledge {
             if (on("linux")) {
                 append("## Linux and terminal\n")
                 append("Alpine Linux (proot): ").append(safe { if (com.blaze.assistant.terminal.Linux.installed()) "installed" else "not installed (blaze_self install linux)" }).append(".\n")
-                append("Desktop / linux=true Linux (user's choice on the Desktop page): ").append(safe {
-                    val d = com.blaze.assistant.desktop.LinuxDesktop.distro()
-                    "${d.name} (${d.pm.tool}), desktop " + (if (com.blaze.assistant.desktop.LinuxDesktop.installed()) "installed" else "not installed") +
-                        "; linux=true commands run in " + com.blaze.assistant.terminal.Terminal.defaultDistro()
-                }).append(".\n")
+                append("linux=true commands run in: ").append(safe { com.blaze.assistant.terminal.Terminal.defaultDistro() }).append(".\n")
                 append("Termux: ").append(safe { if (com.blaze.assistant.terminal.Terminal.termuxInstalled(ctx)) "installed (termux_run)" else "not installed" }).append(".\n")
                 append("Local dashboard: ").append(safe { if (com.blaze.assistant.dashboard.Dashboard.running.value) com.blaze.assistant.dashboard.Dashboard.localUrl().substringBefore("?") else "off" }).append(".\n\n")
             }

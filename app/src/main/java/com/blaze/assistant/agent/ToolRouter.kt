@@ -101,12 +101,6 @@ object ToolRouter {
         Group("read", "read aloud: articles, files, chats in the user's own cloned voice or Blaze's",
             r("""\b(read (?:it |this |that )?(?:out|aloud|to me)|read me|listen to (?:this|the|an?)|my voice|audiobook|text to speech|narrat\w*)\b"""),
             { it == "read_aloud" }),
-        // v0.45.2: Blaze's Linux desktop on this phone (desktop_task = a whole job with a live view in chat; desktop = start/stop/click).
-        // Before, both fell into "more" (sent only on request), so "open the browser in it" went to run_shell. DesktopRoute adds
-        // this group for "it / there" requests while the desktop runs; the cue below covers requests that name it.
-        Group(DesktopRoute.GROUP, "Blaze's Linux desktop on this phone: desktop_task does a whole job in it (open apps, browse, click, type) while the user watches a live view in chat; desktop starts, stops or shows it",
-            r("""\b(linux desktop|desktop linux|linux browser|browser in (?:the )?linux|xfce|vnc|(?:on|in|inside) (?:the |my )?(?:linux )?desktop|the desktop)\b"""),
-            { it in DesktopRoute.TOOLS }),
         Group("pc", "the user's paired computer running Blaze Desktop (ask_pc)",
             r("""\b(pc|computer|laptop|desktop|my mac|macbook|on windows)\b"""),
             { it == "ask_pc" }),

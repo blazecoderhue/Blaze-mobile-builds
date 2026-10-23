@@ -47,7 +47,7 @@ class ToolCapTest {
 
     // The 0.45.9 strict cases (replay-0459-x8full): their named choices must not change.
     private val old = mapOf(
-        "View calendar" to "calendar_events", "open example.com in the Linux browser" to "desktop_task", "open Settings" to "open_view",
+        "View calendar" to "calendar_events", "open example.com in the Linux browser" to null, "open Settings" to "open_view",   // wave B-4: desktop_task removed
         "open Design view" to "open_view", "remind me to call mum at 18:00 today" to "create_routine", "what reminders do I have set?" to "list_routines",
         "what do you remember about my exams?" to "memory_search", "remember that my NET exam is on 3 November" to "memory_save",
         "@halo hi" to null, "hi Blaze" to null, "anything on for today?" to null, "run ls in the terminal" to "run_shell", // round 2: named run_shell

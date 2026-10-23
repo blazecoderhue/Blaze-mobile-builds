@@ -67,19 +67,13 @@ class CommandPolicyTest {
         assertEquals("npm run", CommandPolicy.key(Kind.SHELL, "npm run lint"))
         assertEquals("curl", CommandPolicy.key(Kind.SHELL, "curl https://a.b/c"))
         assertEquals("git push", CommandPolicy.key(Kind.GIT, "git push origin main"))
-        assertEquals("desktop type", CommandPolicy.key(Kind.DESKTOP_TYPE, "hello"))
     }
 
-    @Test fun gitToolAndDesktop() {
+    @Test fun gitTool() {
         assertEquals(Level.SAFE, CommandPolicy.level(Kind.GIT, "git status"))
         assertEquals(Level.ASK, CommandPolicy.level(Kind.GIT, "git push origin main"))
         assertEquals(Level.RISKY, CommandPolicy.level(Kind.GIT, "git push --force"))
         assertEquals(Level.RISKY, CommandPolicy.level(Kind.GIT, "git status", risky = true))
-        assertEquals(Level.SAFE, CommandPolicy.level(Kind.DESKTOP_TYPE, "ls -la"))
-        assertEquals(Level.RISKY, CommandPolicy.level(Kind.DESKTOP_TYPE, "sudo rm -rf /"))
-        assertEquals(Level.ASK, CommandPolicy.level(Kind.DESKTOP_TYPE, "Dear team, the report is attached."))
-        assertEquals(Level.ASK, CommandPolicy.level(Kind.DESKTOP_OPEN, "firefox"))
-        assertEquals(Level.RISKY, CommandPolicy.level(Kind.DESKTOP_KEY, "ctrl+alt+delete"))
     }
 
     @Test fun batchCard() {

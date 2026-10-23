@@ -22,13 +22,13 @@ object ToolTruth {
     val full: Boolean get() = try { Settings.bool("tool_full", true) } catch (_: Throwable) { true }
 
     const val RULE = "\nYOUR TOOLS ARE REAL: every tool in your list works on this phone. Never say \"I don't have the capability\", \"I can't access\", " +
-        "\"I'm unable to\" or \"as an AI I can't\" about anything a tool in your list does (terminal, Linux desktop and browser, opening views and screens, " +
+        "\"I'm unable to\" or \"as an AI I can't\" about anything a tool in your list does (terminal, browser, opening views and screens, " +
         "files and save_file, calendar, reminders, web search, memory). Call the tool instead. If a tool fails, say what it returned. After a tool works, say in one short line what it did (for save_file, the saved path). "
 
     /** Requests that need a tool (any lane that sends no tools hands these to the full lane). */
     private val shaped = Regex("""(?i)\b(run|execute|terminal|shell|command|ls|cd|pwd|cat|python|script|linux|desktop|browser|browse|open|launch|show me|go to|navigate|settings|design view|view|screen|tab|page|file|files|folder|save|download|export|upload|calendar|schedule|agenda|event|meeting|remind|reminder|alarm|timer|routine|search|look ?up|google|web|fetch|memory|remember|forget|recall|what do you know|weather|send|text|call|message|email|install|make|create|build|generate|draw|play|set|turn (?:on|off)|enable|disable)\b|https?://|\b[\w-]+\.(com|org|net|io|dev|zm|app)\b""")
 
-    fun toolShaped(text: String): Boolean = shaped.containsMatchIn(text)
+    fun toolShaped(text: String): Boolean = shaped.containsMatchIn(text) || com.blaze.assistant.browser.phone.PhonePolicy.phoneAsk(text)
 
     /** Plain talk that happens to contain a cue word ("what do you think, should I make tea?") stays with the talker. */
     private val chatty = Regex("""(?i)^\s*(?:@\w+\s*)?(?:what do you think|how do you feel|do you like|tell me a joke|joke)\b""")
@@ -39,7 +39,7 @@ object ToolTruth {
 
     fun refusal(text: String): Boolean = refusalRe.containsMatchIn(text)
 
-    const val NUDGE = "[Check: you just said you can't do that, but your tool list has a tool for it. Don't refuse and don't give desktop advice: call the tool now (save_file saves the last code block; run_shell runs commands; browser_open / desktop_task for the Linux browser; open_view for app views and settings; calendar_events / create_routine for the calendar and reminders; web_search; memory_search).]"
+    const val NUDGE = "[Check: you just said you can't do that, but your tool list has a tool for it. Don't refuse and don't give desktop advice: call the tool now (save_file saves the last code block; run_shell runs commands; browser_open for the browser; open_view for app views and settings; calendar_events / create_routine for the calendar and reminders; web_search; memory_search).]"
 
     private fun nameOf(t: Any?): String = (t as? JSONObject)?.optJSONObject("function")?.optString("name").orEmpty()
 
@@ -80,7 +80,7 @@ object ToolTruth {
     }
 
     /** The tools the strict cases need; every lane that sends tools must have these (ToolTruthTest). */
-    val MUST = setOf("run_shell", "browser_open", "desktop_task", "open_view", SaveFile.TOOL, "calendar_events", "create_routine", "web_search", "memory_search", "remember")
+    val MUST = setOf("run_shell", "browser_open", "open_view", SaveFile.TOOL, "calendar_events", "create_routine", "web_search", "memory_search", "remember")
 
     /**
      * v0.45.9 replay fix: on the first step of a turn whose ask names exactly one tool, the request names that tool in
@@ -91,9 +91,7 @@ object ToolTruth {
     private val calView = Regex("""(?i)^\s*(?:@\w+\s+)?(?:please\s+)?(?:view|show|open|check|see)(?:\s+me)?(?:\s+(?:my|the))?\s+(?:google\s+)?calendar\b[\s.!?]*$""")
     private val calOffer = Regex("""(?i)\b(?:check|look at|open|view|see)\b[^.?!\n]{0,30}\bcalendar\b""")
 
-    // Live 0.8.7, 5 runs: "open example.com in the Linux browser" went to browser_open (Blaze's built-in browser) 5 of 5,
-    // and "open Settings" was refused 2 of 5 ("I don't have the capability to open settings").
-    private val linux = Regex("""(?i)\b(?:linux|xfce|alpine)\s+(?:browser|desktop)\b|\bin\s+(?:the\s+)?linux\b|\bfirefox\b""")
+    // Live 0.8.7, 5 runs: "open Settings" was refused 2 of 5 ("I don't have the capability to open settings").
     private val viewAsk = Regex("""(?i)^\s*(?:@\w+\s+)?(?:please\s+)?(?:open|show|go to|switch to)\s+(?:me\s+)?(?:the\s+|my\s+)?(?:blaze\s+)?(?:settings|design|terminal|schedule|memory|projects|home)(?:\s+(?:view|page|screen|tab))?[\s.!]*$""")
 
     // v0.45.13 round 2 (rpS terminal-ls 3/5: codestral wrote ```sh ls``` as text with no run_shell call): "run X in the
@@ -171,7 +169,6 @@ object ToolTruth {
 
     fun choiceFor(userText: String, assistantTexts: List<String>, toolNames: Collection<String>): String? {
         val u = userText.trim().replace('\u2019', '\'')
-        if ("desktop_task" in toolNames && linux.containsMatchIn(u) && Regex("(?i)\\b(open|go to|browse|visit|load)\\b").containsMatchIn(u)) return "desktop_task"
         if ("open_view" in toolNames && viewAsk.matches(u)) return "open_view"
         if ("run_shell" in toolNames && shellAsk(u)) return "run_shell"
         if (SaveFile.TOOL in toolNames && SaveFile.wantsSave(u) && SaveFile.lastCode(assistantTexts) != null) return SaveFile.TOOL
@@ -179,6 +176,8 @@ object ToolTruth {
                 TurnContext.scheduleFollowUp(u, assistantTexts.lastOrNull().orEmpty()) && calOffer.containsMatchIn(assistantTexts.lastOrNull().orEmpty()))) return "calendar_events"
         if ("create_routine" in toolNames && remindAsk.containsMatchIn(u)) return "create_routine"
         if ("list_routines" in toolNames && remindList.containsMatchIn(u)) return "list_routines"
+        // 0.45.19 Blaze Phone: "book a table at X", "log into Y", "sign up for Z", "order … from shop.com" start on Blaze Phone.
+        if ("phone_open" in toolNames && com.blaze.assistant.browser.phone.PhonePolicy.phoneAsk(u)) return "phone_open"
         if (memRecall.containsMatchIn(u)) return listOf("memory_search", "recall_memory").firstOrNull { it in toolNames }
         if (memSave.containsMatchIn(u) && MemoryGate.allows(u)) return listOf("memory_save", "remember").firstOrNull { it in toolNames }
         return phoneChoice(u, toolNames)
@@ -337,6 +336,9 @@ object ToolTruth {
             addAll(follow(user).values)
             // the first-step choice too on a later step, so the flow's own tool never drops mid-turn
             choiceFor(user, emptyList(), names)?.let { add(it) }
+            // 0.45.19: a Blaze Phone flow keeps all its tools (open → read → act → verify) once it started or was asked for.
+            if (used.any { it in com.blaze.assistant.browser.phone.PhonePolicy.TOOLS } || com.blaze.assistant.browser.phone.PhonePolicy.phoneAsk(user))
+                addAll(com.blaze.assistant.browser.phone.PhonePolicy.TOOLS)
         }
         val text = user.lowercase()
         val words = word.findAll(text).map { it.value }.filter { it !in stop }.toSet()

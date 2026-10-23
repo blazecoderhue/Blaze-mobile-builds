@@ -27,16 +27,28 @@ object ClaimCheck {
     private val ic = setOf(RegexOption.IGNORE_CASE)
     private fun r(s: String) = Regex(s, ic)
 
-    /** "The Linux desktop is running", "Dillo is open now", "the server is up", "I've started the desktop". */
+    /** "The server is up", "it's running now", "I've started it". */
     val RUNNING = ActionProof.Action("running", "get that running",
         r("""\b(?:is|are|it's|they're)\s+(?:now\s+|already\s+|all\s+)?(?:running|up and running|listening|started|booted)\b|""" +
             """\b(?:i|i've|i have|i just|i've just)\s+(?:also\s+|now\s+|just\s+|successfully\s+)?(?:started|launched|booted|brought up|spun up|fired up)\b|""" +
             """^\s*(?:started|launched|booted)\b"""),
-        setOf("desktop", "desktop_task", "run_shell", "termux_run", "preview_server", "linux_install", "open_app", "start_agent", "ask_pc",
+        setOf("run_shell", "termux_run", "preview_server", "linux_install", "open_app", "start_agent", "ask_pc",
             "process", "terminal_jobs", "browser_open", "open_url"),
-        r("""\b(start|launch|run|running|boot|desktop|linux|vnc|xfce|dillo|server|serve)\b"""))
+        r("""\b(start|launch|run|running|boot|linux|server|serve)\b"""))
 
-    val ACTIONS: List<ActionProof.Action> = ActionProof.ACTIONS + RUNNING
+    /**
+     * 0.45.19 Blaze Phone, no false done: "booked", "your table is confirmed", "order placed", "paid" need the newest
+     * Blaze Phone page to have been read back as VERIFIED (a confirmation number / text on the page). Only checked on
+     * turns that used Blaze Phone.
+     */
+    val BOOKED = ActionProof.Action("booked", "book or order that",
+        r("""(?:^\s*(?:done[,!.:]?\s*|all set[,!.]?\s*)?|\b(?:i|i've|i have|i just|i've just|we've)\s+(?:also\s+|now\s+|just\s+|successfully\s+)?)(?:booked|reserved|ordered|purchased|paid|placed (?:the|your|an?) order|confirmed (?:the|your) (?:booking|reservation|order|table|appointment))\b|""" +
+            """\b(?:booking|reservation|order|table|room|ticket|tickets|appointment|purchase|payment)\b[^.!?\n]{0,25}\b(?:is |are |has been |have been |was |were )(?:now )?(?:confirmed|booked|reserved|placed|complete|completed|successful)\b|""" +
+            """\byou(?:'re| are) (?:all )?(?:booked|set for|confirmed)\b"""),
+        com.blaze.assistant.browser.phone.PhonePolicy.TOOLS,
+        r("""\b(book|booking|reserve|reservation|order|buy|purchase|pay|checkout|check out|table|ticket|tickets|appointment)\b"""))
+
+    val ACTIONS: List<ActionProof.Action> = ActionProof.ACTIONS + RUNNING + BOOKED
 
     private fun sentences(text: String): List<String> = text.split(Regex("""(?<=[.!?…])\s+|\n+""")).map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -50,6 +62,7 @@ object ClaimCheck {
         var rewrote: ActionProof.Action? = null
         for (a in ACTIONS) {
             if (!ActionProof.asked(userText, a, intentTools)) continue
+            if (a.id == "booked" && done.none { it.name in a.tools }) continue
             val bad = ActionProof.claims(text, a) + (if (a.id == "setting") stateClaims(text, userText).filter { it !in ActionProof.claims(text, a) } else emptyList())
             if (bad.isEmpty()) continue
             // v0.45.0 (#4): a verified STRONG tool backs the claim; a weak one (the settings page for "Wi-Fi is on")
@@ -79,6 +92,7 @@ object ClaimCheck {
         // v0.45.13 round 2: only a tap asked for on/off (want) whose switch was READ BACK that way proves "turned X on":
         // Agent's tap adds "the switch “X” now reads on" only then. A bare tap, or one read back the other way, doesn't.
         "setting" -> d.name == "tap" && switchRead(d.why)?.let { claimed == null || it == claimed } == true
+        "booked" -> d.why.startsWith("page verified")
         else -> false
     }
 
@@ -103,6 +117,7 @@ object ClaimCheck {
             return if (read == null) "the tap wasn't asked to turn it $w, and nothing read the switch back as $w"
                 else "the switch read back ${if (read) "on" else "off"}, not $w"
         }
+        if (a.id == "booked") return "Blaze Phone's page shows no confirmation number or confirmation text"
         return "only ${d.name.replace('_', ' ')} ran, which doesn't confirm it"
     }
 

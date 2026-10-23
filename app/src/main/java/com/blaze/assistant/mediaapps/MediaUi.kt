@@ -503,8 +503,8 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
         if (state.loading && state.results.isEmpty()) items(LiveSearch.skeletons(kind != "video"), key = { "sk$it" }) { SkeletonTile(kind != "video") }
         if (state.results.isEmpty() && !state.loading && state.error.isBlank() && setup == null) item(span = { GridItemSpan(maxLineSpan) }) {
             EmptyState(if (kind == "video") "Find a video" else "Find music",
-                "Search, then tap a result to see it, its licence and the qualities. Downloads go to " +
-                    MediaFiles.relDir(kind) + " and show up in your Library and the Gallery.")
+                "Search, then tap a result to see it, its licence and the qualities. Downloads stay private in Blaze's Library; " +
+                    "export or share them from the ⋮ menu.")
         }
         items(state.results, key = { it.source + ":" + it.id }) { r ->
             ResultCard(r) {
@@ -640,23 +640,25 @@ fun DownloadsList(jobs: List<DlJob>) {
     val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth().clip(BlazeShapes.medium).background(c.faint).padding(vertical = 6.dp)) {
         MText("Downloads", 12.sp, c.sub, FontWeight.Medium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp))
+        // Wave B 18: a soft plan line only when the plan's cap is what keeps two or more waiting (no button, no nag).
+        val lim by Downloads.limit.collectAsState()
+        DlConcurrency.nudge(lim.first, lim.second, jobs.count { it.status == DlStatus.QUEUED && it.attempts == 0 })?.let {
+            MText(it, 11.5.sp, c.sub, maxLines = 2, modifier = Modifier.padding(horizontal = 14.dp))
+        }
         jobs.forEach { j ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 NetThumb(j.thumb, Modifier.size(44.dp).clip(BlazeShapes.xs))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     MText(j.title, 13.sp, c.ink, FontWeight.Medium)
-                    val line = when (j.status) {
-                        DlStatus.RUNNING -> "${(j.progress * 100).toInt()}% \u00b7 ${TimeText.size(j.done)} of ${TimeText.size(j.total)}"
-                        DlStatus.QUEUED -> if (j.attempts > 0) "Retrying soon \u00b7 ${j.error}" else "Waiting \u00b7 ${j.quality}"
-                        DlStatus.PAUSED -> "Paused \u00b7 ${(j.progress * 100).toInt()}%"
-                        DlStatus.FAILED -> "Failed \u00b7 ${j.error}"
-                        else -> j.quality
-                    }
+                    val line = DlVerify.statusLine(j) { TimeText.size(it) }
                     MText(line, 11.5.sp, if (j.status == DlStatus.FAILED) BlazeBrush.orange else c.sub)
                     if (j.active || j.status == DlStatus.PAUSED) {
                         Spacer(Modifier.height(4.dp))
-                        LinearProgressIndicator(progress = { j.progress }, modifier = Modifier.fillMaxWidth().height(3.dp).clip(BlazeShapes.pill),
+                        // Wave B 19: verifying / saving show a moving bar, never a bar stuck at 100%.
+                        if (j.phase.isNotEmpty()) LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(3.dp).clip(BlazeShapes.pill),
+                            color = c.accent, trackColor = c.hair)
+                        else LinearProgressIndicator(progress = { j.progress }, modifier = Modifier.fillMaxWidth().height(3.dp).clip(BlazeShapes.pill),
                             color = c.accent, trackColor = c.hair)
                     }
                 }

@@ -93,7 +93,6 @@ val topPages = listOf(
 /** Pages under Advanced (the old list without the router dashboard). */
 val advancedPages = listOf(
     SettingsPage("connections", "Connected accounts", "Google, GitHub, Spotify, Notion, Slack"),
-    SettingsPage("linux", "Desktop (Linux)", "A real Linux desktop inside Blaze on this phone"),
     SettingsPage("desktop", "Blaze Desktop", "Pair with Blaze on your computer"),
     SettingsPage("control", "Phone control", "Accessibility, skills, the pointer"),
     SettingsPage("persona", "Personality", "How Blaze talks"),
@@ -101,6 +100,7 @@ val advancedPages = listOf(
     SettingsPage("privacy", "Privacy & safety", "App lock, approvals"),
     SettingsPage("watches", "Watches", "Values Magic Hand is watching for you"),
     SettingsPage("logins", "Saved logins", "Sign-ins from Blaze's secure form, encrypted on this phone"),
+    SettingsPage("phonebrowser", "Blaze Phone", "Blaze's own phone browser: sign out of sites, clear its data"),
     SettingsPage("proactive", "Proactive & triggers", "Speak up on its own, when-X-do-Y"),
     SettingsPage("commands", "Slash commands", "Your own /commands and prompt skills"),
     SettingsPage("orb", "Floating orb", "Keep Blaze over other apps"),
@@ -173,7 +173,6 @@ fun SettingsScreen(start: String?, a11yOn: Boolean, onOpenAccessibility: () -> U
                 "bank" -> BankModePage()
                 "connections" -> ConnectionsPage()
                 "desktop" -> DesktopPage()
-                "linux" -> LinuxDesktopPage()
                 "persona" -> PersonaSection()
                 "control" -> ControlPage(a11yOn, onOpenAccessibility)
                 "commands" -> CommandsSection()
@@ -195,6 +194,7 @@ fun SettingsScreen(start: String?, a11yOn: Boolean, onOpenAccessibility: () -> U
                 "logs" -> LifeLogsPage()
                 "replies" -> RepliesPage()
                 "logins" -> SavedLoginsPage()
+                "phonebrowser" -> PhoneBrowserSettingsPage()
                 "watches" -> com.blaze.assistant.phone.MagicHandWatchesPage()
             }
             Spacer(Modifier.height(30.dp))

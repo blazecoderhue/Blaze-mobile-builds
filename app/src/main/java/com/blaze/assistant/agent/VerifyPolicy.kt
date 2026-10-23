@@ -78,7 +78,7 @@ object VerifyPolicy {
         return when (v.status) {
             ToolVerify.Status.VERIFIED -> base.removeSuffix("]") + " (checked on the phone; no screenshot or extra check needed)]"
             ToolVerify.Status.FAILED -> base
-            ToolVerify.Status.UNVERIFIED -> base.removeSuffix("]") + " One quick check (read_screen, a screenshot or desktop status) is allowed if it matters.]"
+            ToolVerify.Status.UNVERIFIED -> base.removeSuffix("]") + " One quick check (read_screen or a screenshot) is allowed if it matters.]"
         }
     }
 
@@ -129,6 +129,6 @@ class VerifyBook {
         /** Tools the model uses to check an action itself. */
         val CHECK_TOOLS = setOf("read_screen", "look_at_screen", "screenshot", "take_screenshot")
         fun isModelCheck(name: String, args: org.json.JSONObject): Boolean =
-            name in CHECK_TOOLS || (name == "desktop" && args.optString("action") in setOf("screenshot", "status"))
+            name in CHECK_TOOLS
     }
 }

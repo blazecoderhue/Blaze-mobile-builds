@@ -4,7 +4,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * v0.33.5: one Stop for every part of the Linux desktop download. [stop] closes the download that is in flight (its
+ * v0.33.5: one Stop for every part of a Linux download. [stop] closes the download that is in flight (its
  * .part file stays, so the next Start resumes with an HTTP Range request), kills the running install process (PRoot
  * runs with --kill-on-exit, so apk / apt / pacman / dnf go with it) and wakes any retry wait.
  */

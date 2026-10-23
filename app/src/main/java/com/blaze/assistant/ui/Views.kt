@@ -37,13 +37,13 @@ object Views {
         BlazeView("phone", "Phone", "BlazeOS: Blaze's own virtual phone with its own apps and App Store, fullscreen", special = "phone", aliases = listOf("blazeos", "virtual phone", "blaze os")),
         BlazeView("gallery", "Gallery", "Images, music and files Blaze made", special = "gallery"),
         BlazeView("browser", "Browser", "Blaze's own browser and tabs", special = "browser"),
+        BlazeView("phonebrowser", "Blaze Phone", "Blaze's own phone browser: watch it log in and book, take control, hand back", special = "phonebrowser", aliases = listOf("blaze phone", "phone browser", "blaze phone browser", "blaze's phone")),
         BlazeView("doctor", "Doctor", "Phone health, self-check, crash report", page = "device", aliases = listOf("device", "diagnostics")),
         BlazeView("usage", "Usage", "Tokens and estimated cost", page = "usage", aliases = listOf("cost")),
         BlazeView("voice", "Voice", "Hey Blaze, spoken replies, call", page = "voice"),
         BlazeView("control", "Phone control", "Accessibility, permissions", page = "control"),
         BlazeView("logins", "Saved logins", "Sign-ins from the secure form: view, edit, delete", page = "logins", aliases = listOf("vault", "passwords", "logins")),
         BlazeView("proactive", "Proactive", "Speak up on its own, triggers", page = "proactive", aliases = listOf("triggers")),
-        BlazeView("linux", "Desktop", "A real Linux desktop (XFCE) running inside Blaze on this phone", page = "linux", aliases = listOf("linux-desktop", "linux desktop", "xfce", "vnc", "desktop-linux", "view desktop", "view-desktop", "show desktop", "watch desktop", "live desktop")),
         BlazeView("desktop", "Blaze Desktop", "Pair with Blaze on your computer", page = "desktop", aliases = listOf("pc", "pair")),
         BlazeView("commands", "Commands", "Slash commands and prompt skills", page = "commands"),
         BlazeView("dashboard", "Dashboard", "Local web dashboard", page = "dashboard"),
@@ -78,7 +78,7 @@ object Views {
     data class Offer(val id: String, val target: String = "", val n: Long = System.nanoTime())
     val offer = MutableStateFlow<Offer?>(null)
 
-    fun offerLabel(id: String): String = if (id == "linux") "View desktop" else "Open in ${find(id)?.name ?: id.replaceFirstChar { it.uppercase() }}?"
+    fun offerLabel(id: String): String = "Open in ${find(id)?.name ?: id.replaceFirstChar { it.uppercase() }}?"
 
     /** True when the user's own words asked to open / show / switch to this view (then it opens straight away). */
     fun askedFor(text: String, id: String): Boolean {
@@ -113,7 +113,7 @@ object Views {
     fun tool(): JSONObject = JSONObject().put("type", "function").put("function", JSONObject().put("name", TOOL)
         .put("description", "Switch Blaze's own screen to one of its views: design (live preview of anything visual: a 3D scene, art, a site, UI mockup, diagram, chart, poster or slides; with no target it shows the current design; make or change designs with the design tool), " +
             "learn (flashcard decks; open it after flashcards add), memory, jobs, schedule, projects, agents, accounts, router (models/keys), skills, gallery, browser, doctor, usage, settings, " +
-            "music, video, phone (BlazeOS), linux (the Linux desktop), doing (things Blaze is doing: routines, reminders, today's diary), look (Look & feel: backgrounds and theme), and every other id in the list. Views hidden in Simple mode still open. " +
+            "music, video, phone (BlazeOS), doing (things Blaze is doing: routines, reminders, today's diary), look (Look & feel: backgrounds and theme), and every other id in the list. Views hidden in Simple mode still open. " +
             "Output that fits a view is made there and the view opened, never dumped in chat. " +
             "The user can always tap Exit to come back to the chat. For design pass target = the file path (e.g. ~/site/index.html) or URL to preview, or nothing for the current design.")
         .put("parameters", JSONObject().put("type", "object").put("properties", JSONObject()

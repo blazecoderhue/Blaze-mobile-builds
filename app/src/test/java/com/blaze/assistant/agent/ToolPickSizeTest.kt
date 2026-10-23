@@ -33,6 +33,7 @@ class ToolPickSizeTest {
         add("Ussd") { com.blaze.assistant.phone.Ussd.tool() }
         add("Messaging") { com.blaze.assistant.phone.Messaging.tool() }
         add("Browser") { com.blaze.assistant.browser.BrowserTools.definitions() }
+        add("PhoneBrowser") { com.blaze.assistant.browser.phone.PhoneBrowserTools.definitions() }   // 0.45.19
         add("DevTools") { com.blaze.assistant.terminal.DevTools.tools() }
         add("Git") { com.blaze.assistant.terminal.Git.tool() }
         add("PimEdit") { com.blaze.assistant.phone.PimEdit.tools() }
@@ -50,8 +51,6 @@ class ToolPickSizeTest {
         add("ProjectDocs") { ProjectDocs.tools() }
         add("HomeTools") { com.blaze.assistant.home.HomeTools.tools() }
         add("BlazeRouter") { BlazeRouter.tool() }
-        add("LinuxDesktop") { com.blaze.assistant.desktop.LinuxDesktop.tool() }
-        add("DesktopAgent") { com.blaze.assistant.desktop.DesktopAgent.tool() }
         add("CommandRegistry") { CommandRegistry.tool() }
         add("LongChat") { LongChat.tools() }
         add("Flashcards") { Flashcards.tool() }
@@ -72,7 +71,7 @@ class ToolPickSizeTest {
             "open whatsapp",
             "set an alarm for 6:30",
             "turn on wifi",
-            "start the linux desktop and open dillo",
+            "install python in the linux terminal",
             "text mum I'm running late",
             "search the web for the latest zesco load shedding schedule",
             "write a python script that renames my photos by date",

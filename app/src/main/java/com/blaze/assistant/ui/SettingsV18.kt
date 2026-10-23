@@ -113,10 +113,6 @@ fun DevicePage() {
     V18Note("Instant commands: $cached. Commands that worked once on the phone run again with no model at all.")
     if (cached > 0) V18Button("Clear instant commands", primary = false) { IntentCache.clear(); cached = 0 }
 
-    // v0.45.2: also on the Desktop (Linux) page.
-    V18Section("Linux desktop")
-    KeepDesktopRow()
-
     V18Section("Feel & accessibility")
     var card by remember { mutableStateOf(Settings.taskCard) }
     ToggleRow("Live task card", "Slim card with the current step and Stop over other apps", card) { card = !card; Settings.taskCard = card }

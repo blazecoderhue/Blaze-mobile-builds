@@ -80,6 +80,14 @@ class BlazeApp : Application() {
         // Wake word starts from the screen (MainActivity/assistant) and at boot: starting a
         // microphone service while Blaze is in the background makes Android 12+ kill the app.
         com.blaze.assistant.device.StartGuard.step("terminal.Terminal.init") { com.blaze.assistant.terminal.Terminal.init(this) }
+        // Wave B-4: the on-phone Linux desktop was removed; once after the update, free what it left (packages, caches, prefs).
+        if (!com.blaze.assistant.device.StartGuard.safeStart && !Settings.bool(com.blaze.assistant.terminal.LinuxDesktopCleanup.PREF_DONE, false)) {
+            val app = this
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+                kotlinx.coroutines.delay(30_000)   // after start-up work, not competing with it
+                com.blaze.assistant.terminal.LinuxDesktopCleanup.runOnce(app)
+            }
+        }
         com.blaze.assistant.device.StartGuard.step("agent.SkillLibrary.init") { com.blaze.assistant.agent.SkillLibrary.init(this) }
         // BlazeRouter: start when it's the brain or set to start with Blaze (after Terminal/Linux are ready).
         if (!com.blaze.assistant.device.StartGuard.safeStart && (com.blaze.assistant.agent.BlazeRouter.autostart || Settings.providerId == com.blaze.assistant.agent.BlazeRouter.ID)) {

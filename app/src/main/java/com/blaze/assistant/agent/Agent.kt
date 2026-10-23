@@ -64,7 +64,8 @@ object ReplyParts {
         // v0.28.1: tool calls written as text ("[/find_tool need=…]") never reach the screen, speech or history;
         // only the gatekeeper reads them (keepCalls) to run them as real calls.
         // v0.44.0: function-style calls (`browser_show()`, `open_app("X")`, a bare JSON call) are hidden too (TextCalls).
-        val raw = if (keepCalls) clean.text else TextCalls.strip(ToolLeak.strip(clean.text, final), final)
+        // 0.45.19: CallScan first (multi-line Python calls, JSON calls mid-prose, fenced tool blocks, cut-off calls).
+        val raw = if (keepCalls) clean.text else TextCalls.strip(ToolLeak.strip(CallScan.clean(clean.text, final), final), final)
         val thinking = (listOf(clean.thinking) + thinkRe.findAll(raw).map { it.groupValues[2].trim() }).filter { it.isNotBlank() }.joinToString("\n\n")
         // v0.45.3: Autopilot's hidden <<done>> / <<continue>> marker is never shown, spoken or kept (a half-typed one waits).
         var text = AutoContinue.strip(thinkRe.replace(raw, ""), final)
@@ -1164,10 +1165,9 @@ When you finish, say what you did in one short sentence.
             s("phone_save", SaveFile.RULE + ToolTruth.RULE)
             // v0.28.1: models sometimes wrote "[/find_tool need=…]" as the reply instead of calling the tool.
             s("leak", "\n" + ToolLeak.PROMPT_RULE)
-            // v0.43.0: Blaze told a user the Linux desktop and Dillo were running when nothing listened on its port.
+            // v0.43.0: Blaze once claimed things were running when nothing confirmed it.
             s("verify", "\nVERIFY BEFORE CLAIMING: say something is running, open, started, sent or done only when a tool result in this turn confirms it. " +
-                "For the Linux desktop only a desktop result starting VERIFIED counts; FAILED or NOT running means tell the user plainly it isn't working and offer desktop action=repair. " +
-                "An app you asked the desktop to open counts as open only after a screenshot shows its window. Earlier messages saying it worked are not proof.")
+                "Earlier messages saying it worked are not proof.")
             // v0.28.4 blaze-docs: one static line + the repo URL; the docs themselves are looked up (blaze_docs_search), never pasted here.
             s("docs", BlazeDocs.PROMPT_LINE)
             s("ids", "\nEverything you create that keeps running (alarms, timers, routines, triggers, calendar events, jobs) gets an ID like R4. To change, stop or delete one, call processes to find the ID, then process(id, action). Only use action=details when the user asks for specifics.")
@@ -1269,6 +1269,7 @@ When you finish, say what you did in one short sentence.
         t.put(com.blaze.assistant.phone.Ussd.tool())
         t.put(com.blaze.assistant.phone.Messaging.tool())
         com.blaze.assistant.browser.BrowserTools.definitions().forEach { t.put(it) }
+        com.blaze.assistant.browser.phone.PhoneBrowserTools.definitions().forEach { t.put(it) }   // 0.45.19 Blaze Phone browser
         if (Settings.bool("terminal_tools", true)) com.blaze.assistant.terminal.Terminal.tools(app).forEach { t.put(it) }
         if (Settings.bool("terminal_tools", true)) com.blaze.assistant.terminal.DevTools.tools().forEach { t.put(it) }
         if (Settings.bool("terminal_tools", true)) t.put(com.blaze.assistant.terminal.Git.tool())
@@ -1292,9 +1293,7 @@ When you finish, say what you did in one short sentence.
         // v0.29.0 Home board: Blaze adds / changes / removes / lists the user's widgets.
         com.blaze.assistant.home.HomeTools.tools().forEach { t.put(it) }
         t.put(BlazeRouter.tool())
-        t.put(com.blaze.assistant.desktop.LinuxDesktop.tool())
-        // v0.39.0: the hands-free desktop loop, and every / command for Blaze itself.
-        t.put(com.blaze.assistant.desktop.DesktopAgent.tool())
+        // v0.39.0: every / command for Blaze itself. (The on-phone Linux desktop tools were removed in wave B-4.)
         t.put(CommandRegistry.tool())
         if (Settings.longChat || Mind.ready) LongChat.tools().forEach { t.put(it) }
         t.put(Flashcards.tool())
@@ -1508,12 +1507,6 @@ When you finish, say what you did in one short sentence.
         @Volatile var lastTurnDesign = false
         /** v0.23.2: the follow-on hint for this turn ("" = none). */
         @Volatile var turnDesignNote = ""
-        /** v0.45.2: this turn is about the Linux desktop (DesktopRoute): desktop tools on, the steering hint in the prompt. */
-        @Volatile var turnDesk = false
-        /** The text of the last [n] history messages (DesktopRoute: was the desktop just talked about?). */
-        fun recentText(n: Int): String = buildString {
-            for (i in maxOf(0, history.length() - n) until history.length()) (history.optJSONObject(i)?.opt("content") as? String)?.let { append(it.take(600)).append('\n') }
-        }
         val history = JSONArray()
         val historyMark = HashMap<Long, Int>()
         val trace = JSONArray()
@@ -1785,15 +1778,6 @@ When you finish, say what you did in one short sentence.
                 if (!after && book === turnBook) synchronized(turnDone) { if (di in turnDone.indices) turnDone[di] = turnDone[di].copy(status = v.status, why = v.why) }
                 if (after) updateReceipt(book.msgId, book.log.toList())
             }
-        }
-
-        /** v0.45.2: after Blaze worked in the Linux desktop, a "View desktop" chip in the chat (when it runs and isn't on screen). */
-        fun offerDesktopView() {
-            if (agentId != null) return
-            try {
-                if (com.blaze.assistant.desktop.LinuxDesktop.state.value.phase == com.blaze.assistant.desktop.DesktopPlan.Phase.RUNNING &&
-                    com.blaze.assistant.ui.Views.showing.value != "linux") com.blaze.assistant.ui.Views.offer.value = com.blaze.assistant.ui.Views.Offer("linux")
-            } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("Agent: offerDesktopView", e) }
         }
 
         fun addMeta(id: Long, chip: String) {
@@ -2241,7 +2225,7 @@ When you finish, say what you did in one short sentence.
                 try { Usage.record(req, reply, LlmClient.lastUsage) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: Usage.recordreq reply LlmClient.lastUsag", e) }
                 if (useTools) try {
                     if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) (reply.opt("content") as? String)?.let { txt ->
-                        (ToolCalls.fromText(txt, tools!!) ?: ToolLeak.toCalls(txt, tools))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else ToolLeak.strip(rest)) } }
+                        (CallScan.toCalls(txt, tools!!) ?: ToolCalls.fromText(txt, tools) ?: ToolLeak.toCalls(txt, tools))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else CallScan.clean(ToolLeak.strip(rest))) } }
                     ToolCalls.normalize(reply, tools!!)
                 } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: if reply.optJSONArraytool_calls.length 0", e) }
                 if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) {
@@ -2442,7 +2426,7 @@ When you finish, say what you did in one short sentence.
                 var n = 0
                 var next: Duo.Who? = null
                 var prevWho: Duo.Who? = null; var prevSig: Duo.Signal? = null
-                val facts = duoFacts(task)
+                val facts = ""   // v0.43.0 duoFacts was a live check of the Linux desktop (removed in wave B-4)
                 // v0.43.0: an @all chat message gets both answers at once (parallel, streamed, 45 s cap each) instead of a
                 // race + a second, sequential answer + more back-and-forth, which took about two minutes on a phone.
                 if (kind == Duo.Kind.CHAT) { duoBoth(name, facts); duoChatOpenAt = System.currentTimeMillis() }
@@ -2507,22 +2491,6 @@ When you finish, say what you did in one short sentence.
             }
         }
 
-        /**
-         * v0.43.0: what the app can check itself right now, for the duo lanes (they have no tools). Only when the talk is
-         * about the Linux desktop: "is it really running?" gets the truth from the port, not from earlier messages.
-         */
-        private suspend fun duoFacts(task: String): String = try {
-            val recent = buildString {
-                append(task)
-                for (i in maxOf(0, history.length() - 6) until history.length()) (history.optJSONObject(i)?.opt("content") as? String)?.let { append('\n').append(it.take(400)) }
-            }
-            if (!Regex("(?i)desktop|linux|dillo|xfce|vnc|browser|running").containsMatchIn(recent) || !com.blaze.assistant.desktop.LinuxDesktop.installed()) ""
-            else {
-                val up = com.blaze.assistant.desktop.LinuxDesktop.alive()
-                "\n[Live check by the app just now: Blaze's Linux desktop is " + (if (up) "running (port 5901 answered)." else
-                    "NOT running (nothing answers on port 5901), so no app in it is open either. Don't say it is running; @blaze can start or repair it.") + "]"
-            }
-        } catch (e: CancellationException) { throw e } catch (_: Throwable) { "" }
 
         /**
          * v0.43.0 @all chat: Blaze and Halo answer at the same time, each streaming into its own bubble, each capped at
@@ -2666,8 +2634,6 @@ When you finish, say what you did in one short sentence.
                 GoalPin.block(turnGoal) +
                 (agentId?.let { "\nYou are background agent $it, not the main chat. Work alone and finish with the result only." } ?: BgAgents.leadLine()) +
                 (turnDesignNote.ifEmpty { turnView?.let { ViewRouter.hint(it) } ?: "" }) + SkillMatch.block(turnSkills) + SpecialistMatch.hint(turnSpecs) +
-                // v0.45.2: desktop requests → desktop_task with the live card; no run_shell installs, no VNC-client advice.
-                (if (turnDesk && agentId == null) DesktopRoute.HINT else "") +
                 // v0.27.x: "how do I install X" → lead with the action and end with one concrete offer to do it.
                 AnswerStyle.turnHint(lastUserText()) +
                 // v0.28.4: "take me to the blaze-agent repo" / "what version are you": look it up in Blaze's docs, never guess.
@@ -2825,12 +2791,7 @@ When you finish, say what you did in one short sentence.
                 // specialists, plan memory) start together instead of one after another. Each is cheap to throw away.
                 val stateQ0 = !routine && PhoneState.kind(userNow) != null
                 val selfQ0 = !routine && BlazeDocs.isAboutBlaze(userNow)
-                // v0.45.2: a request about the Linux desktop goes to the desktop agent (live view in chat), never the phone's fast path.
-                val desk0 = !routine && !bulk && DesktopRoute.wants(userNow,
-                    try { com.blaze.assistant.desktop.LinuxDesktop.state.value.phase == com.blaze.assistant.desktop.DesktopPlan.Phase.RUNNING } catch (_: Throwable) { false },
-                    DesktopRoute.mentioned(recentText(6)))
-                turnDesk = desk0
-                val plainDev0 = !routine && !bulk && !desk0 && FastActions.plainDevice(userNow)
+                val plainDev0 = !routine && !bulk && FastActions.plainDevice(userNow)
                 val par = kotlinx.coroutines.CoroutineScope(kotlin.coroutines.coroutineContext + Dispatchers.IO)
                 // v0.31.1 jank: the tool list (hundreds of JSON objects) is built off the main thread.
                 val dTools = par.async(Dispatchers.Default) { tools().apply { put(ToolPick.loadTool()) }.let { if (isPrivate) PrivateChat.filterTools(it) else it }
@@ -2859,7 +2820,6 @@ When you finish, say what you did in one short sentence.
                     if (!bulk && agentId == null && !isPrivate) addAll(kotlinx.coroutines.withContext(Dispatchers.Default) { LearnedRoutes.predict(lu, g0) })
                     // v0.45.0 (#20): a request in another language that no English cue matched still gets the core action groups.
                     if (!bulk) addAll(ToolRouter.fallback(lu, this))
-                    if (desk0) add(DesktopRoute.GROUP)
                     // v0.45.9: a calendar / meetings / schedule question always gets the calendar and reminder tools.
                     if (!bulk && TurnContext.scheduleAsk(lu)) add("schedule")
                     // v0.45.9: "@halo Yes" to "I can check your Google Calendar, want me to?" gets them too.
@@ -2882,6 +2842,8 @@ When you finish, say what you did in one short sentence.
                     val src = if (spNow != null) Specialists.filter(allTools0, spNow) else allTools0
                     for (i in 0 until src.length()) src.getJSONObject(i).let { t -> if (t.optJSONObject("function")?.optString("name") !in BgAgents.leadOnly) put(t) } }, agentPlan)
                 timer.mark("tools"); if (agentId == null) StartTrace.stage("tools")
+                // 0.45.19: every bubble's final sanitizer knows this app's tool names (CallScan).
+                try { CallScan.learn(ToolCalls.names(allTools0)) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("CallScan.learn", e) }
                 // v0.23.0 views + skills: the view this request needs (its tools on) and the skills that match it,
                 // looked up before the first model call with no extra model call. Shown on the work card.
                 // v0.23.2 follow-on edits: right after a design (or from the Design view's own box), "show engine" edits that design.
@@ -2910,7 +2872,7 @@ When you finish, say what you did in one short sentence.
                 var emptyNudged = false
                 var echoNudged = false
                 var leakNudged = false
-                var vncNudged = false
+                var credGuarded = false   // 0.45.19 CredAsk: one swap per turn
                 var refusalNudged = false
                 var lastOkStep = ""
                 var savedPath: String? = null   // v0.45.9: a save_file this turn; the final answer names its path
@@ -2956,8 +2918,7 @@ When you finish, say what you did in one short sentence.
                     if (ToolTruth.full) { sizeLine = "tools all ${allTools.length()}"; return ToolTruth.forRequest(allTools) { allTools } }
                     val diet = ToolRouter.select(allTools, groupsOn)
                     val sent = ToolPick.keepOrder(sentOrder, ToolPick.pick(diet, userNow, usedNames + synchronized(turnTools) { turnTools.toSet() }, groupsOn, keepAll = bulk,
-                        must = (if (DesktopRoute.GROUP in groupsOn) DesktopRoute.TOOLS else emptySet()) +
-                            (if (TurnContext.scheduleAsk(userNow)) TurnContext.SCHEDULE_TOOLS else emptySet())))
+                        must = (if (TurnContext.scheduleAsk(userNow)) TurnContext.SCHEDULE_TOOLS else emptySet())))
                     sizeLine = ToolPick.sizeLine(sent, allTools, diet)
                     sentOrder = ToolPick.names(sent)
                     return sent
@@ -3192,14 +3153,16 @@ When you finish, say what you did in one short sentence.
                         if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) {
                             val txt = reply.opt("content") as? String
                             val seen = if (txt != null) ReplyParts.split(txt, keepCalls = true).text else ""
-                            if (txt != null) (ToolCalls.fromText(seen, allTools) ?: ToolLeak.toCalls(seen, allTools) ?: TextCalls.toCalls(seen, allTools) ?: TextCalls.blockCalls(seen, allTools))?.let { (c, rest) ->
-                                reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else TextCalls.strip(ToolLeak.strip(rest)))
+                            // 0.45.19: CallScan first: it reads multi-line Python calls, list / object arguments, JSON calls mid-prose,
+                            // fenced tool blocks and cut-off calls, which the older parsers missed or cut at the first comma.
+                            if (txt != null) (CallScan.toCalls(seen, allTools) ?: ToolCalls.fromText(seen, allTools) ?: ToolLeak.toCalls(seen, allTools) ?: TextCalls.toCalls(seen, allTools) ?: TextCalls.blockCalls(seen, allTools))?.let { (c, rest) ->
+                                reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else CallScan.clean(TextCalls.strip(ToolLeak.strip(rest))))
                                 for (k in 0 until c.length()) ToolStats.add(c.getJSONObject(k).getJSONObject("function").getString("name"), "text_call")
                             }
                             // v0.28.1: tool syntax that maps to no real tool: strip it and ask the model once to answer properly
                             // (native tool call or plain words); after that, an honest plain line, never the raw syntax.
-                            if (txt != null && (reply.optJSONArray("tool_calls")?.length() ?: 0) == 0 && (ToolLeak.has(seen) || TextCalls.has(seen, ToolCalls.names(allTools)) || TextCalls.blockHas(seen, ToolCalls.names(allTools)))) {
-                                val left = TextCalls.blockStrip(ReplyParts.split(txt, final = true).text, ToolCalls.names(allTools))
+                            if (txt != null && (reply.optJSONArray("tool_calls")?.length() ?: 0) == 0 && (ToolLeak.has(seen) || TextCalls.has(seen, ToolCalls.names(allTools)) || TextCalls.blockHas(seen, ToolCalls.names(allTools)) || CallScan.has(seen, ToolCalls.names(allTools)))) {
+                                val left = CallScan.clean(TextCalls.blockStrip(ReplyParts.split(txt, final = true).text, ToolCalls.names(allTools)), true, ToolCalls.names(allTools), loose = true)
                                 if (!leakNudged && nudgesLeft > 0 && step < maxSteps - 2) {
                                     leakNudged = true; nudgesLeft--
                                     if (liveId >= 0) { msgs = msgs.filterNot { it.id == liveId }; liveId = -1L }
@@ -3229,6 +3192,20 @@ When you finish, say what you did in one short sentence.
                         // 0.45.15 (review 22 Oct #6): a reply the gatekeeper choked on never goes on with broken calls.
                         try { ToolCalls.dropMalformed(reply, allTools).takeIf { it > 0 }?.let { CallState.current().errors.add("dropped $it malformed tool call(s)") } } catch (_: Throwable) { reply.remove("tool_calls") }
                     }
+                    // 0.45.19 (CredAsk): a page is open and the reply asks the user to type a login into the chat → the secure
+                    // form instead, once per turn and inside the per-site limits (3 asks, none after a cancel). Never card numbers.
+                    if (!routine && !credGuarded && (reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) try {
+                        val said = ReplyParts.split((reply.opt("content") as? String).orEmpty(), final = true).text
+                        if (CredAsk.asks(said)) {
+                            val host = kotlinx.coroutines.withContext(Dispatchers.Main) { com.blaze.assistant.browser.BrowserEngine.host() }
+                            CredAsk.decide(said, host, formAsks[host] ?: 0, credGuarded, ToolCalls.names(allTools), lastUserText())?.let { c ->
+                                credGuarded = true
+                                if (liveId >= 0) { msgs = msgs.filterNot { it.id == liveId }; liveId = -1L }
+                                reply.put("content", JSONObject.NULL).put("tool_calls", JSONArray().put(c))
+                                CallState.current().errors.add("chat credentials ask replaced by the secure form")
+                            }
+                        }
+                    } catch (e: CancellationException) { throw e } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("CredAsk", e) }
                     kotlinx.coroutines.yield()
                     history.put(reply)
 
@@ -3303,20 +3280,6 @@ When you finish, say what you did in one short sentence.
                         add(Role.STEP, "Using my tools instead of refusing")
                         history.put(JSONObject().put("role", "user").put("content", RetryGuard.anchor(ToolTruth.NUDGE, lastUserText())))
                         continue
-                    }
-                    // v0.45.2: Blaze shows the Linux desktop itself: a reply telling the user to use a VNC client / localhost:5901 gets one
-                    // re-prompt (desktop tools on), then the plain line pointing at the live view.
-                    if ((calls == null || calls.length() == 0) && !routine && agentId == null && DesktopRoute.vncAdvice(ReplyParts.split(textOut, final = true).text)) {
-                        if (!vncNudged && nudgesLeft > 0 && step < maxSteps - 2) {
-                            vncNudged = true; nudgesLeft--
-                            groupsOn += DesktopRoute.GROUP; turnDesk = true
-                            if (liveId >= 0) { msgs = msgs.filterNot { it.id == liveId }; liveId = -1L }
-                            add(Role.STEP, "Showing the desktop here instead")
-                            history.put(JSONObject().put("role", "user").put("content", RetryGuard.anchor(DesktopRoute.VNC_NUDGE, lastUserText())))
-                            continue
-                        }
-                        textOut = DesktopRoute.NO_VNC_LINE; reply.put("content", textOut)
-                        if (agentId == null) com.blaze.assistant.ui.Views.offer.value = com.blaze.assistant.ui.Views.Offer("linux")
                     }
                     // v0.23.2 no fake claims: "I've updated the design" / "view it in the design section" with no
                     // design or open_view call that succeeded this turn → one re-prompt, then an honest line instead.
@@ -3407,6 +3370,11 @@ When you finish, say what you did in one short sentence.
                         val g = UnconfirmedEcho.fix(textOut, synchronized(turnDone) { turnDone.toList() })
                         if (g != textOut) { CallState.current().errors.add("reply left out that the action wasn't confirmed; said so"); textOut = g; reply.put("content", g) }
                     } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("UnconfirmedEcho", e) }
+                    // 0.45.19: a switch read back on the phone ends with one line saying what was read ("Done ✓ Dark mode is on.").
+                    if ((calls == null || calls.length() == 0) && !rewroteClaim) try {
+                        val g = ToggleReply.fix(textOut, synchronized(turnDone) { turnDone.toList() })
+                        if (g != textOut) { textOut = g; reply.put("content", g) }
+                    } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("ToggleReply", e) }
                     if ((calls == null || calls.length() == 0) && step < maxSteps - 4 && gateLeft > 0 && nudgesLeft > 0 && !routine) {
                         val nudge = when {
                             FakeCall.looksFake(ReplyParts.split(textOut, final = true).text, ToolCalls.names(allTools), actedThisTurn, lastUserText(), lookedThisTurn) -> FakeCall.NUDGE
@@ -3814,7 +3782,7 @@ When you finish, say what you did in one short sentence.
                 try { Usage.record(msgs, reply, LlmClient.lastUsage) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("Agent: Usage.recordmsgs reply LlmClient.lastUsa", e) }
                 val unknown = try {
                     if ((reply.optJSONArray("tool_calls")?.length() ?: 0) == 0) (reply.opt("content") as? String)?.let { txt ->
-                        (ToolCalls.fromText(txt, all) ?: ToolLeak.toCalls(txt, all))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else ToolLeak.strip(rest)) } }
+                        (CallScan.toCalls(txt, all) ?: ToolCalls.fromText(txt, all) ?: ToolLeak.toCalls(txt, all))?.let { (c, rest) -> reply.put("tool_calls", c); reply.put("content", if (rest.isBlank()) JSONObject.NULL else CallScan.clean(ToolLeak.strip(rest))) } }
                     ToolCalls.normalize(reply, all).unknown
                 } catch (_: Exception) { emptySet() }
                 msgs.put(reply)
@@ -3875,7 +3843,8 @@ When you finish, say what you did in one short sentence.
         suspend fun screenAfter(result: String): String {
             val svc = com.blaze.assistant.phone.BlazeAccessibilityService.instance ?: return ""
             if (!Settings.phoneControl || result.startsWith("Error") || result.startsWith("No app") || result.startsWith("Phone control is off") || result.startsWith("Not done yet")) return ""
-            svc.settle(1200, 200)
+            // 0.45.19: a result the phone already read back (verified by state) needs only a short settle before the look
+            if (result.contains(ActCheck.OK)) svc.settle(500, 120) else svc.settle(1200, 200)
             val s = svc.readScreen(diff = true)
             orient.saw(svc.currentPkg())
             return "\n\nScreen now:\n" + s + com.blaze.assistant.phone.Watchers.drain()
@@ -3901,7 +3870,8 @@ When you finish, say what you did in one short sentence.
             // v0.28.2: no secure form or saved login on a plain-http page (except this phone / the LAN).
             val pageUrl = kotlinx.coroutines.withContext(Dispatchers.Main) { B.url() }
             if (!com.blaze.assistant.connect.UrlSafety.autofillAllowed(pageUrl)) return com.blaze.assistant.connect.UrlSafety.AUTOFILL_REFUSED
-            val fields = S.parseFields(args.optJSONArray("fields"))
+            // 0.45.19: fields written as a JSON string or a word list ("email, password") still open the form.
+            val fields = S.parseFields(args.optJSONArray("fields") ?: CallScan.secureArgs(args)?.optJSONArray("fields"))
             if (fields.isEmpty()) return "Error: give fields, e.g. [{\"name\":\"email\",\"kind\":\"email\"},{\"name\":\"password\",\"kind\":\"password\"}]."
             if (fields.any { S.isCardField(it) }) return "Card details are never collected in the chat. Show the live browser with browser_show so the user types them on the page, or stop before paying."
             if (fields.any { it.kind == com.blaze.assistant.browser.SecureInput.Kind.PASSWORD }) B.passwordRefused()?.let { return it }
@@ -4076,12 +4046,6 @@ When you finish, say what you did in one short sentence.
         private fun cmdOf(name: String, args: JSONObject): Pair<CommandPolicy.Kind, String>? = when (name) {
             "run_shell" -> if (InAppRoute.toolFor(args.optString("command")) != null) null else CommandPolicy.Kind.SHELL to args.optString("command")
             com.blaze.assistant.terminal.Git.NAME -> CommandPolicy.Kind.GIT to ("git " + args.optString("action").takeIf { it.isNotBlank() && it != "raw" }.orEmpty() + " " + args.optString("args")).trim()
-            "desktop" -> when (args.optString("action")) {
-                "type" -> CommandPolicy.Kind.DESKTOP_TYPE to args.optString("text")
-                "key" -> CommandPolicy.Kind.DESKTOP_KEY to args.optString("keys")
-                "run", "launch" -> CommandPolicy.Kind.DESKTOP_OPEN to args.optString("app").ifBlank { args.optString("text") }
-                else -> null
-            }
             else -> null
         }
 
@@ -4251,12 +4215,6 @@ When you finish, say what you did in one short sentence.
                     val a = JSONObject(args.toString()).put("url", ToolLeak.fixBlazeUrl(args.optString("url")))
                     ToolCache.cached(name, a, lastUserText(), isPrivate) { Web.fetch(a.optString("url")) } }
                 "blazerouter" -> { add(Role.STEP, "BlazeRouter: " + args.optString("action")); BlazeRouter.run(app, args) }
-                com.blaze.assistant.desktop.DesktopAgent.TOOL -> {
-                    add(Role.STEP, "Using the computer: " + args.optString("title").ifBlank { args.optString("goal") }.take(50))
-                    com.blaze.assistant.desktop.DesktopAgent.run(app, args,
-                        confirm = { title, detail, always -> confirm(title, detail, if (always) "Allow" else "Start", always) },
-                        open = { com.blaze.assistant.ui.Views.open("linux") }).also { offerDesktopView() }
-                }
                 CommandRegistry.TOOL -> {
                     val cn = args.optString("command").trim().removePrefix("/").substringBefore(' ').lowercase()
                     val input = args.optString("input").ifBlank { args.optString("command").trim().substringAfter(' ', "") }.trim()
@@ -4276,13 +4234,6 @@ When you finish, say what you did in one short sentence.
                             when { r == null -> "No /$cn command."; r.isBlank() -> "Ran /$cn."; else -> "Ran /$cn. Follow this now: $r" }
                         }
                     }
-                }
-                "desktop" -> {
-                    // v0.25.5: the step line comes from Friendly.say (DesktopNarration), the same words as the live desktop card.
-                    com.blaze.assistant.desktop.LinuxDesktop.run(app, args, shots,
-                        confirm = { title, detail -> confirm(title, detail, "Allow") },
-                        cmdOk = { kind, text, title, detail, risky, legacy -> cmdOk(kind, text, title, detail, "Allow", risky, legacy) },
-                        open = { com.blaze.assistant.ui.Views.open("linux") }).also { offerDesktopView() }
                 }
                 in com.blaze.assistant.home.HomeTools.NAMES -> { add(Role.STEP, com.blaze.assistant.home.HomeTools.step(name, args)); kotlinx.coroutines.withContext(Dispatchers.IO) { com.blaze.assistant.home.HomeBoard.runTool(name, args) } }
                 BlazeDocs.TOOL_SEARCH -> { add(Role.STEP, "Looking it up in Blaze's docs"); kotlinx.coroutines.withContext(Dispatchers.IO) { BlazeDocs.search(args) } }
@@ -4531,6 +4482,16 @@ When you finish, say what you did in one short sentence.
                 "recent_notifications" -> { add(Role.STEP, "Checking notifications"); com.blaze.assistant.notify.NotificationBrain.list(args.optString("app").ifBlank { null }, args.optDouble("hours", 6.0)) }
                 com.blaze.assistant.phone.Messaging.NAME -> { add(Role.STEP, "Messaging ${args.optString("to")}"); com.blaze.assistant.phone.Messaging.run(app, args) }
                 com.blaze.assistant.browser.BrowserTools.SECURE -> secureInput(args)
+                in com.blaze.assistant.browser.phone.PhoneBrowserTools.names -> {
+                    // 0.45.19 Blaze Phone: one screen, so parallel specialists take turns (the first to use it holds it).
+                    agentId?.let { me -> Dispatch.phone.take(me) { h -> BgAgents.get(h)?.live == true }?.let {
+                        return "Blaze Phone is in use by another agent right now. Use web_search / fetch_page for this step, or finish without it." } }
+                    add(Role.STEP, com.blaze.assistant.browser.phone.PhoneBrowserTools.describe(name, args))
+                    val drv = com.blaze.assistant.browser.phone.PhoneBrowser.Driver(app) { reason, site ->
+                        if (!inForeground) Notifier.actionRequired("Take control: ${reason.take(50)}", site,
+                            "Blaze needs you on Blaze Phone ($site): ${reason.take(80)}. Tap, then Take control.") }
+                    com.blaze.assistant.browser.phone.PhoneBrowserTools.run(drv, name, args, shots) { t, d, a -> confirm(t, d, a, always = true) }
+                }
                 in com.blaze.assistant.browser.BrowserTools.names -> {
                     // v0.26.2: parallel specialists take turns with the one background browser (the first to use it holds it).
                     agentId?.let { me -> Dispatch.browser.take(me) { h -> BgAgents.get(h)?.live == true }?.let { return it } }
@@ -4570,12 +4531,11 @@ When you finish, say what you did in one short sentence.
                         // v0.45.13 verify-after-act: a switch tapped toward a wanted state is read back before anything says it changed.
                         if (want == null || wantId == null || svc == null || r.startsWith("Error") || r.startsWith("Couldn't")) r
                         else {
-                            svc.settle(maxMs = 1200, quietMs = 250)
-                            when (svc.switchState(wantId)) {
-                                want -> r.trimEnd() + " " + ActCheck.checked("the switch \u201c${label.take(40)}\u201d now reads ${TapLoop.wantWord(want)}")
-                                null -> r.trimEnd() + " " + ActCheck.notConfirmed("couldn't read the switch back", "read_screen and check it")
-                                else -> r.trimEnd() + " " + ActCheck.notConfirmed("the switch \u201c${label.take(40)}\u201d still reads ${TapLoop.wantWord(!want)}", "read_screen, then tap the switch itself")
-                            }
+                            // 0.45.19: verify by STATE first (dark mode, Wi-Fi, Bluetooth… read from the system), then the switch
+                            // re-found and re-read; polled with a timeout. A theme switch recreates the screen, so the old node
+                            // read back "unknown" while Dark theme was on, and the reply said both (StateCheck).
+                            val vr = com.blaze.assistant.phone.ToggleVerify.after(app, svc, label, wantId, want)
+                            r.trimEnd() + " " + com.blaze.assistant.phone.ToggleVerify.marker(vr)
                         }
                     }
                 }
@@ -4667,6 +4627,7 @@ When you finish, say what you did in one short sentence.
             fun board() = labels.mapIndexed { i, l -> (when (state[i]) { 2 -> "\u2713 "; 1 -> "\u2192 "; 3 -> "\u2715 "; 4 -> "\u2013 "; else -> "\u00b7 " }) + l }.joinToString("\n")
             val boardId = add(Role.STEP, board())
             val started = System.currentTimeMillis()
+            val planChecks = mutableListOf<String>()
             for (i in skip until n) {
                 val st = steps.getJSONObject(i)
                 state[i] = 1; replace(boardId, Role.STEP, board())
@@ -4712,6 +4673,12 @@ When you finish, say what you did in one short sentence.
                                 svc.flash(id)
                                 val r = svc.tap(id, st.optString("do") == "long_press")
                                 if (r.startsWith("Couldn't") || r.startsWith("No element")) fail = r
+                                else if (want != null) {
+                                    // 0.45.19: a switch step toward a wanted state is verified by state / re-read, like the tap tool.
+                                    val vr = com.blaze.assistant.phone.ToggleVerify.after(app, svc, label.ifBlank { target }, id, want)
+                                    planChecks += com.blaze.assistant.phone.ToggleVerify.marker(vr)
+                                    if (vr.status == com.blaze.assistant.phone.StateCheck.Status.CONTRADICTED) fail = com.blaze.assistant.phone.StateCheck.contradicted(vr)
+                                }
                                 trace.put(JSONObject().put("tool", "tap").put("args", JSONObject().put("text", label)).put("label", label))
                             }
                         }
@@ -4759,7 +4726,8 @@ When you finish, say what you did in one short sentence.
             }
             lastPlan = FastActions.PlanRun(keys, n, false, svc.currentPkg())
             val words = svc.visibleWords().filter { it.length in 2..60 }.take(25)
-            return "All $n steps done in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s. Now in ${svc.currentApp() ?: "?"}. On screen: ${words.joinToString(" · ")}\n(Call read_screen only if you need to act further on this screen.)"
+            return "All $n steps done in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s. Now in ${svc.currentApp() ?: "?"}. On screen: ${words.joinToString(" · ")}\n(Call read_screen only if you need to act further on this screen.)" +
+                (if (planChecks.isNotEmpty()) " " + planChecks.last() else "")
         }
 
         /**

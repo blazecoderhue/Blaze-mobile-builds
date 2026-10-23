@@ -2,6 +2,7 @@ package com.blaze.assistant.agent
 
 import com.blaze.assistant.ui.Views
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,7 +31,7 @@ class CommandRegistryTest {
         Awareness.reset()
         val r = Awareness.report(Views.all.map { Triple(it.name, it.id, it.desc) }, commands = CommandRegistry.catalog())
         Views.all.forEach { assertTrue("view ${it.id}", r.contains("(/${it.id})")) }
-        assertTrue(r.contains("- /translate")); assertTrue(r.contains("desktop_task")); assertTrue(r.contains("open_view view=home"))
+        assertTrue(r.contains("- /translate")); assertFalse(r.contains("desktop_task")); assertTrue(r.contains("open_view view=home"))
     }
 
     @Test fun openViewToolCoversEveryView() {

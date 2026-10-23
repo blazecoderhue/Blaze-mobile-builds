@@ -326,7 +326,6 @@ fun ChatScreen() {
     val simpleMode by com.blaze.assistant.agent.SimpleMode.simpleFlow.collectAsState()
     val swipeMode by com.blaze.assistant.agent.SwipeNav.swipeFlow.collectAsState()
     var typing by rememberSaveable { mutableStateOf(false) }
-    val desktopTask by com.blaze.assistant.desktop.DesktopAgent.state.collectAsState()
     var avatarMenu by remember { mutableStateOf(false) }
     var plusOpen by remember { mutableStateOf(false) }
     val showing by Views.showing.collectAsState()
@@ -353,6 +352,7 @@ fun ChatScreen() {
             "phone" -> com.blaze.assistant.blazeos.BlazeOsActivity.open(ctx)
             "projects" -> go(navNow().projectsList())
             "browser" -> com.blaze.assistant.browser.BrowserTools.show(ctx)
+            "phonebrowser" -> com.blaze.assistant.browser.phone.PhoneBrowserActivity.open(ctx, control = false)
             "terminal" -> com.blaze.assistant.terminal.BlazeTerminalActivity.open(ctx)
             "music" -> com.blaze.assistant.mediaapps.MusicActivity.open(ctx, target)
             "video" -> com.blaze.assistant.mediaapps.VideoActivity.open(ctx, target)
@@ -389,7 +389,7 @@ fun ChatScreen() {
             if (cmdName == "views") { input = TextFieldValue(""); showViews = true; return }
             if (cmdName == "search") { input = TextFieldValue(""); showSearch = true; return }
             if (cmdName == "projects") { input = TextFieldValue(""); go(navNow().projectsList()); return }
-            if (cmdName in setOf("jobs", "schedule", "accounts", "doctor", "design", "router", "skills", "gallery", "browser", "terminal", "music", "video", "phone", "doing", "look", "linux", "home", "sync") && !text.contains(' ')) {
+            if (cmdName in setOf("jobs", "schedule", "accounts", "doctor", "design", "router", "skills", "gallery", "browser", "terminal", "music", "video", "phone", "doing", "look", "home", "sync") && !text.contains(' ')) {
                 input = TextFieldValue(""); Views.find(cmdName)?.let { openView(it) }; return
             }
         }
@@ -500,8 +500,8 @@ fun ChatScreen() {
     // Things that need the chat bring it up: a question, an approval, a fix card, the computer card, a shared text, the mic.
     val pendingConfirmNow by Agent.pendingConfirm.collectAsState()
     val fixNow by com.blaze.assistant.agent.FixCards.current.collectAsState()
-    LaunchedEffect(question, pendingConfirmNow, fixNow, desktopTask.active, listenReq) {
-        if (swipeMode && (question != null || pendingConfirmNow != null || fixNow != null || desktopTask.active || listenReq > 0) && sheetP < 1f) settleTo(1f)
+    LaunchedEffect(question, pendingConfirmNow, fixNow, listenReq) {
+        if (swipeMode && (question != null || pendingConfirmNow != null || fixNow != null || listenReq > 0) && sheetP < 1f) settleTo(1f)
     }
     val homeReq by homeRequests.collectAsState()
     LaunchedEffect(homeReq) { if (homeReq > 0) { if (swipeMode) settleTo(0f) else go(navNow().switchTab(ChatNav.HOME)) } }
@@ -658,10 +658,8 @@ fun ChatScreen() {
             QuestionCard()
             FixCard()
             SecureFormCard()
-            // v0.39.0: Blaze using the computer by itself: a watch-only live PC view with Pause / Stop (or a small pill).
-            if (desktopTask.active) DesktopTaskCard(onOpen = { com.blaze.assistant.desktop.LinuxDesktop.requestViewer(); settingsPage = "linux" })
-            // v0.25.5: live mini view of the Linux desktop while Blaze works in it; tap for the full Desktop view.
-            else if (settingsPage != "linux") DesktopLiveCard(onOpen = { com.blaze.assistant.desktop.LinuxDesktop.requestViewer(); settingsPage = "linux" })
+            // 0.45.19: Blaze Phone's live tile (frame, site, step, Take control) while Blaze works on its own phone.
+            PhoneLiveCard()
             // v0.24.6: "Open in Design?" instead of switching views on its own.
             if (nav.tab == ChatNav.CHAT) viewOffer?.let { o -> if (showing != o.id) ViewOfferChip(Views.offerLabel(o.id),
                 onOpen = { Views.offer.value = null; Views.find(o.id)?.let { openView(it, o.target) } }, onDismiss = { Views.offer.value = null }) }
@@ -703,7 +701,6 @@ fun ChatScreen() {
                             "approval" -> com.blaze.assistant.agent.Modes.toggleApproval()
                             "model" -> settingsPage = "ai"
                             "views" -> showViews = true
-                            "linux" -> settingsPage = "linux"
                             "new" -> newProjectChat(navNow().project)
                             "clear" -> clearScreen()
                         }
@@ -846,7 +843,6 @@ private fun MessageList(mood: Mood, onQuote: (String) -> Unit, onFollowup: (Stri
     var follow by remember { mutableStateOf(true) }
     LaunchedEffect(state.isScrollInProgress) { if (state.isScrollInProgress) follow = atBottom }
     LaunchedEffect(atBottom) { if (atBottom) follow = true }
-    LaunchedEffect(atBottom) { ChatScrollState.away.value = !atBottom }   // v0.39.0: the computer card shrinks when you read back
 
     suspend fun toEnd(animated: Boolean) {
         if (animated) state.animateScrollToItem(total - 1) else state.scrollToItem(total - 1)
