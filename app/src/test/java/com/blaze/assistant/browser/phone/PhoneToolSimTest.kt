@@ -218,6 +218,7 @@ class PhoneToolSimTest {
     @Test fun describeLinesForTheChatSteps() {
         assertEquals("Opening opentable.com on Blaze Phone", PhoneBrowserTools.describe("phone_open", JSONObject().put("url", "https://www.opentable.com/r/x")))
         assertEquals("Asking you to take control", PhoneBrowserTools.describe("phone_handoff", JSONObject()))
-        assertEquals("Tapping e10", PhoneBrowserTools.describe("phone_act", JSONObject().put("action", "click").put("target", "e10")))
+        assertEquals("Tapping on Blaze Phone", PhoneBrowserTools.describe("phone_act", JSONObject().put("action", "click").put("target", "e10")))
+        assertEquals("Tapping \u201cSign in\u201d", PhoneBrowserTools.describe("phone_act", JSONObject().put("action", "click").put("target", "Sign in")))
     }
 }

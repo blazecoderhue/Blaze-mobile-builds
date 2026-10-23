@@ -59,7 +59,89 @@ class SimPage(seed: Long) : PageHost {
     var simNanos = 0L
 
     fun el(id: String): El? = doc?.els?.firstOrNull { it.id == id }
-    fun changed(what: String) { onChange?.invoke(what) }
+    fun changed(what: String) { bridgeEvent(what); onChange?.invoke(what) }
+
+    // ------------------------------------------------------------------ the DOM bridge (0.45.19-speed)
+    /** Simulates the injected bridge: each page change is batched 30 ms, scanned (page time: [scanCost]) and posted (2 ms). */
+    var bridge = true
+    val cache = DomCache("TOK") { t }
+    private var sigN = 0L
+    private var docId = "d0"
+    private var docNo = 0
+    private var bSeq = 0L
+    private var prevNodes: Map<String, String> = emptyMap()
+    private var prevOrder = ""
+    private var prevText: String? = null
+    private var flushAt = -1L
+    private var inflight = 0
+    private var forceFull = true
+    /** Messages the bridge posted (for the bridge tests). */
+    var posted = 0
+
+    private fun bump() { sigN++ }
+
+    private fun bridgeEvent(what: String) {
+        when (what) {
+            "navstart" -> { cache.navStarted(); bump() }
+            "navfinish" -> { docId = "d" + (++docNo); bSeq = 0; prevNodes = emptyMap(); prevOrder = ""; prevText = null; inflight = 0; forceFull = true; bump(); schedFlush() }
+            "netstart" -> { inflight++; schedFlush() }
+            "netend" -> { inflight = maxOf(0, inflight - 1); schedFlush() }
+            else -> schedFlush()
+        }
+    }
+
+    private fun schedFlush() {
+        if (!bridge || flushAt >= 0) return
+        flushAt = t + 30
+        at(30) {
+            val d = doc
+            if (d == null) { flushAt = -1; return@at }
+            val msg = bridgeMessage(d, forceFull)
+            forceFull = false
+            val cost = scanCost(d, msg?.toString()?.length ?: 0)
+            at(cost + 2) { flushAt = -1; if (msg != null) { posted++; if (cache.accept(msg.toString())) bump() } }
+        }
+    }
+
+    private fun focusJson(): Any {
+        val f = focused?.let { el(it) } ?: return JSONObject.NULL
+        return JSONObject().put("id", f.id).put("submit", f.submitLabel).put("inForm", f.inForm).put("editable", f.role == "textbox")
+    }
+
+    fun bridgeNode(e: El): JSONObject = nodeJson(e).apply { remove("x"); remove("y"); remove("w"); remove("h"); if (e.role == "textbox") put("len", e.value.length) }
+
+    /** What the injected script would post now ([full]: everything), or null when nothing changed. */
+    fun bridgeMessage(d: Doc, full: Boolean, withToken: Boolean = true): JSONObject? {
+        val o = JSONObject().put("doc", docId).put("seq", bSeq + 1).put("full", full).put("url", d.url).put("title", d.title)
+            .put("net", inflight).put("ready", "complete").put("sy", scrollY)
+        val cur = LinkedHashMap<String, String>(); val set = JSONArray()
+        d.els.filter { it.visible }.take(250).forEach { e -> val n = bridgeNode(e); val k = n.toString(); cur[e.id] = k; if (full || prevNodes[e.id] != k) set.put(n) }
+        val del = JSONArray(); if (!full) prevNodes.keys.filter { it !in cur }.forEach { del.put(it) }
+        val order = cur.keys.joinToString(",")
+        var changed = full
+        if (set.length() > 0) { o.put("set", set); changed = true }
+        if (del.length() > 0) { o.put("del", del); changed = true }
+        if (full || order != prevOrder) { o.put("order", JSONArray(cur.keys.toList())); changed = true }
+        if (full || d.text != prevText) { o.put("text", d.text.take(12000)); changed = true }
+        if (full) o.put("headings", JSONArray())
+        o.put("pw", d.els.any { it.visible && it.type == "password" }).put("card", false).put("focus", focusJson())
+        prevNodes = cur; prevOrder = order; prevText = d.text
+        // The real script also posts when only net / focus / scroll changed; so does this one.
+        bSeq++
+        if (withToken) o.put("k", "TOK")
+        return o
+    }
+
+    override fun dom(): DomCache? = if (bridge && doc != null) cache else null
+    override fun signal(): Long = sigN
+    override suspend fun awaitSignal(after: Long, ms: Long): Boolean {
+        val end = t + ms
+        while (sigN == after) { val e = q.peek() ?: break; if (e.at > end) break; advanceTo(e.at) }
+        if (sigN == after) advanceTo(end)
+        return sigN != after
+    }
+    override fun loading(): Boolean = !loadedDone
+    override fun watching(): Boolean = watching
 
     /** Starts a navigation to [make] (start after [startIn], finish [dur] later), like a tap on a link. */
     fun navigate(startIn: Long, dur: Long, make: () -> Doc) {
@@ -70,7 +152,7 @@ class SimPage(seed: Long) : PageHost {
     }
 
     /** phone_open: loadUrl (the deferred is reset before the load, as PhoneBrowser.open does). */
-    fun open(make: () -> Doc) { loadedDone = false; navigate(20, rnd.nextLong(500, 2001), make) }
+    fun open(make: () -> Doc) { loadedDone = false; bump(); navigate(20, rnd.nextLong(500, 2001), make) }
 
     // ------------------------------------------------------------------ costs
     private fun rtt() = 4 + rnd.nextLong(0, 9)
@@ -82,13 +164,17 @@ class SimPage(seed: Long) : PageHost {
 
     // ------------------------------------------------------------------ PageHost
     override fun now() = t
-    override suspend fun sleep(ms: Long) = advanceTo(t + ms)
+    /** Fixed sleeps the engine asked for, and page calls it made (the bridge tests assert on these). */
+    var sleeps = 0
+    var evals = 0
+    override suspend fun sleep(ms: Long) { sleeps++; advanceTo(t + ms) }
     override fun hasPage() = doc != null
     override fun url() = doc?.url.orEmpty()
     override fun touch() {}
     override suspend fun viewHeight() = 2000
 
     override suspend fun eval(code: String): Any? {
+        evals++
         val n0 = System.nanoTime()
         val name = Regex("^/\\*bz:([a-z]+)\\*/").find(code)?.groupValues?.get(1) ?: return null
         val args = Regex("\\)\\((.*)\\)\\s*$", RegexOption.DOT_MATCHES_ALL).find(code)?.groupValues?.get(1)?.let { a ->
@@ -124,6 +210,11 @@ class SimPage(seed: Long) : PageHost {
                     if (txt.isNotBlank()) ok = d.text.contains(txt, true) || d.els.any { it.visible && it.name.contains(txt, true) }
                     if (gone) ok = !ok
                     if (ok) "yes" else "no" }
+                "locate" -> { extra = (d.domSize * 0.002 + d.els.size * 0.02).toLong()
+                    val qq = args.optString(0).lowercase().trim(); val field = args.optBoolean(1)
+                    d.els.filter { it.visible && (!field || it.role == "textbox" || it.role == "combobox") && it.name.lowercase().contains(qq) }
+                        .minByOrNull { it.name.length }?.let { lastTapTarget = it.id; rectJson(it) } }
+                "full" -> if (!bridge) null else bridgeMessage(d, true, withToken = false)?.also { extra = scanCost(d, it.toString().length) }
                 "sy" -> scrollY.toString()
                 "scrollby" -> { scrollY += 1000; changed("scroll"); scrollY.toString() }
                 else -> extraEval(name, args, d).also { extra = extraCost }

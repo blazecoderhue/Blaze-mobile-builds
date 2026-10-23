@@ -52,7 +52,7 @@ class PhonePerfTest {
                 SimPage.El("e75", "button", "Book", type = "submit", visible = false))
             form[4].onClick = { val v = form[4].value; p.at(p.rnd.nextLong(50, 201)) { d.text = d.text + "\nPrice for $v: 150"; p.changed("dom") } }
             d.els += form
-            d.els += SimPage.El("e5", "button", "Book this room", onClick = {
+            d.els += SimPage.El("e65", "button", "Book this room", onClick = {
                 p.changed("netstart")
                 p.at(p.rnd.nextLong(100, 601)) {
                     p.changed("netend")
@@ -98,12 +98,16 @@ class PhonePerfTest {
         override suspend fun handoff(reason: String) = "n/a"
         override suspend fun awaitAgentTurn() = true
         override fun status() = ""
+        override fun now() = p.t
     }
 
     data class Sample(val ms: Double, val ok: Boolean)
 
     companion object {
         const val CPU_PHONE_FACTOR = 3.0
+        /** From the baseline re-run (fixture fix), see PHONE_SPEED_STATUS.md. Updated once that run is in. */
+        const val BEFORE_ACT_P50 = 783.3
+        const val BEFORE_ACT_P95 = 2398.1
         fun pct(xs: List<Double>, p: Double): Double { if (xs.isEmpty()) return 0.0; val s = xs.sorted(); return s[(Math.ceil(p * s.size).toInt() - 1).coerceIn(0, s.size - 1)] }
         fun fmt(d: Double) = String.format(java.util.Locale.ROOT, "%.1f", d)
     }
@@ -114,8 +118,10 @@ class PhonePerfTest {
     open fun driver(p: SimPage): PhoneDriver = SimDriver(p)
 
     /** One measured tool call on a fresh page that was opened and fully settled first (not timed). */
+    private var bridge = true
+
     private fun sample(seed: Long, url: String, prep: (SimPage) -> Unit, tool: String, args: JSONObject, check: (SimPage, String) -> Boolean): Sample = runBlocking {
-        val p = SimPage(seed)
+        val p = SimPage(seed).also { it.bridge = bridge }
         val d = driver(p)
         d.open(url); p.drain(); prep(p); p.drain()
         val t0 = p.t; val s0 = p.simNanos; val c0 = System.nanoTime()
@@ -134,7 +140,7 @@ class PhonePerfTest {
         ActCase("act-link-navigates", "https://shop.example/list?page=1", {}, """{"action":"click","target":"e250"}""") { _, o -> o.contains("Page 2 of results") },
         ActCase("act-button-fetches", "https://automationintesting.online/", {}, """{"action":"click","target":"Book this room"}""") { _, o -> o.contains("Firstname") },
         ActCase("act-type", "https://the-internet.herokuapp.com/login", {}, """{"action":"type","target":"Username","text":"tomsmith"}""") { p, o -> o.startsWith("Typed") && p.el("e1")?.value == "tomsmith" },
-        ActCase("act-select", "https://automationintesting.online/", { p -> p.el("e5")?.onClick?.invoke() }, """{"action":"select","target":"Room type","option":"Double"}""") { p, o -> o.startsWith("Selected") && p.el("e74")?.value == "Double" },
+        ActCase("act-select", "https://automationintesting.online/", { p -> p.el("e65")?.onClick?.invoke() }, """{"action":"select","target":"Room type","option":"Double"}""") { p, o -> o.startsWith("Selected") && p.el("e74")?.value == "Double" },
         ActCase("act-submit-signs-in", "https://the-internet.herokuapp.com/login", { p -> p.el("e1")?.value = "tomsmith" },
             """{"action":"type","target":"Password","text":"SuperSecretPassword!","submit":true}""") { _, o -> o.contains("You logged into a secure area") },
     )
@@ -151,7 +157,8 @@ class PhonePerfTest {
     }
 
     /** Runs the harness and prints the PERF lines; returns (read p50, read p95, act p50, act p95, act verified rate, read verified rate). */
-    fun measure(label: String, n: Int = 40): DoubleArray {
+    fun measure(label: String, n: Int = 40, withBridge: Boolean = true): DoubleArray {
+        bridge = withBridge
         runAll(5, 9_000_000L)   // JIT warm-up, not counted
         val r = runAll(n, 1L)
         val reads = r.filterKeys { it.startsWith("read-") }.values.flatten()
@@ -165,10 +172,32 @@ class PhonePerfTest {
         return res
     }
 
-    @Test fun perfHarnessRunsEveryCase() {
-        val r = measure("engine")
-        assertTrue("read p50 measured", r[0] > 0.0)
+    /**
+     * Before (0.45.19 at a82f7aa, the same harness, CI run recorded in PHONE_SPEED_STATUS.md): page read p50 27.3 / p95 70.2 ms;
+     * act-to-verified p50 / p95 in [BEFORE_ACT_P50] / [BEFORE_ACT_P95]. After: reads from the bridge cache, event waits.
+     */
+    @Test fun perfAfterIsFasterAndAlwaysVerified() {
+        val r = measure("bridge")
+        assertEquals("every act verified (5 cases × 40)", 1.0, r[4], 0.0)
+        assertEquals("every read verified", 1.0, r[5], 0.0)
+        assertTrue("read p95 ${r[1]} under 10 ms (was 70.2)", r[1] < 10.0)
+        assertTrue("read p50 ${r[0]} under 5 ms (was 27.3)", r[0] < 5.0)
+        assertTrue("act p95 ${r[3]} faster than before $BEFORE_ACT_P95", r[3] < BEFORE_ACT_P95)
+        assertTrue("act p50 ${r[2]} faster than before $BEFORE_ACT_P50", r[2] < BEFORE_ACT_P50)
+    }
+
+    /** Pages where the bridge didn't inject: the direct DOM read and the old timed waits still work. */
+    @Test fun perfWithoutBridgeStillWorks() {
+        val r = measure("no-bridge", n = 10, withBridge = false)
+        assertTrue("reads verified", r[5] == 1.0)
         assertEquals(5, actCases.size)
         assertEquals(3, readCases.size)
+    }
+
+    @Test fun fixtureIdsAreUnique() {
+        val p = SimPage(1)
+        listOf(Sites.login(p), Sites.secure(), Sites.rooms(p), Sites.shop(p, 1)).forEach { d ->
+            assertEquals(d.url, d.els.size, d.els.map { it.id }.toSet().size)
+        }
     }
 }

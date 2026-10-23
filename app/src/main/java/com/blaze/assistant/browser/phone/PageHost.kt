@@ -27,4 +27,16 @@ interface PageHost {
     suspend fun awaitLoad(ms: Long): Boolean
     /** Marks the page as used (idle release clock). */
     fun touch()
+
+    // 0.45.19-speed: the DOM bridge and page events (defaults: a page without a bridge).
+    /** The bridge's live model of the page; null when this page has none (the engine then reads the DOM directly). */
+    fun dom(): DomCache? = null
+    /** Bumped on every page signal: a bridge message, a navigation starting or finishing. */
+    fun signal(): Long = 0L
+    /** Waits until [signal] moves past [after] or [ms] pass; true when it moved. */
+    suspend fun awaitSignal(after: Long, ms: Long): Boolean { sleep(ms); return false }
+    /** A navigation is in flight (started, not finished). */
+    fun loading(): Boolean = false
+    /** Someone watches the live view (typing is paced so letters show). */
+    fun watching(): Boolean = false
 }

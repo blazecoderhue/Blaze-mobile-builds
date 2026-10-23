@@ -26,11 +26,15 @@ object PhoneBrowserTools {
     const val RULE = "Blaze Phone is Blaze's own phone screen: a real browser that keeps the user's sign-ins per site and runs in the background " +
         "while they use other apps (they can watch it live in the chat and take control). Use it to log in, book, order, fill forms and check accounts on websites. " +
         "Never say something is booked, ordered, paid or confirmed unless the page read says VERIFIED; otherwise say exactly what the page shows. " +
-        "Not for banking or games."
+        "Users never give web addresses: pass what they called the site to phone_open as they said it ('the booking site', 'my bank', 'herokuapp login page', " +
+        "'the-internet login'); Blaze picks the site (ones they used before first, then a search that skips ads and look-alike sites, official domain) and the " +
+        "sub-page (e.g. the login form). If it says it can't tell which site, ask the user; never guess or invent a URL. " +
+        "No games; on banking sites open and read only, never move money."
 
     fun definitions(): List<JSONObject> = listOf(
-        fn("phone_open", "$RULE Opens a URL (or search words) on Blaze Phone and returns the page: a VERIFIED/NOT VERIFIED line, elements with ids like [e12], and the text.",
-            JSONObject().put("url", p("string", "URL or search words")), listOf("url")),
+        fn("phone_open", "$RULE Opens a site on Blaze Phone: a URL, or what the user called it (resolved for you), and returns the page: a VERIFIED/NOT VERIFIED line, " +
+            "elements with ids like [e12], and the text.",
+            JSONObject().put("url", p("string", "A URL, or the site as the user named it: 'the booking site', 'my bank', 'github login'")), listOf("url")),
         fn("phone_read", "Reads the Blaze Phone page again: verification line, interactive elements with stable ids (password and card values hidden), headings and text. " +
             "Call it before saying anything is done."),
         fn("phone_act", "Acts on the Blaze Phone page with real taps and keys. action: click (target), type (target + text; submit=true presses Enter), " +
@@ -60,14 +64,15 @@ object PhoneBrowserTools {
         "phone_open" -> "Opening ${hostish(a.optString("url"))} on Blaze Phone"
         "phone_read" -> "Reading Blaze Phone's page"
         "phone_act" -> when (a.optString("action")) {
-            "click" -> "Tapping ${a.optString("target").take(40)}"
+            // Never a raw element id ("e12") or call text in the chat's step line; the live tile gets the element's label.
+            "click" -> a.optString("target").trim().let { t -> if (t.isEmpty() || Regex("^\\[?e\\d+\\]?$").matches(t)) "Tapping on Blaze Phone" else "Tapping \u201c${t.take(40)}\u201d" }
             "type" -> "Typing on Blaze Phone"
             "key" -> "Pressing ${a.optString("key").ifBlank { "a key" }}"
             "scroll" -> "Scrolling Blaze Phone"
             "select" -> "Choosing ${a.optString("option").take(40)}"
             "navigate" -> "Going to ${hostish(a.optString("text"))}"
             "fill_login" -> "Filling your saved login"
-            else -> a.optString("action").replaceFirstChar { it.uppercase() } + " on Blaze Phone"
+            else -> "Working on Blaze Phone"
         }
         "phone_screenshot" -> "Looking at Blaze Phone"
         "phone_wait" -> "Waiting for the page"
@@ -82,15 +87,28 @@ object PhoneBrowserTools {
 
     private const val NO_PAGE = "Blaze Phone has no page open. Use phone_open first."
 
-    suspend fun run(d: PhoneDriver, name: String, a: JSONObject, shots: MutableList<String>, confirm: suspend (String, String, String) -> Boolean): String = try {
+    suspend fun run(d: PhoneDriver, name: String, a: JSONObject, shots: MutableList<String>, confirm: suspend (String, String, String) -> Boolean): String {
+        // 0.45.19-speed: timings for phone_status (the user's approval time on a confirm card isn't Blaze's).
+        val t0 = d.now()
+        var waited = 0L
+        val timedConfirm: suspend (String, String, String) -> Boolean = { t, de, ac -> val c0 = d.now(); try { confirm(t, de, ac) } finally { waited += d.now() - c0 } }
+        val out = runInner(d, name, a, shots, timedConfirm)
+        when (name) {
+            "phone_read" -> PhonePerf.add(PhonePerf.READ, d.now() - t0)
+            "phone_act" -> PhonePerf.add(PhonePerf.ACT, d.now() - t0 - waited)
+        }
+        return out
+    }
+
+    private suspend fun runInner(d: PhoneDriver, name: String, a: JSONObject, shots: MutableList<String>, confirm: suspend (String, String, String) -> Boolean): String = try {
         d.step(describe(name, a))
         when (name) {
             "phone_status" -> d.status()
             "phone_open" -> {
                 val url = a.optString("url").trim()
-                if (url.isEmpty()) "Give a URL or search words." else d.open(url)
+                if (url.isEmpty()) "Give a URL or the site's name." else if (SiteResolver.isUrlish(url)) d.open(url) else openByName(d, url)
             }
-            "phone_read" -> if (!d.hasPage()) NO_PAGE else if (!d.awaitAgentTurn()) USER_HAS_IT else d.snapshot()?.let { PhonePolicy.render(it) } ?: "Couldn't read this page (still loading?). phone_wait, then phone_read."
+            "phone_read" -> if (!d.hasPage()) NO_PAGE else if (!d.awaitAgentTurn()) USER_HAS_IT else d.snapshot()?.let { PhonePolicy.render(it) } ?: readFallback(d, shots)
             "phone_screenshot" -> if (!d.hasPage()) NO_PAGE else {
                 val shot = d.screenshot()
                 val v = d.snapshot()?.let { PhonePolicy.verify(it).line() }.orEmpty()
@@ -103,7 +121,41 @@ object PhoneBrowserTools {
             "phone_act" -> act(d, a, confirm)
             else -> "Unknown Blaze Phone tool."
         }
-    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { "Blaze Phone error: ${e.message}" }
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { "Blaze Phone error: ${com.blaze.assistant.browser.SecureInput.scrub(e.message.orEmpty().take(200))}" }
+
+    /** The DOM couldn't be read: only then a screenshot (never as a substitute for verification). */
+    private suspend fun readFallback(d: PhoneDriver, shots: MutableList<String>): String {
+        val shot = d.screenshot()
+        return if (shot != null) { shots += shot
+            "The page's elements couldn't be read right now (still loading, or the page blocks it); a screenshot of Blaze Phone is attached in the next message. " +
+                "NOT VERIFIED: nothing counts as done from a picture; phone_wait, then phone_read." }
+        else "Couldn't read this page (still loading?). phone_wait, then phone_read."
+    }
+
+    /**
+     * 0.45.19-speed: phone_open with what the user called a site ([SiteResolver]): the resolved page, then the sub-page
+     * the words asked for (tapping the site's own "Log in" / "Sign up" / "Orders" link when the search had no deep link).
+     */
+    private suspend fun openByName(d: PhoneDriver, q: String): String {
+        val r = d.resolve(q)
+        val url = r.url ?: return "Couldn't tell which site \u201c${q.take(60)}\u201d is. ${r.ask ?: "Ask the user which site they mean."}"
+        d.step("Opening ${hostish(url)}")
+        val opened = d.open(url)
+        val head = "\u201c${q.take(60)}\u201d \u2192 $url (${r.why})."
+        val sub = r.subpage ?: return "$head\n$opened"
+        val s = d.snapshot() ?: return "$head\n$opened"
+        if (SiteResolver.onSubpage(sub, s.url, s.passwordVisible)) return "$head\n$opened"
+        val re = SiteResolver.linkRe(sub) ?: return "$head\n$opened"
+        val node = s.nodes.filter { (it.role == "link" || it.role == "button") && !it.disabled && re.containsMatchIn(it.name) }.minByOrNull { it.name.length }
+            ?: return "$head There's no $sub link on this page; look for it with phone_read.\n$opened"
+        val t = d.locate(node.id, false) ?: return "$head\n$opened"
+        if (PhonePolicy.gate("click", t.label, t.node(), false) != PhonePolicy.Gate.PASS)
+            return "$head \u201c${t.label.take(40)}\u201d may submit something; tap it with phone_act only if that's what the user wants.\n$opened"
+        d.step("Tapping \u201c${t.label.take(40)}\u201d")
+        val c = d.click(t)
+        val now = d.snapshot()?.let { PhonePolicy.render(it) } ?: "Couldn't read the page yet; phone_read."
+        return "$head Went to the $sub page (tapped \u201c${t.label.take(40)}\u201d). ${c.text}\n\nNow:\n$now"
+    }
 
     private const val USER_HAS_IT = "The user is in control of Blaze Phone and hasn't handed back. Don't act; tell them you'll continue when they tap Hand back."
 
@@ -127,6 +179,7 @@ object PhoneBrowserTools {
             "click" -> {
                 if (target.isEmpty()) return "click needs a target (an id like e12, or its words)."
                 val t = d.locate(target, false) ?: return "No element \u201c${target.take(40)}\u201d on the page now. phone_read for fresh ids."
+                d.step("Tapping \u201c${t.label.take(40).ifBlank { "an element" }}\u201d")
                 val card = d.focusInfo().card
                 when (PhonePolicy.gate("click", t.label, t.node(), card)) {
                     PhonePolicy.Gate.CONFIRM -> if (!confirm("Tap \u201c${t.label.take(40)}\u201d on $site?", "On Blaze Phone. This looks like it books, pays, sends or submits something.", "Tap")) return refused(t.label)
@@ -140,6 +193,7 @@ object PhoneBrowserTools {
                 if (text.isEmpty()) return "type needs text."
                 val t = (if (target.isNotEmpty()) d.locate(target, true) else d.locate(":focus", true))
                     ?: return "No field \u201c${target.take(40)}\u201d. phone_read for fresh ids."
+                d.step("Typing into \u201c${t.label.take(40).ifBlank { "a field" }}\u201d")
                 val submit = a.optBoolean("submit", false)
                 val f = d.focusInfo()
                 when (PhonePolicy.gate("type", if (submit) f.submit.ifBlank { t.label } else t.label, t.node(), f.card, submit)) {

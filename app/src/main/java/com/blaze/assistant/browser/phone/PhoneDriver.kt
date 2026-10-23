@@ -35,4 +35,8 @@ interface PhoneDriver {
     suspend fun awaitAgentTurn(): Boolean
     fun status(): String
     fun step(what: String)
+    /** Milliseconds on a monotonic clock (PhonePerf timings). */
+    fun now(): Long = System.nanoTime() / 1_000_000L
+    /** Turns what the user called a site into a page ([SiteResolver]); the real driver adds history and web search. */
+    suspend fun resolve(query: String): SiteResolver.Resolution = SiteResolver.resolve(query, emptyList()) { emptyList() }
 }

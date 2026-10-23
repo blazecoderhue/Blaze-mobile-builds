@@ -270,8 +270,8 @@ object PhonePolicy {
     /** A tap's finger-down time before the up event. */
     const val TAP_HOLD_MS = 70L
 
-    /** Pause between typed characters (the live view shows letters appear). */
-    fun keyPaceMs(watching: Boolean): Long = 6L
+    /** Pause between typed characters, only while someone watches the live view (so the letters show); none otherwise. */
+    fun keyPaceMs(watching: Boolean): Long = if (watching) 6L else 0L
 
     /** Bounds a wait: 0.5–30 s, default 10. */
     fun waitMs(timeoutSec: Double?): Long = ((timeoutSec ?: 10.0) * 1000).toLong().coerceIn(500, 30_000)
