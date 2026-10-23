@@ -578,7 +578,7 @@ object PhoneBrowser {
 
     /** Settings › Blaze Phone › Sign out: forgets one site's cookies and storage. Main thread. */
     fun signOut(site: String): Boolean {
-        init(app)
+        if (!::app.isInitialized) return false
         if (session?.site == site) release()
         var ok = false
         if (multiProfile) {
@@ -593,6 +593,7 @@ object PhoneBrowser {
 
     /** Settings › Blaze Phone › Clear Blaze Phone data: every Blaze Phone session. Main thread. */
     fun clearAll(): Int {
+        if (!::app.isInitialized) return 0
         release()
         var n = 0
         if (multiProfile) {

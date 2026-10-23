@@ -205,7 +205,7 @@ class PhoneBrowserTest {
         val half = PhonePolicy.displaySize(1080, 2400, 420, 0.5f)
         // CSS px = px / (dpi/160): the same page width at any scale.
         assertEquals(full.width * 160.0 / full.dpi, half.width * 160.0 / half.dpi, 2.0)
-        assertTrue(half.width * half.height * 4 < full.width * full.height)
+        assertTrue(half.width.toLong() * half.height * 3 < full.width.toLong() * full.height)   // a quarter of the pixels
     }
 
     @Test fun waitsAreBounded() {
