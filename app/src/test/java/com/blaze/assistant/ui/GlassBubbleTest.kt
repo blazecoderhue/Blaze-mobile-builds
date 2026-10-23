@@ -12,13 +12,15 @@ class GlassBubbleTest {
         }
     }
 
-    // v0.31.0: borderless thread: messages carry no bubble glass; only cards (the work card) are glass.
-    @Test fun messagesAreBorderlessCardsAreGlass() {
+    // v0.31.0 borderless thread -> 0.45.20 (user spec A): messages are bubbles again, drawn by ChatBubble (ui/ChatBubbles.kt,
+    // AA-checked frost in ChatUi20Test); cards (the work card) stay glass.
+    @Test fun messagesAreBubblesCardsAreGlass() {
         val src = java.io.File("src/main/java/com/blaze/assistant/ui/Bubbles.kt").readText()
         val user = src.substring(src.indexOf("fun UserBubble("), src.indexOf("fun BlazeBubble("))
         val blaze = src.substring(src.indexOf("fun BlazeBubble("), src.indexOf("fun BlazeReply("))
-        assertTrue("no box around your message", !user.contains("chatGlass(") && !user.contains(".border(") && !user.contains("glass("))
-        assertTrue("no box around Blaze's message", !blaze.contains("chatGlass(") && !blaze.contains(".background(") && !blaze.contains(".border("))
+        assertTrue("your message is a bubble on the right", user.contains("ChatBubble(Side.ME"))
+        assertTrue("Blaze's message is a bubble on the left", blaze.contains("ChatBubble(Side.BLAZE"))
+        assertTrue("no old see-through glass around messages", !user.contains("chatGlass(") && !blaze.contains("chatGlass("))
         assertTrue("work card is glass", java.io.File("src/main/java/com/blaze/assistant/ui/Shell.kt").readText().contains("chatGlass(c, mine = false"))
     }
 
@@ -51,6 +53,7 @@ class GlassBubbleTest {
         val rich = java.io.File("src/main/java/com/blaze/assistant/ui/RichInteractive.kt").readText()
         assertTrue(!cards.contains("LocalBubble.current != null) c.inset") && !rich.contains("LocalBubble.current != null) c.inset"))
         assertTrue("reply text keeps its halo", cards.contains("GlassBubble.halo(c)"))
-        assertTrue(java.io.File("src/main/java/com/blaze/assistant/ui/Bubbles.kt").readText().contains("shadow = GlassBubble.halo(c)"))
+        // 0.45.20: words in a bubble sit on its AA frost (BubblePalette), so they need no halo of their own.
+        assertTrue(java.io.File("src/main/java/com/blaze/assistant/ui/ChatBubbles.kt").readText().contains("fun fill(c: BlazeColors, mine: Boolean)"))
     }
 }

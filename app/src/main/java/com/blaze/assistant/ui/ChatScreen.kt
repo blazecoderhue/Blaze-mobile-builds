@@ -1056,7 +1056,7 @@ private fun Entry(m: ChatMessage, pos: GroupPos, canAct: Boolean, onQuote: (Stri
     val bubbleTime = remember(m.at, pos) { if (pos.ends) BubbleDays.time(m.at) else "" }
     CompositionLocalProvider(LocalBubbleTime provides bubbleTime,
         LocalBubbleMenu provides (if (m.role == Role.USER || m.role == Role.BLAZE || m.role == Role.ERROR) ({ menu.value = true }) else null)) {
-    BubbleMenu(menu.value, buildList {
+    BubbleMenu(menu.value, buildList<Pair<String, (() -> Unit)?>> {
         add("Copy" to { entryClip.setText(AnnotatedString(if (m.role == Role.BLAZE) Md.plain(RichKit.readable(com.blaze.assistant.agent.ToolLeak.bubbleText(m.text))) else Md.plain(splitQuote(m.text).second))); Toast.makeText(entryCtx, "Copied", Toast.LENGTH_SHORT).show() })
         if (m.role != Role.ERROR) add("Quote" to { onQuote(if (m.role == Role.BLAZE) com.blaze.assistant.agent.ToolLeak.forDisplay(m.text) else splitQuote(m.text).second) })
         add("Retry" to (if (canAct) ({ Agent.retry(m.id) }) else null))

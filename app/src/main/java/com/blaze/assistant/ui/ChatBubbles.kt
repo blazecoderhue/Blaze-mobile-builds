@@ -160,8 +160,8 @@ class TailBubbleShape(private val mine: Boolean, private val pos: GroupPos, priv
         }
         if (!tail) return Outline.Generic(body)
         val t = Path().apply {
-            if (mine) { moveTo(right - 1f, 0f); lineTo(size.width, 0f); quadraticBezierTo(size.width - tw * 0.55f, th * 0.35f, right - 1f, th) }
-            else { moveTo(left + 1f, 0f); lineTo(0f, 0f); quadraticBezierTo(tw * 0.55f, th * 0.35f, left + 1f, th) }
+            if (mine) { moveTo(right - 1f, 0f); lineTo(size.width, 0f); lineTo(size.width - tw * 0.45f, th * 0.3f); lineTo(right - 1f, th) }
+            else { moveTo(left + 1f, 0f); lineTo(0f, 0f); lineTo(tw * 0.45f, th * 0.3f); lineTo(left + 1f, th) }
             close()
         }
         return Outline.Generic(Path.combine(PathOperation.Union, body, t))
@@ -173,7 +173,7 @@ fun Modifier.bubbleLongPress(onLong: (() -> Unit)?): Modifier = if (onLong == nu
     val timeout = viewConfiguration.longPressTimeoutMillis
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        val up = kotlinx.coroutines.withTimeoutOrNull(timeout) { waitForUpOrCancellation() }
+        val up = withTimeoutOrNull(timeout) { waitForUpOrCancellation() }
         // Still pressed after the timeout, and nothing inside (a text selection, a drag) took the press: the menu.
         if (up == null && !down.isConsumed && currentEvent.changes.none { it.isConsumed }) onLong()
     }
