@@ -17,7 +17,7 @@ object ModelHide {
 
     private val nameAlt = NAMES.joinToString("|") { Regex.escape(it) }
     /** A word that is a provider / model name, or an id containing one ("llama-3.3-70b", "auto/best-free" is not). */
-    private val word = Regex("(?<![\\w.])[\\w.:-]*(?:$nameAlt)[\\w.:-]*(?![\\w])", RegexOption.IGNORE_CASE)
+    private val word = Regex("(?<![\\w.])[\\w.:-]*(?:$nameAlt)(?:[\\w.:-]*\\w)?(?![\\w])", RegexOption.IGNORE_CASE)
     private val id = Regex("(?<![\\w.])[\\w.-]+/[\\w.:-]+(?![\\w])")
     private val paren = Regex("\\s*\\(([^()]*)\\)")
 
