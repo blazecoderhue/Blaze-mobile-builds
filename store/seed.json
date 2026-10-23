@@ -1,0 +1,387 @@
+{
+  "schema": 1,
+  "name": "Blaze Store",
+  "updated": "2026-10-23",
+  "categories": [
+    {
+      "id": "media",
+      "name": "Media"
+    },
+    {
+      "id": "maps",
+      "name": "Maps"
+    },
+    {
+      "id": "communication",
+      "name": "Communication"
+    },
+    {
+      "id": "security",
+      "name": "Security"
+    },
+    {
+      "id": "tools",
+      "name": "Tools"
+    },
+    {
+      "id": "system",
+      "name": "System"
+    }
+  ],
+  "apps": [
+    {
+      "id": "newpipe",
+      "name": "NewPipe",
+      "package": "org.schabi.newpipe",
+      "category": "media",
+      "summary": "Lightweight YouTube front end: no ads, no Google account, background play and downloads.",
+      "description": "NewPipe plays YouTube, PeerTube, SoundCloud and Bandcamp without Google services or ads. It keeps playing in the background or in a pop-up, downloads video and audio, and keeps subscriptions and history on the phone only.",
+      "icon": "https://raw.githubusercontent.com/TeamNewPipe/NewPipe/dev/fastlane/metadata/android/en-US/images/icon.png",
+      "website": "https://newpipe.net",
+      "license": "GPL-3.0-or-later",
+      "source": {
+        "type": "github",
+        "repo": "TeamNewPipe/NewPipe"
+      },
+      "asset": {
+        "pattern": "^NewPipe_v[0-9.]+\\.apk$"
+      },
+      "signer_sha256": [
+        "cb84069bd68116bafae5ee4ee5b08a567aa6d898404e7cb12f9e756df5cf5cab"
+      ],
+      "releases": {
+        "v0.29.1": {
+          "sha256": "18447bfb1e06d113edc88df93f471827280de06f6f3d4dc42f56f28b9c1bab79",
+          "size": 11507122,
+          "version_code": 1015
+        }
+      },
+      "tags": [
+        "youtube",
+        "video",
+        "music",
+        "downloader"
+      ]
+    },
+    {
+      "id": "organicmaps",
+      "name": "Organic Maps",
+      "package": "app.organicmaps.web",
+      "category": "maps",
+      "summary": "Offline maps and turn-by-turn navigation from OpenStreetMap, with no tracking.",
+      "description": "Organic Maps downloads whole regions so search, walking, cycling and driving directions work with no signal. Built on OpenStreetMap data, with hiking trails, contour lines and no ads or trackers. This is the project's own web build (package app.organicmaps.web), which updates separately from store builds.",
+      "icon": "https://raw.githubusercontent.com/organicmaps/organicmaps/master/android/app/src/fdroid/play/listings/en-US/graphics/icon/1.png",
+      "website": "https://organicmaps.app",
+      "license": "Apache-2.0",
+      "source": {
+        "type": "github",
+        "repo": "organicmaps/organicmaps"
+      },
+      "asset": {
+        "pattern": "^OrganicMaps-[0-9]+-web-release\\.apk$"
+      },
+      "signer_sha256": [
+        "b9c7ae79a5a90270df08a132e536b9c666f5bef1f59b304fcecf8687865e4b5b"
+      ],
+      "releases": {
+        "2026.09.29-32-android": {
+          "sha256": "d7dbdfc3cbfdbcce6d437f11147f2cd15384c03052d2b4594fd8c1c7777dd497",
+          "size": 63888223,
+          "version_code": 26092932
+        }
+      },
+      "tags": [
+        "maps",
+        "navigation",
+        "offline",
+        "gps",
+        "openstreetmap"
+      ]
+    },
+    {
+      "id": "thunderbird",
+      "name": "Thunderbird",
+      "package": "net.thunderbird.android",
+      "category": "communication",
+      "summary": "Email for all your accounts, from the makers of Thunderbird desktop (formerly K-9 Mail).",
+      "description": "Thunderbird for Android handles Gmail, Outlook and any IMAP/POP3 account in one unified inbox, with OpenPGP encryption, push mail and no ads. It grew out of K-9 Mail.",
+      "icon": "https://raw.githubusercontent.com/thunderbird/thunderbird-android/main/app-metadata/net.thunderbird.android/en-US/images/icon.png",
+      "website": "https://www.thunderbird.net/mobile/",
+      "license": "Apache-2.0",
+      "source": {
+        "type": "github",
+        "repo": "thunderbird/thunderbird-android"
+      },
+      "asset": {
+        "pattern": "^thunderbird-[0-9.]+\\.apk$"
+      },
+      "signer_sha256": [
+        "b6524779b3dbbc5ac17a5ac271ddb29dcfbf723578c238e03c3c217811356dd1"
+      ],
+      "releases": {
+        "THUNDERBIRD_24_0": {
+          "sha256": "473b33da5963d0a4261a834c845aaf8e3878309565e9f40e61f6e5def21565e5",
+          "size": 10965795,
+          "version_code": 33
+        }
+      },
+      "tags": [
+        "email",
+        "mail",
+        "k-9",
+        "k9",
+        "imap",
+        "openpgp"
+      ]
+    },
+    {
+      "id": "aegis",
+      "name": "Aegis Authenticator",
+      "package": "com.beemdevelopment.aegis",
+      "category": "security",
+      "summary": "Two-factor codes (TOTP/HOTP) in an encrypted vault you control.",
+      "description": "Aegis keeps your 2FA codes in an encrypted vault unlocked by password or fingerprint, with encrypted backups, import from other authenticators and no internet permission.",
+      "icon": "https://raw.githubusercontent.com/beemdevelopment/Aegis/master/metadata/en-US/images/icon.png",
+      "website": "https://getaegis.app",
+      "license": "GPL-3.0-only",
+      "source": {
+        "type": "github",
+        "repo": "beemdevelopment/Aegis"
+      },
+      "asset": {
+        "pattern": "^aegis-v[0-9.]+\\.apk$"
+      },
+      "signer_sha256": [
+        "c6db80a8e14e5230c1de8415ef820d13dc901d8fe33cf3acb57b6862d858a823"
+      ],
+      "releases": {
+        "v3.4.3": {
+          "sha256": "fa091c91912c0d56ec3553394fac4158f9a9d178e93bcbb35419601d788cb528",
+          "size": 6881897,
+          "version_code": 82
+        }
+      },
+      "tags": [
+        "2fa",
+        "authenticator",
+        "otp",
+        "totp",
+        "security"
+      ]
+    },
+    {
+      "id": "keepassdx",
+      "name": "KeePassDX",
+      "package": "com.kunzisoft.keepass.libre",
+      "category": "security",
+      "summary": "Password manager for KeePass databases, offline and open source.",
+      "description": "KeePassDX opens and edits KeePass (.kdbx) files, fills passwords into apps and browsers, unlocks with biometrics and never needs an account or a server. This is the Libre build.",
+      "icon": "https://raw.githubusercontent.com/Kunzisoft/KeePassDX/master/src/libre/fastlane/metadata/android/en-US/images/icon.png",
+      "website": "https://www.keepassdx.com",
+      "license": "GPL-3.0-or-later",
+      "source": {
+        "type": "github",
+        "repo": "Kunzisoft/KeePassDX"
+      },
+      "asset": {
+        "pattern": "^KeePassDX-[0-9.]+-libre\\.apk$"
+      },
+      "signer_sha256": [
+        "7d55b8af210381aabf960f07e17cf7857b6d2a642ca2da6bf0bdf1b200362f04"
+      ],
+      "releases": {
+        "4.5.6": {
+          "sha256": "a77b42f52de4adf2e74e88b0948ef2a681a064a3dbab24e5ff0869a091dbe581",
+          "size": 16771674,
+          "version_code": 45600
+        }
+      },
+      "tags": [
+        "passwords",
+        "password manager",
+        "keepass",
+        "kdbx",
+        "autofill"
+      ]
+    },
+    {
+      "id": "fossify-gallery",
+      "name": "Fossify Gallery",
+      "package": "org.fossify.gallery",
+      "category": "media",
+      "summary": "A fast photo and video gallery with an editor, no ads and no internet access.",
+      "description": "Fossify Gallery browses, edits and organises photos and videos on the phone, hides private folders, recovers deleted items from its bin and works fully offline.",
+      "icon": "https://raw.githubusercontent.com/FossifyOrg/Gallery/main/fastlane/metadata/android/en-US/images/icon.png",
+      "website": "https://www.fossify.org",
+      "license": "GPL-3.0-only",
+      "source": {
+        "type": "github",
+        "repo": "FossifyOrg/Gallery"
+      },
+      "asset": {
+        "pattern": "^gallery-[0-9]+-foss-release\\.apk$"
+      },
+      "signer_sha256": [
+        "affdb124d3f4720c2f98dbca9eacba0514fba4306e20a2786c861c3c0d6ff292"
+      ],
+      "releases": {
+        "1.14.0": {
+          "sha256": "cfa321d7467b116741689f8f118b46011c882a4c2359b9320111f87c998af373",
+          "size": 38538363,
+          "version_code": 29
+        }
+      },
+      "tags": [
+        "photos",
+        "gallery",
+        "images",
+        "video",
+        "editor"
+      ]
+    },
+    {
+      "id": "fossify-files",
+      "name": "Fossify File Manager",
+      "package": "org.fossify.filemanager",
+      "category": "tools",
+      "summary": "Browse, copy, zip and share files on your phone, with no ads.",
+      "description": "Fossify File Manager moves, copies, compresses and shares files and folders, shows storage use, opens root folders when allowed and works offline.",
+      "icon": "https://raw.githubusercontent.com/FossifyOrg/File-Manager/main/fastlane/metadata/android/en-US/images/icon.png",
+      "website": "https://www.fossify.org",
+      "license": "GPL-3.0-only",
+      "source": {
+        "type": "github",
+        "repo": "FossifyOrg/File-Manager"
+      },
+      "asset": {
+        "pattern": "^file-manager-[0-9]+-foss-release\\.apk$"
+      },
+      "signer_sha256": [
+        "affdb124d3f4720c2f98dbca9eacba0514fba4306e20a2786c861c3c0d6ff292"
+      ],
+      "releases": {
+        "1.6.2": {
+          "sha256": "c2993c75ea7287e7ede354b061d9c8772aa9b4b050e7660ec1ebc3592dc3d051",
+          "size": 10030982,
+          "version_code": 14
+        }
+      },
+      "tags": [
+        "files",
+        "file manager",
+        "zip",
+        "storage"
+      ]
+    },
+    {
+      "id": "termux",
+      "name": "Termux",
+      "package": "com.termux",
+      "category": "tools",
+      "summary": "A Linux terminal and package manager on Android.",
+      "description": "Termux gives you a real Linux command line with apt packages (git, python, node, ssh and more) without root. These are the project's GitHub builds, signed with Termux's public GitHub test key: they cannot update or be updated by a Termux installed from F-Droid or Play (uninstall that first).",
+      "icon": "https://raw.githubusercontent.com/termux/termux-app/master/fastlane/metadata/android/en-US/images/icon.png",
+      "website": "https://termux.dev",
+      "license": "GPL-3.0-only",
+      "source": {
+        "type": "github",
+        "repo": "termux/termux-app"
+      },
+      "asset": {
+        "pattern": "^termux-app_v[0-9.]+\\+github-debug_universal\\.apk$",
+        "abis": {
+          "arm64-v8a": "^termux-app_v[0-9.]+\\+github-debug_arm64-v8a\\.apk$",
+          "armeabi-v7a": "^termux-app_v[0-9.]+\\+github-debug_armeabi-v7a\\.apk$",
+          "x86_64": "^termux-app_v[0-9.]+\\+github-debug_x86_64\\.apk$",
+          "x86": "^termux-app_v[0-9.]+\\+github-debug_x86\\.apk$"
+        }
+      },
+      "signer_sha256": [
+        "b6da01480eefd5fbf2cd3771b8d1021ec791304bdd6c4bf41d3faabad48ee5e1"
+      ],
+      "releases": {
+        "v0.118.3": {
+          "sha256_by_asset": {
+            "termux-app_v0.118.3+github-debug_arm64-v8a.apk": "72fdb596045116bf5ba1b5bdf5b26fddb9acc0bd074ad9f2da9eb0ae85e83a4e"
+          },
+          "version_code": 1002
+        }
+      },
+      "tags": [
+        "terminal",
+        "linux",
+        "shell",
+        "ssh",
+        "developer"
+      ]
+    },
+    {
+      "id": "libretube",
+      "name": "LibreTube",
+      "package": "com.github.libretube",
+      "category": "media",
+      "summary": "An alternative YouTube client built on Piped, with no ads or Google account.",
+      "description": "LibreTube streams YouTube through Piped or directly, with subscriptions kept on the phone, SponsorBlock, background play, picture-in-picture and downloads.",
+      "icon": "https://raw.githubusercontent.com/libre-tube/LibreTube/master/fastlane/metadata/android/en-US/images/icon.png",
+      "website": "https://libretube.dev",
+      "license": "GPL-3.0-or-later",
+      "source": {
+        "type": "github",
+        "repo": "libre-tube/LibreTube"
+      },
+      "asset": {
+        "pattern": "^app-release\\.apk$"
+      },
+      "signer_sha256": [
+        "720c4fcecf738a41d033b9fbe0bef97ac232030ce93e274d2e0ae232e44eeace"
+      ],
+      "releases": {
+        "v32.1": {
+          "sha256": "437dbb55540ac573f864938fc3595f69fc13df5d568b237aded9935559fe1353",
+          "size": 9253519,
+          "version_code": 72
+        }
+      },
+      "tags": [
+        "youtube",
+        "video",
+        "piped",
+        "sponsorblock"
+      ]
+    },
+    {
+      "id": "fdroid",
+      "name": "F-Droid",
+      "package": "org.fdroid.fdroid",
+      "category": "system",
+      "summary": "The original catalog of free and open-source Android apps.",
+      "description": "F-Droid installs and updates thousands of open-source apps from its own reviewed repository and any third-party repos you add. Downloaded here from the project's own GitLab releases.",
+      "icon": "https://f-droid.org/assets/fdroid-logo.png",
+      "website": "https://f-droid.org",
+      "license": "GPL-3.0-or-later",
+      "source": {
+        "type": "gitlab",
+        "repo": "fdroid/fdroidclient"
+      },
+      "asset": {
+        "pattern": "^org\\.fdroid\\.fdroid_[0-9]+\\.apk$"
+      },
+      "signer_sha256": [
+        "43238d512c1e5eb2d6569f4a3afbf5523418b82e0a3ed1552770abb9a9c9ccab"
+      ],
+      "releases": {
+        "1.23.2": {
+          "sha256": "985f5181d48bb6bafd54083a048b391271e0ab28385881cc41294fb01a222762",
+          "size": 12426276,
+          "version_code": 1023052
+        }
+      },
+      "tags": [
+        "fdroid",
+        "app store",
+        "open source",
+        "repository"
+      ]
+    }
+  ]
+}

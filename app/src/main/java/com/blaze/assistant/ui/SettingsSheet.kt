@@ -123,6 +123,7 @@ val viewPages = listOf(
     SettingsPage("specialists", "Agents", "Sub-agents Blaze can delegate to"),
     SettingsPage("skills", "Skills", "Research, email, plans, docs, code: on, off, restore"),
     SettingsPage("learn", "Learn", "Flashcards, Google Classroom, low-data mode"),
+    SettingsPage("appstore", "App Store", "Free open-source apps from their developers' own releases"),
     SettingsPage("seller", "Seller", "Brand kit, weekly store digest, replies from your PC"),
     SettingsPage("dashboard", "Dashboard", "Local web dashboard and analytics"),
     // v0.40.0: under Account (and /sync).
@@ -192,6 +193,7 @@ fun SettingsScreen(start: String?, a11yOn: Boolean, onOpenAccessibility: () -> U
                 "backup" -> BackupSection()
                 "learn" -> LearnPage()
                 "seller" -> SellerPage()
+                "appstore" -> AppStorePage()
                 "logs" -> LifeLogsPage()
                 "replies" -> RepliesPage()
                 "logins" -> SavedLoginsPage()

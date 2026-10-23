@@ -312,6 +312,8 @@
 
         <receiver android:name=".notify.ActionReceiver" android:exported="false" />
         <receiver android:name=".update.InstallReceiver" android:exported="false" />
+        <!-- 0.45.19 App Store: PackageInstaller session status for store installs (appstore/StoreInstaller). -->
+        <receiver android:name=".appstore.StoreInstallReceiver" android:exported="false" />
         <receiver android:name=".proactive.ProactiveReceiver" android:exported="false" />
         <receiver android:name=".proactive.FollowUpReceiver" android:exported="false" />
         <receiver android:name=".phone.SafeWalkReceiver" android:exported="false" />
