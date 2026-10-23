@@ -101,7 +101,7 @@ class StreamSpecTest {
         private var cur = 0; private var played = 0.0; private var playing = false; private var startedThis = false
         private var switchAt = 0L; private var stallFrom = -1L; private var paused = false
         private var last = 0.0
-        private val starts = ArrayList<Long>(); private val stalls = ArrayList<Long>(); private val playedMs = LongArray(n)
+        private val starts = ArrayList<Long>(); private val stalls = ArrayList<Long>(); private val playedMs = DoubleArray(n)
         private var skipped = 0; private var finished = 0; private var bannerMs = 0.0; private var maxOfflineStall = 0L
         private var rTarget = -1; private var r: MediaNet.NetReader? = null; private var errors = 0
         private val buf = ByteArray(64 * 1024)
@@ -115,8 +115,8 @@ class StreamSpecTest {
             if (playing) {
                 val can = loaded[cur] - played; val need = dt * rate
                 if (net.down()) bannerMs += minOf(dt, can / rate)   // "Offline: playing from saved" while it plays
-                if (need <= can) { played += need; playedMs[cur] += dt.toLong() }
-                else { played = loaded[cur].toDouble(); playedMs[cur] += (can / rate).toLong(); playing = false; if (played < size(cur)) stallFrom = (now - (need - can) / rate).toLong() }
+                if (need <= can) { played += need; playedMs[cur] += dt }
+                else { played = loaded[cur].toDouble(); playedMs[cur] += can / rate; playing = false; if (played < size(cur)) stallFrom = (now - (need - can) / rate).toLong() }
                 if (played >= size(cur)) { finished++; next(cur + 1) }
             }
             if (!playing && !paused && cur < n) {
@@ -183,7 +183,7 @@ class StreamSpecTest {
                 }
             }
             val shas = songs.indices.map { i -> loaded[i] == size(i) && md[i].digest().joinToString("") { "%02x".format(it) } == sha(songs[i]) }
-            return QueueRun(starts, stalls, playedMs.toList(), finished, skipped, if (paused) clock.now() else -1, bannerMs.toLong(), maxOfflineStall, shas)
+            return QueueRun(starts, stalls, playedMs.map { it.toLong() }, finished, skipped, if (paused) clock.now() else -1, bannerMs.toLong(), maxOfflineStall, shas)
         }
     }
 
@@ -299,7 +299,7 @@ class StreamSpecTest {
             }
             // StoreView rules: a key that will search shows skeletons on the next frame (16 ms); the search fires DEBOUNCE_MS
             // after the last key; a new search cancels the one in flight. 3G answer: 300 ms + 12-20 KB at 50 B/ms, 2 % loss.
-            var fired = "\u0000"; var skeletonAt = -1L; var triggerAt = -1L
+            var fired = "\u0000"; var skeletonAt = -1L; var triggerAt = -1L; var fires = 0
             val inflight = ArrayList<LongRange>(); var cancels = 0; var maxInFlight = 0; var resultAt = -1L
             var pendingFire = -1L; var pendingQ = ""
             var cur: Pair<Long, Long>? = null          // (start, end) of the request in flight
@@ -307,7 +307,7 @@ class StreamSpecTest {
                 cur?.let { (s0, e0) -> if (e0 > at) { cancels++; inflight += s0 until at } else inflight += s0 until e0 }
                 val bytes = 12_000 + rnd.nextInt(8_000)
                 val dur = 300 + (bytes / 50.0).toLong() + (if (rnd.nextDouble() < 0.02 * (bytes / 4096)) 300 else 0)
-                cur = at to at + dur; fired = LiveSearch.key(q, "")
+                cur = at to at + dur; fired = LiveSearch.key(q, ""); fires++
             }
             for ((at, q) in keys) {
                 if (pendingFire in 0..at) { fire(pendingFire, pendingQ); pendingFire = -1 }
@@ -324,8 +324,10 @@ class StreamSpecTest {
             val lastKey = keys.last().first
             val skeleton = skeletonAt - triggerAt
             val after = resultAt - lastKey
-            val ok = skeleton < 100 && maxInFlight <= 1 && after < 1_500 && (run != 1 && run != 3 || cancels >= 1)
-            lines += "run ${run + 1}: skeleton=${skeleton}ms maxInFlight=$maxInFlight cancels=$cancels results ${after}ms after the last key ok=$ok"
+            // Runs 2 and 4: the pause fires a mid-word search. At normal typing speed it has landed before the final one
+            // fires (cancels = 0), so the rule checked is that it fired and never overlapped (a cancel only when it would).
+            val ok = skeleton < 100 && maxInFlight <= 1 && after < 1_500 && (run != 1 && run != 3 || fires >= 2)
+            lines += "run ${run + 1}: skeleton=${skeleton}ms maxInFlight=$maxInFlight fires=$fires cancels=$cancels results ${after}ms after the last key ok=$ok"
             if (ok) pass++
         }
         // The app side of the model: skeletons on the key, not after the debounce; cancel on a new search.
@@ -413,7 +415,9 @@ class StreamSpecTest {
                 val dt = clock.t - last; last = clock.t
                 if (playing) {
                     val can = loadedMs - mediaPos
-                    if (dt <= can) mediaPos += dt else {
+                    if (dt <= can) mediaPos += dt
+                    else if (loadedMs >= totalMs) mediaPos = totalMs.toDouble()   // the video ended: not a stall
+                    else {
                         mediaPos = loadedMs; playing = false; stallFrom = clock.now()
                         stallTimes += clock.now()
                         if (window.stall(clock.now())) {
