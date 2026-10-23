@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * v0.28.1 (Luke, from Hark's chat): several pictures in one message are a fanned card stack, and the full-screen
+ * v0.28.1 (Blazeinchue, from Hark's chat): several pictures in one message are a fanned card stack, and the full-screen
  * viewer flips between pictures in 3D.
  *
  * Pure maths in [StackMath] / [FlipMath] (unit tested in ImageStackTest); the stateless frames [ImageStackFrame] and
@@ -112,7 +112,7 @@ object StackMath {
 }
 
 object FlipMath {
-    /** The Y-axis tilt at a full page turn, in degrees (Luke: about 25–35°). */
+    /** The Y-axis tilt at a full page turn, in degrees (Blazeinchue: about 25–35°). */
     const val MAX_DEG = 30f
 
     data class Page(val rotationY: Float, val shift: Float, val alpha: Float, val pivotX: Float)

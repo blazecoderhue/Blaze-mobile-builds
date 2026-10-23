@@ -47,7 +47,9 @@ object ConfirmGate {
         else -> null
     }
 
-    private val web = setOf("browser_open", "browser_read", "browser_click", "browser_scroll", "browser_back", "browser_tabs")
+    private val web = setOf("browser_open", "browser_read", "browser_click", "browser_scroll", "browser_back", "browser_tabs",
+        // 0.45.19 Blaze Phone: its pages are outside content too.
+        "phone_open", "phone_read", "phone_act", "phone_screenshot", "phone_wait", "phone_handoff")
     private val fetched = setOf("fetch_page", "http_request", "download_file")
     private val notifications = setOf("recent_notifications", "notif_read", "notif_conversations")
     private val messages = setOf("read_messages", "slack_read")

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
-	"github.com/lacksonkapapahue/blaze-desktop/internal/llm"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/llm"
 )
 
 // Strategies (a port of the most useful of OmniRoute's routing strategies).

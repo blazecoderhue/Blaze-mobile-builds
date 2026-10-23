@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
-	"github.com/lacksonkapapahue/blaze-desktop/internal/llm"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/llm"
 )
 
 var upstreamClient = &http.Client{Transport: &http.Transport{
@@ -242,7 +242,7 @@ func (r *Router) send(ctx context.Context, p config.Provider, key string, body [
 		req.Header.Set(k, v)
 	}
 	if p.ID == "openrouter" {
-		req.Header.Set("HTTP-Referer", "https://github.com/lacksonkapapahue/Blaze-dekstop")
+		req.Header.Set("HTTP-Referer", "https://github.com/blazeinchue/Blaze-dekstop")
 		req.Header.Set("X-Title", "BlazeRouter")
 	}
 	resp, err := upstreamClient.Do(req)

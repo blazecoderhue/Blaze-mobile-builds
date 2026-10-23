@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/llm"
+	"github.com/blazeinchue/blaze-desktop/internal/llm"
 )
 
 func str(v any) string {

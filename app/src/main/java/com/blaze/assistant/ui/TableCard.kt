@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * v0.28.1 table card (Luke, from Hark's chat): a rounded dark card, bold title, thin divider, muted grey column
+ * v0.28.1 table card (Blazeinchue, from Hark's chat): a rounded dark card, bold title, thin divider, muted grey column
  * headers, wrapping white cells with generous row spacing and no grid lines. When the columns don't fit, the table
  * scrolls sideways inside the card with edge fades, and the first column stays in view ([RichKit.TableCard.sticky]).
  * Copy gives plain text, TSV gives tab-separated cells for a spreadsheet. Used for ```table blocks and Markdown pipe

@@ -98,7 +98,7 @@ class OrientBrowserTest {
     @Test fun vaultRoundTripPerSite() {
         Vault.fileOverride = File.createTempFile("vault", ".json").apply { delete(); deleteOnExit() }
         Vault.seal = { "s:" + it.reversed() }; Vault.open = { it.removePrefix("s:").reversed() }
-        Vault.save("github.com", "email", "luke@example.com"); Vault.save("github.com", "password", "pw12345")
+        Vault.save("github.com", "email", "sam@example.com"); Vault.save("github.com", "password", "pw12345")
         assertEquals("pw12345", Vault.get("github.com", "password"))
         assertNull(Vault.get("gitlab.com", "password"))
         assertTrue(Vault.has("github.com", listOf("email", "password")))
@@ -106,7 +106,7 @@ class OrientBrowserTest {
         // Saved values fill placeholders on the same site only.
         assertEquals("pw12345", SecureInput.resolve("{{secret:password}}", "github.com").first)
         assertEquals("••••••", Vault.masked("password", "pw1"))
-        assertEquals("lu•••@example.com", Vault.masked("email", "luke@example.com"))
+        assertEquals("sa•••@example.com", Vault.masked("email", "sam@example.com"))
         Vault.remove("github.com", "password"); assertNull(Vault.get("github.com", "password"))
         assertEquals(listOf("github.com" to listOf("email")), Vault.sites())
         assertTrue(Vault.forget("github.com")); assertTrue(Vault.sites().isEmpty())

@@ -9,7 +9,7 @@ import org.junit.Test
 
 /** v0.45.6 item 11 (P1): a grouped WhatsApp chat ("Cyp home", 19:24) mixed up who asked whom. */
 class ChatThreadsTest {
-    private val me = listOf("Luke")
+    private val me = listOf("Sam")
     private val t0 = 1_760_000_000_000L
 
     private fun cyp() = listOf(
@@ -43,12 +43,12 @@ class ChatThreadsTest {
     }
 
     @Test fun groupQuestionToTheUserOrEveryoneAsks() {
-        val toMe = listOf(Line(t0, "Stefano", "Luke, can you bring the keys?"))
+        val toMe = listOf(Line(t0, "Stefano", "Sam, can you bring the keys?"))
         assertEquals(Target.USER, ChatThreads.lastAsk(toMe, true, me)!!.target)
         assertTrue(ChatThreads.decide("Cyp home", true, toMe, me).askUser)
         val all = listOf(Line(t0, "Elena", "Is everyone home tonight?"))
         assertEquals(Target.GROUP, ChatThreads.lastAsk(all, true, me)!!.target)
-        val answered = all + Line(t0 + 1, "Luke", "yes", self = true)
+        val answered = all + Line(t0 + 1, "Sam", "yes", self = true)
         assertFalse(ChatThreads.decide("Cyp home", true, answered, me).askUser)
     }
 

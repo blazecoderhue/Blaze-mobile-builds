@@ -37,14 +37,18 @@ class AckTest {
             "All set, alarm for 7.", "I sent the text.", "Timer started successfully.", "The table has been booked.", "Wi-Fi is now on.")
             .forEach { assertFalse(it, Ack.safe(it)) }
         listOf("Got it, setting that reminder for 9:00 tomorrow. I'll confirm when it's set.",
-            "On it, I'll let you know once it's sent.", "Booking that now. I'll message you when it's booked.")
+            "Sending it now. I'll confirm once it's sent.", "Booking a table for two on Friday.", "Turning on dark mode.")
             .forEach { assertTrue(it, Ack.safe(it)) }
+        // 0.45.19: placeholders are never an ack.
+        listOf("Got it, I'm on it. I'll message you here when it's done.", "On it, I'll let you know once it's sent.",
+            "Booking that now. I'll message you when it's booked.", "Got it \u2014 passing that straight to Blaze.")
+            .forEach { assertFalse(it, Ack.safe(it)) }
     }
 
     @Test fun reminderAckNamesTheTime() {
-        assertEquals("Got it, setting that reminder for 9:00 tomorrow. I'll confirm when it's set.", Ack.local("remind me to call mum at 9 tomorrow"))
-        assertEquals("Got it, setting that alarm for 6:30 am. I'll confirm when it's set.", Ack.local("set an alarm for 6:30 am"))
-        assertEquals("Got it, starting that timer. I'll confirm when it's running.", Ack.local("set a timer"))
+        assertEquals("Setting a reminder for 9:00 tomorrow.", Ack.local("remind me to call mum at 9 tomorrow"))
+        assertEquals("Setting an alarm for 6:30 am.", Ack.local("set an alarm for 6:30 am"))
+        assertEquals("Starting a timer.", Ack.local("set a timer"))
         assertEquals("in 10 minutes", Ack.whenPart("set a timer in 10 minutes"))
         assertEquals("for Friday", Ack.whenPart("book a table on friday"))
         assertEquals("Reminder \u00b7 in progress", Ack.chip("remind me at 9"))
@@ -55,12 +59,13 @@ class AckTest {
         repeat(50) { tasks.forEach { Ack.local(it) } }
         val perMs = (System.nanoTime() - t0) / 1e6 / (50 * tasks.size)
         assertTrue("ack took $perMs ms", perMs < 5.0)
-        assertTrue(Ack.LOCAL_DELAY_MS in 1..600)   // shown well under 1 s
+        assertEquals(2_000L, Ack.FAST_MS)   // 0.45.19: a task done within ~2 s gets no ack at all, only its result
     }
 
     @Test fun oneAckPerTurnWhoeverSendsFirst() {
         val g = Ack.Gate()
-        assertTrue(g.take("Got it, I'm on it. I'll message you here when it's done."))
+        assertFalse(g.take("Got it, I'm on it. I'll message you here when it's done."))   // 0.45.19: a placeholder never shows
+        assertTrue(g.take("Turning on dark mode."))
         assertFalse(g.take("On it, I'll confirm when it's set."))          // the gateway's ack after the local one
         assertFalse(g.take("Halo here, I'll confirm when it's set."))      // the duo: one ack only
         val g2 = Ack.Gate()

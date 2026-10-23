@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lacksonkapapahue/blaze-desktop/internal/config"
+	"github.com/blazeinchue/blaze-desktop/internal/config"
 )
 
 type Health struct {

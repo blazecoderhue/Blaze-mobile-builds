@@ -105,17 +105,27 @@ fun DesktopLiveCard(onOpen: () -> Unit, preview: DesktopNarration.Live? = null) 
     }
 }
 
-/** The solid Blaze-blue pill with a soft pulsing dot while an action runs. */
+/**
+ * 0.45.19 contrast: the pill is light (Glass.blue is a light grey since v0.31.0), so its words and dot are dark ink.
+ * They were white on #E6E6EA ("Reading Blaze Phone's page" was unreadable, ratio 1.2:1). ChatFixes19Test checks AA.
+ */
+object StatusPillColors {
+    val bg: Color get() = Glass.blue
+    val fg = Color(0xFF111114)
+    val dot = Color(0xFF111114)
+}
+
+/** The solid accent pill with a soft pulsing dot while an action runs. */
 @Composable
 fun StatusPill(text: String, working: Boolean, modifier: Modifier = Modifier) {
     val pulse = rememberInfiniteTransition(label = "pill")
     val a by pulse.animateFloat(0.35f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "dot")
-    Row(modifier.clip(Glass.pill).background(Glass.blue).padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+    Row(modifier.clip(Glass.pill).background(StatusPillColors.bg).padding(start = 8.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(6.dp).alpha(if (working) a else 0.6f).clip(CircleShape).background(Color.White))
+        Box(Modifier.size(6.dp).alpha(if (working) a else 0.6f).clip(CircleShape).background(StatusPillColors.dot))
         Spacer(Modifier.width(5.dp))
         Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color.White))
+            style = TextStyle(fontFamily = Type.Sans, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = StatusPillColors.fg))
     }
 }
 

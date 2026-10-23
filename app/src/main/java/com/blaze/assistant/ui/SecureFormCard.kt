@@ -62,7 +62,7 @@ fun SecureForm(site: String, title: String, reason: String, fields: List<SecureI
     val c = LocalBlaze.current
     val values = remember(fields) { mutableStateMapOf<String, String>().apply { putAll(preset) } }
     val shown = remember(fields) { mutableStateMapOf<String, Boolean>() }
-    // v0.20.0 (Luke): saved by default (one-time codes never are); untick to use once.
+    // v0.20.0 (Blazeinchue): saved by default (one-time codes never are); untick to use once.
     var save by remember(fields) { mutableStateOf(true) }
     val ready = fields.all { values[it.name].orEmpty().isNotBlank() }
     // v0.24.8: a rounded card (accent outline) instead of a square strip with a top rule.

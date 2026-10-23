@@ -142,8 +142,8 @@ class Halo0459Test {
     }
 
     @Test fun greetingUsesTheRealNameOrNone() {
-        assertEquals("Lackson", GreetName.pick("", "Lackson Kapapa"))
-        assertEquals("Ana", GreetName.pick("Ana", "Lackson Kapapa"))
+        assertEquals("Sam", GreetName.pick("", "Sam Banda"))
+        assertEquals("Ana", GreetName.pick("Ana", "Sam Banda"))
         assertNull(GreetName.pick("", ""))
         assertNull(GreetName.pick(" ", "me@example.com"))
         assertNull(GreetName.pick("User", null))

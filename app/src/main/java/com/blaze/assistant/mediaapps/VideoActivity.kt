@@ -120,6 +120,7 @@ import com.blaze.assistant.ui.LocalBlaze
 import com.blaze.assistant.ui.MotionTokens
 import com.blaze.assistant.ui.PillButton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -332,7 +333,7 @@ class VideoActivity : ComponentActivity() {
         handlePlay(intent)
         player = ExoPlayer.Builder(this)
             // Wave A 16: streams through the disk cache, buffered well ahead.
-            .setMediaSourceFactory(DefaultMediaSourceFactory(StreamCache.factory(this, http)))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(StreamCache.factory(this, http)).setLoadErrorHandlingPolicy(StreamCache.dropPolicy()))
             .setLoadControl(StreamCache.loadControl(this))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             .setHandleAudioBecomingNoisy(true)
@@ -427,10 +428,10 @@ class VideoActivity : ComponentActivity() {
             .setMediaMetadata(MediaMetadata.Builder().setTitle(t.title).build()).setSubtitleConfigurations(subs).build()
         if (playUris.size == 1) player.setMediaItem(first, at)
         else {
-            val msf = DefaultMediaSourceFactory(StreamCache.factory(this, http))
+            val msf = DefaultMediaSourceFactory(StreamCache.factory(this, http)).setLoadErrorHandlingPolicy(StreamCache.dropPolicy())
             val parts = ArrayList<MediaSource>()
             parts += msf.createMediaSource(first)
-            playUris.drop(1).forEachIndexed { i, u -> parts += ProgressiveMediaSource.Factory(StreamCache.factory(this, http))
+            playUris.drop(1).forEachIndexed { i, u -> parts += ProgressiveMediaSource.Factory(StreamCache.factory(this, http)).setLoadErrorHandlingPolicy(StreamCache.dropPolicy())
                 .createMediaSource(MediaItem.Builder().setUri(u).setCustomCacheKey(if (stream) StreamCache.key(t.key, i + 1) else null).build()) }
             player.setMediaSource(MergingMediaSource(*parts.toTypedArray()), at)
         }
@@ -561,14 +562,21 @@ class VideoActivity : ComponentActivity() {
         val want = if (keep.isEmpty()) Subs.pickOrTranslate(subsAvailable.value, SubsLoader.pref(this))?.also { w ->
             if (subsAvailable.value.none { it.id == w.id }) mergeAvailable(listOf(w)) } else null
         if (want == null) { load(at, true); return }
+        // 0.45.19 step 3: the first chunk of the stream is fetched while the subtitle is; the video starts after
+        // MediaNet.SUBS_WAIT_MS at most (0.45.18 waited up to 4 s) and a subtitle that lands later is added then.
+        StreamCache.key(t.key)?.let { StreamCache.warm(this, playUris.first(), it, http) }
         lifecycleScope.launch {
-            val local = if (want.url.startsWith("file:")) want else kotlinx.coroutines.withTimeoutOrNull(4_000) {
-                val cues = SubsLoader.fetchYouTube(want)
-                if (cues.isEmpty()) null else withContext(Dispatchers.IO) { SubsLoader.save(this@VideoActivity, t.key, want, cues) }
+            val fetch = async {
+                if (want.url.startsWith("file:")) want else kotlinx.coroutines.withTimeoutOrNull(MediaNet.SUBS_TOTAL_MS) {
+                    val cues = SubsLoader.fetchYouTube(want)
+                    if (cues.isEmpty()) null else withContext(Dispatchers.IO) { SubsLoader.save(this@VideoActivity, t.key, want, cues) }
+                }
             }
-            if (current.value?.key != t.key) return@launch
+            val local = kotlinx.coroutines.withTimeoutOrNull(MediaNet.SUBS_WAIT_MS) { fetch.await() }
+            if (current.value?.key != t.key) { fetch.cancel(); return@launch }
             if (local != null) { subsLoaded += local; subsAvailable.value = subsAvailable.value.map { if (it.id == local.id) local else it }; pendingSub = local.id }
             load(at, true)
+            if (local == null) fetch.await()?.let { late -> if (current.value?.key == t.key && subsLoaded.none { it.id == late.id }) attach(late) }
         }
     }
 

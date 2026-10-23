@@ -74,7 +74,7 @@ private fun CallScreenBody(onHangUp: () -> Unit) {
         Voice.inCall = true; Voice.callMuted = false
         view.keepScreenOn = true
         Voice.hushBeeps(true)
-        if (greet) Voice.speak(listOf("Hey, I'm here. What's up?", "Hi! What can I do?", "Hey Luke, go ahead.").random())
+        if (greet) Voice.speak(listOf("Hey, I'm here. What's up?", "Hi! What can I do?", "Hey, go ahead.").random())
         com.blaze.assistant.device.Haptics.tick(view.context)
         onDispose { if (Voice.inCall) { Voice.inCall = false; Voice.cancelListening(); Voice.stopSpeaking(); Voice.setEarpiece(false); Voice.hushBeeps(false); view.keepScreenOn = false } }
     }

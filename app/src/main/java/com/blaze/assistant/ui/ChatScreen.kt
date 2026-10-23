@@ -136,9 +136,12 @@ internal sealed class Item(val key: String) {
     var pos: GroupPos = GroupPos.SINGLE
     abstract val side: Side
     abstract val at: Long
+    /** 0.45.19: who wrote it on Blaze's side ("halo" or "" for Blaze), so Halo's and Blaze's messages group apart. */
+    open val who: String get() = ""
     class Msg(val m: ChatMessage) : Item("m${m.id}") {
         override val side: Side get() = if (m.role == Role.USER) Side.ME else Side.BLAZE
         override val at: Long get() = m.at
+        override val who: String get() = if (m.role == Role.BLAZE && com.blaze.assistant.agent.Duo.Who.of(m.speaker) == com.blaze.assistant.agent.Duo.Who.HALO) "halo" else ""
     }
     class Steps(val steps: List<ChatMessage>, val live: Boolean, val endAt: Long, val startAt: Long) : Item("s${steps.first().id}") {
         override val side: Side get() = Side.BLAZE
@@ -160,7 +163,7 @@ internal fun buildItems(messages: List<ChatMessage>, working: Boolean, hideDoneS
     }
     messages.forEach { m -> if (m.role == Role.STEP) run += m else { flush(false, m); out += Item.Msg(m); prevAt = m.at } }
     flush(working, null)
-    Bubbles.positions(out.map { it.side }, out.map { it.at }).forEachIndexed { i, p -> out[i].pos = p }
+    Bubbles.positions(out.map { it.side }, out.map { it.at }, whos = out.map { it.who }).forEachIndexed { i, p -> out[i].pos = p }
     return out
 }
 
@@ -353,6 +356,7 @@ fun ChatScreen() {
             "phone" -> com.blaze.assistant.blazeos.BlazeOsActivity.open(ctx)
             "projects" -> go(navNow().projectsList())
             "browser" -> com.blaze.assistant.browser.BrowserTools.show(ctx)
+            "phonebrowser" -> com.blaze.assistant.browser.phone.PhoneBrowserActivity.open(ctx, control = false)
             "terminal" -> com.blaze.assistant.terminal.BlazeTerminalActivity.open(ctx)
             "music" -> com.blaze.assistant.mediaapps.MusicActivity.open(ctx, target)
             "video" -> com.blaze.assistant.mediaapps.VideoActivity.open(ctx, target)
@@ -658,6 +662,8 @@ fun ChatScreen() {
             QuestionCard()
             FixCard()
             SecureFormCard()
+            // 0.45.19: Blaze Phone's live tile (frame, site, step, Take control) while Blaze works on its own phone.
+            PhoneLiveCard()
             // v0.39.0: Blaze using the computer by itself: a watch-only live PC view with Pause / Stop (or a small pill).
             if (desktopTask.active) DesktopTaskCard(onOpen = { com.blaze.assistant.desktop.LinuxDesktop.requestViewer(); settingsPage = "linux" })
             // v0.25.5: live mini view of the Linux desktop while Blaze works in it; tap for the full Desktop view.
@@ -1069,7 +1075,7 @@ private fun Entry(m: ChatMessage, pos: GroupPos, canAct: Boolean, onQuote: (Stri
                 orbSlot = if (hadLive) ({ co -> tracker.aimRest(co) }) else null, reactable = !live)
             else {
                 if (!live && m.reactions.isNotEmpty()) { val rc = LocalContext.current; ReactionChips(m.reactions, mine = false) { e -> reactNow(rc, m, e) } }
-                if (com.blaze.assistant.agent.ReplyChips.visible(m.meta, com.blaze.assistant.agent.ReplyChips.showTech()).isNotBlank()) Actions(m, Side.BLAZE, "", canAct, onQuote, allowQuote = true, chipOnly = true)
+                if (com.blaze.assistant.agent.ReplyChips.shown(m.meta).isNotBlank()) Actions(m, Side.BLAZE, "", canAct, onQuote, allowQuote = true, chipOnly = true)
             }
             if (followups.isNotEmpty()) Followups(followups, onFollowup)
             // v0.39.0 Simple mode: Yes / No / Later / Do it for me under a question from Blaze.
@@ -1119,7 +1125,7 @@ private fun Actions(m: ChatMessage, side: Side, time: String, canAct: Boolean, o
     if (reactable && !chipOnly && m.reactions.isNotEmpty()) ReactionChips(m.reactions, mine = side == Side.ME) { e -> reactNow(ctx, m, e) }
     val usedUp = m.meta.startsWith("usedup:")
     // v0.24.4: technical parts of the chip (timings, data, model ids) are hidden unless Show technical details is on.
-    val chip = if (usedUp) "" else com.blaze.assistant.agent.ReplyChips.visible(m.meta, com.blaze.assistant.agent.ReplyChips.showTech())
+    val chip = if (usedUp) "" else com.blaze.assistant.agent.ReplyChips.shown(m.meta)
     if (chipOnly && chip.isBlank()) return
     if (chipOnly) { MetaLine(side, "", emptyList(), chip, chip.startsWith("⚡")); return }
     val acts = buildList<Pair<String, (() -> Unit)?>> {
@@ -1128,13 +1134,14 @@ private fun Actions(m: ChatMessage, side: Side, time: String, canAct: Boolean, o
         add("Retry" to (if (canAct) ({ Agent.retry(m.id) }) else null))
         // v0.45.0 "What I did": the turn's action receipts, stored with the reply.
         if (m.role == Role.BLAZE && m.receipt.isNotBlank()) add("What I did" to { showReceipt.value = true })
-        // v0.45.5 (#1): "What happened": model, route, tools, timings, errors, request id.
-        if (m.role == Role.BLAZE && m.trace.isNotBlank()) add("What happened" to { showTrace.value = true })
+        // v0.45.5 (#1): "What happened": model, route, tools, timings, errors, request id. 0.45.19: never shown to users
+        // (which model replied is never shown); developers only, behind DevFlags.modelInfo (off by default, debug builds).
+        if (m.role == Role.BLAZE && m.trace.isNotBlank() && com.blaze.assistant.agent.DevFlags.modelInfo()) add("What happened" to { showTrace.value = true })
         if (reactable && m.role == Role.BLAZE) add("React" to { picker.value = true })
     }
     MetaLine(side, time, acts, chip, chip.startsWith("⚡"), orbSlot = orbSlot)
     if (showReceipt.value) ReceiptDialog(m.receipt) { showReceipt.value = false }
-    if (showTrace.value) TraceDialog(m.trace) { showTrace.value = false }
+    if (showTrace.value && com.blaze.assistant.agent.DevFlags.modelInfo()) TraceDialog(m.trace) { showTrace.value = false }
     if (picker.value) ReactionPicker(m.reactions, onPick = { e -> picker.value = false; reactNow(ctx, m, e) }, onDismiss = { picker.value = false })
 }
 

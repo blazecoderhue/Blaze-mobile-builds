@@ -101,6 +101,7 @@ val advancedPages = listOf(
     SettingsPage("privacy", "Privacy & safety", "App lock, approvals"),
     SettingsPage("watches", "Watches", "Values Magic Hand is watching for you"),
     SettingsPage("logins", "Saved logins", "Sign-ins from Blaze's secure form, encrypted on this phone"),
+    SettingsPage("phonebrowser", "Blaze Phone", "Blaze's own phone browser: sign out of sites, clear its data"),
     SettingsPage("proactive", "Proactive & triggers", "Speak up on its own, when-X-do-Y"),
     SettingsPage("commands", "Slash commands", "Your own /commands and prompt skills"),
     SettingsPage("orb", "Floating orb", "Keep Blaze over other apps"),
@@ -195,6 +196,7 @@ fun SettingsScreen(start: String?, a11yOn: Boolean, onOpenAccessibility: () -> U
                 "logs" -> LifeLogsPage()
                 "replies" -> RepliesPage()
                 "logins" -> SavedLoginsPage()
+                "phonebrowser" -> PhoneBrowserSettingsPage()
                 "watches" -> com.blaze.assistant.phone.MagicHandWatchesPage()
             }
             Spacer(Modifier.height(30.dp))
@@ -261,7 +263,13 @@ private fun AiPage() {
     var visual by remember { mutableStateOf(Settings.bool("rich_replies", true)) }
     ToggleRow("Visual answers", "Blaze picks diagrams, charts, compare cards, buttons, forms and little calculators when they explain better than text", visual) { visual = !visual; Settings.setBool("rich_replies", visual) }
     var tech by remember { mutableStateOf(com.blaze.assistant.agent.ReplyChips.showTech()) }
-    ToggleRow("Show technical details", "Timings, data used, model names and the token meter under replies (hidden by default)", tech) { tech = !tech; Settings.setBool(com.blaze.assistant.agent.ReplyChips.PREF, tech) }
+    ToggleRow("Show technical details", "Timings, data used and the token meter under replies (hidden by default)", tech) { tech = !tech; Settings.setBool(com.blaze.assistant.agent.ReplyChips.PREF, tech) }
+    // 0.45.19: which model replied is never shown to users; a debug build has a developer switch for it (off by default).
+    if (com.blaze.assistant.BuildConfig.DEBUG) {
+        var devInfo by remember { mutableStateOf(Settings.bool(com.blaze.assistant.agent.DevFlags.MODEL_INFO, false)) }
+        ToggleRow("Developer: reply details", "Debug builds only: route and timings under replies and the What happened sheet", devInfo) {
+            devInfo = !devInfo; Settings.setBool(com.blaze.assistant.agent.DevFlags.MODEL_INFO, devInfo) }
+    }
     ToggleRow("Show every step", "List each tool call as it happens, instead of one plain line and \"Worked for 12s\"", showSteps) { showSteps = !showSteps; Settings.showSteps = showSteps }
     ToggleRow("Background agents", "Blaze can hand long work to an agent and keep chatting (${com.blaze.assistant.agent.BgAgents.cap()} at a time on this phone)", bgAgents) { bgAgents = !bgAgents; Settings.setBool("bg_agents", bgAgents) }
     // v0.44.0: the cloud_runs pref (v0.42.0) had no switch. Brain is an Advanced-only page, so Simple never shows it.
@@ -396,65 +404,6 @@ private fun LanguagePage() {
                 style = TextStyle(fontFamily = Type.sansFor(o.label), fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, fontSize = 17.sp, color = c.ink))
             if (on) androidx.compose.material3.Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = c.accent, modifier = Modifier.size(20.dp))
         }
-    }
-}
-
-/**
- * Searchable list of the models this key's plan allows. Nothing is typed by hand:
- * "Check key" lists the key's models and test-calls each one, keeping only those that answer.
- */
-@Composable
-private fun ModelPicker(selected: String, key: String, pid: String, base: String, onPick: (String) -> Unit) {
-    val c = LocalBlaze.current.mono
-    val scope = rememberCoroutineScope()
-    var result by remember { mutableStateOf(ModelCatalog.cached()) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var open by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-
-    fun check() {
-        if (loading) return
-        Settings.providerId = pid; Settings.apiKey = key   // test what's typed in the sheet right now
-        if (pid == Providers.CUSTOM) Settings.customBase = base
-        loading = true; error = null
-        scope.launch {
-            val r = ModelCatalog.detect()
-            loading = false
-            if (r.error != null) error = r.error
-            if (r.models.isNotEmpty()) {
-                result = r
-                if (r.models.none { it.id == selected }) onPick(r.models.first().id)
-                open = true
-            }
-        }
-    }
-    LaunchedEffect(Unit) { if (result == null && key.isNotBlank()) check() }
-
-    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Label("Model", modifier = Modifier.weight(1f))
-        result?.plan?.takeIf { it.isNotBlank() }?.let { Label("Plan · $it", color = c.accent, size = 10.sp) }
-    }
-    ModelField(selected, open) { if (result == null) check() else open = !open }
-    if (open && result != null) ModelList(result!!.models, selected, query, { query = it }) { onPick(it); open = false; query = "" }
-
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            when {
-                loading -> "Checking which models your key's plan allows…"
-                error != null -> error!!
-                result != null -> "Only models your key can use are listed."
-                key.isBlank() -> "Add your key, then check it to load your models."
-                else -> "Check your key to load the models it can use."
-            },
-            modifier = Modifier.weight(1f),
-            style = TextStyle(fontFamily = Type.Sans, fontSize = 12.sp, lineHeight = 18.sp,
-                color = if (error != null && !loading) c.accent else c.sub)
-        )
-        Spacer(Modifier.width(10.dp))
-        Label(if (loading) "Checking" else if (result == null) "Check key" else "Refresh",
-            color = if (key.isBlank() || loading) c.weak else c.accent, size = 11.sp,
-            modifier = Modifier.clickable(enabled = key.isNotBlank() && !loading) { check() }.padding(6.dp))
     }
 }
 
@@ -624,7 +573,7 @@ private fun VoiceSection() {
         Label("Open →", color = c.accent)
     }
     if (!isDefault) Text(
-        "Pick Digital assistant app \u2192 Blaze. Then long-press power or home to talk to Blaze instead of Gemini.",
+        "Pick Digital assistant app \u2192 Blaze. Then long-press power or home to talk to Blaze instead of the phone's built-in assistant.",
         style = TextStyle(fontFamily = Type.Sans, fontSize = 12.sp, lineHeight = 18.sp, color = c.sub),
         modifier = Modifier.padding(top = 8.dp)
     )

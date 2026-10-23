@@ -27,7 +27,7 @@ object ApprovalDefault {
 object Modes {
     private val _work = MutableStateFlow(Settings.str("work_mode", "build").let { if (it == "plan") "plan" else "build" })
     val work: StateFlow<String> = _work
-    // v0.38.0 (Luke): Autopilot is the default. Blaze is for people who shouldn't have to tap Approve on every step;
+    // v0.38.0 (Blazeinchue): Autopilot is the default. Blaze is for people who shouldn't have to tap Approve on every step;
     // only someone who picked Auto in the + menu keeps the confirm cards (their saved "auto" stays).
     private val _approval = MutableStateFlow(ApprovalDefault.of(Settings.str("approval", "")))
     val approval: StateFlow<String> = _approval

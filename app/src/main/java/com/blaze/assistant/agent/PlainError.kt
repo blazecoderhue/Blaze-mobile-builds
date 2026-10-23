@@ -8,16 +8,22 @@ object PlainError {
     private val codeRe = Regex("\\((\\d{3})\\)")
 
     /** After automatic compaction and a retry, the request still didn't fit (v0.26.0). */
-    const val CONTEXT = "That was too much for this model even after I condensed the older messages. Tap Retry, or send a shorter message (attachments and long pasted text count too)."
+    const val CONTEXT = "That was too much for me even after I condensed the older messages. Tap Retry, or send a shorter message (attachments and long pasted text count too)."
 
+    /** 0.45.19: never names a model or provider (user rule for every client); developers see the raw line with [DevFlags]. */
     fun of(raw: String): String {
+        val plain = plain(raw)
+        return if (DevFlags.modelInfo()) plain else ModelHide.scrub(plain)
+    }
+
+    private fun plain(raw: String): String {
         val t = raw.trim()
         if (t.isEmpty()) return "Something went wrong. Tap Retry."
         Cloud.access(403, t)?.let { line -> if ("403" in t || line == t || "waitlisted" in t || "access_rejected" in t) return line }
         val looksRaw = t.contains('{') || t.contains("\"error\"") || t.contains("http", true) || t.length > 220 || t.contains("Exception")
         if (!looksRaw) return t
         try { com.blaze.assistant.device.CrashLog.error("chat error", RuntimeException(t.take(1500))) } catch (_: Throwable) { }
-        val who = t.substringBefore(" said (", "").substringBefore(" \u00b7 ").trim().takeIf { it.isNotBlank() && it.length < 40 } ?: "The AI"
+        val who = "Blaze"   // 0.45.19: never the provider name
         val code = codeRe.find(t)?.groupValues?.get(1)?.toIntOrNull()
         val low = t.lowercase()
         return when {

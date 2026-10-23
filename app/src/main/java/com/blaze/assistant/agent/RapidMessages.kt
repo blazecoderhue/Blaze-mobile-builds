@@ -1,7 +1,7 @@
 package com.blaze.assistant.agent
 
 /**
- * v0.30.6 rapid messages. Luke: "Let's make blaze like hark where I can send messages after messages with no pause and
+ * v0.30.6 rapid messages. Blazeinchue: "Let's make blaze like hark where I can send messages after messages with no pause and
  * blaze highlights the one it's responding to and such (or replies to rapid succession questions that are related with
  * one message)".
  *

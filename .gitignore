@@ -10,5 +10,5 @@ captures/
 app/src/main/jniLibs/*/libwgproxy.so
 app/src/main/jniLibs/*/libblazerouter.so
 
-# YouTube Store plug-in: private repo lacksonkapapahue/Blaze-mobile, cloned here for builds (see README "YouTube plug-in")
+# YouTube Store plug-in: private repo blazeinchue/Blaze-mobile, cloned here for builds (see README "YouTube plug-in")
 youtube/

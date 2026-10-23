@@ -281,7 +281,7 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
         formSession = from
         _form.value = req
         if (!inForeground) Notifier.actionRequired(req.title, req.site)
-        // v0.30.5 (Luke: "the form wouldn't close until I force quit"): the task being stopped while the card was up
+        // v0.30.5 (Blazeinchue: "the form wouldn't close until I force quit"): the task being stopped while the card was up
         // cancelled this wait, and the clean-up below never ran, so the card stayed with a Cancel that answered nobody.
         // The clean-up is now in finally, and Cancel / Stop remove the card themselves.
         try {
@@ -1270,6 +1270,7 @@ When you finish, say what you did in one short sentence.
         t.put(com.blaze.assistant.phone.Ussd.tool())
         t.put(com.blaze.assistant.phone.Messaging.tool())
         com.blaze.assistant.browser.BrowserTools.definitions().forEach { t.put(it) }
+        com.blaze.assistant.browser.phone.PhoneBrowserTools.definitions().forEach { t.put(it) }   // 0.45.19 Blaze Phone browser
         if (Settings.bool("terminal_tools", true)) com.blaze.assistant.terminal.Terminal.tools(app).forEach { t.put(it) }
         if (Settings.bool("terminal_tools", true)) com.blaze.assistant.terminal.DevTools.tools().forEach { t.put(it) }
         if (Settings.bool("terminal_tools", true)) t.put(com.blaze.assistant.terminal.Git.tool())
@@ -1679,7 +1680,7 @@ When you finish, say what you did in one short sentence.
         var autoStepId = -1L
 
         /**
-         * v0.28.4 (Luke's "Worked · 4 steps · 97m 45s" for 33 s of steps): when the turn in progress started. The work card
+         * v0.28.4 (Blazeinchue's "Worked · 4 steps · 97m 45s" for 33 s of steps): when the turn in progress started. The work card
          * used to time a turn from the message before its steps, so a Retry or a background agent's wake ran the clock
          * from a message sent long before. The first step of each turn now carries this ([ChatMessage.startAt]).
          */
@@ -1837,7 +1838,7 @@ When you finish, say what you did in one short sentence.
             // force (v0.24.0 /clear): an emptied thread is saved too, so cleared messages don't come back on restart.
             if (isPrivate) return   // v0.24.4: private chats are never written anywhere
             if (!force && msgs.none { it.role == Role.USER } && !(keep && msgs.isNotEmpty())) return
-            // v0.30.5 (Luke: "sometimes when you send a new message the app kind of glitches and then unfreezes"): the whole
+            // v0.30.5 (Blazeinchue: "sometimes when you send a new message the app kind of glitches and then unfreezes"): the whole
             // chat (every message, the full model history, pictures stripped by copying) was turned into JSON on the main
             // thread at every send, which grows with the one long main conversation. Only a cheap snapshot is taken here;
             // the JSON is built and written in the background, newest snapshot last (ioLock keeps saves in order).
@@ -2066,8 +2067,8 @@ When you finish, say what you did in one short sentence.
             val turnUser = users[0].id
             if (!routine && agentId == null && specialistId == null) Ack.local(shown)?.let { a ->
                 scope.launch {
-                    // A fast-lane command answers in a few hundred ms: its reply is the receipt, no ack in front of it.
-                    kotlinx.coroutines.delay(Ack.LOCAL_DELAY_MS)
+                    // 0.45.19: a task that finishes within Ack.FAST_MS (a single toggle) gets no ack, only its verified result.
+                    kotlinx.coroutines.delay(Ack.holdMs(gate.at, System.currentTimeMillis()))
                     if (job?.isActive == true) showAck(gate, a, turnUser, shown)
                 }
             }
@@ -2380,12 +2381,17 @@ When you finish, say what you did in one short sentence.
                 persist()
                 return
             }
-            val raw = try { duoCall(Duo.Who.HALO, req, roomTools(if (sched) Duo.SIDE_SCHEDULE_TOOLS else emptySet()), -1L, side = true) { live.show(it) } }
+            val raw = try { duoCall(Duo.Who.HALO, req, roomTools(if (sched) Duo.SIDE_SCHEDULE_TOOLS else emptySet()), -1L, side = true) {
+                // 0.45.19: a handoff line ("Passed to Blaze, let me know…") never shows, not even while it streams.
+                if (!Ack.isGeneric(it)) live.show(it) } }
                 catch (e: CancellationException) { live.end(""); throw e }
                 catch (e: Exception) { live.end(""); add(Role.ERROR, e.message ?: "Halo lost the connection."); return }
-            val shownText = duoVisible(raw.replace(Regex("(?i)\\[\\[\\s*relay\\s*\\]\\]"), ""), final = true)
+            val relay = Duo.isRelay(raw)
+            // 0.45.19: a relay is Blaze's job, so Halo's handoff line ("passing that straight to Blaze") is never kept: Blaze's
+            // answer is the one clean reply (it used to sit glued under Halo's name with "Done ✓").
+            val shownText = if (relay) "" else duoVisible(raw, final = true)
             live.end(shownText)
-            if (Duo.isRelay(raw)) {
+            if (relay) {
                 // For Blaze: it joins Blaze's running task at its next step (or starts Blaze's next turn).
                 synchronized(sideHist) { sideHist.remove(user) }
                 sideIds -= mid
@@ -3105,7 +3111,9 @@ When you finish, say what you did in one short sentence.
                             var ended = false
                             val got = kotlinx.coroutines.withTimeoutOrNull(minOf(budget, TurnDeadline.CLOUD_STEP_MS)) {
                                 CloudRuns.step(ct, r, tools, onText, { line -> scope.launch { if (mood != Mood.IDLE) status = line } },
-                                    { a -> val g = ackGate; val u = turnFrom; val said = lastUserText(); scope.launch { if (g != null) showAck(g, a, u, said) } }).also { ended = true }
+                                    { a -> val g = ackGate; val u = turnFrom; val said = lastUserText(); scope.launch {
+                                        // 0.45.19: the gateway's ack waits out Ack.FAST_MS too; a fast answer goes out alone.
+                                        if (g != null) { kotlinx.coroutines.delay(Ack.holdMs(g.at, System.currentTimeMillis())); if (job?.isActive == true) showAck(g, a, u, said) } } }).also { ended = true }
                             }
                             if (got != null) return got
                             if (!ended) { ct.off = true; LlmClient.lastCloudError = "cloud run: step over ${TurnDeadline.CLOUD_STEP_MS / 1000}s"; add(Role.STEP, TurnDeadline.CLOUD_SLOW) }
@@ -3427,6 +3435,11 @@ When you finish, say what you did in one short sentence.
                         val g = UnconfirmedEcho.fix(textOut, synchronized(turnDone) { turnDone.toList() })
                         if (g != textOut) { CallState.current().errors.add("reply left out that the action wasn't confirmed; said so"); textOut = g; reply.put("content", g) }
                     } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("UnconfirmedEcho", e) }
+                    // 0.45.19: a switch read back on the phone ends with one line saying what was read ("Done ✓ Dark mode is on.").
+                    if ((calls == null || calls.length() == 0) && !rewroteClaim) try {
+                        val g = ToggleReply.fix(textOut, synchronized(turnDone) { turnDone.toList() })
+                        if (g != textOut) { textOut = g; reply.put("content", g) }
+                    } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("ToggleReply", e) }
                     if ((calls == null || calls.length() == 0) && step < maxSteps - 4 && gateLeft > 0 && nudgesLeft > 0 && !routine) {
                         val nudge = when {
                             FakeCall.looksFake(ReplyParts.split(textOut, final = true).text, ToolCalls.names(allTools), actedThisTurn, lastUserText(), lookedThisTurn) -> FakeCall.NUDGE
@@ -3895,7 +3908,8 @@ When you finish, say what you did in one short sentence.
         suspend fun screenAfter(result: String): String {
             val svc = com.blaze.assistant.phone.BlazeAccessibilityService.instance ?: return ""
             if (!Settings.phoneControl || result.startsWith("Error") || result.startsWith("No app") || result.startsWith("Phone control is off") || result.startsWith("Not done yet")) return ""
-            svc.settle(1200, 200)
+            // 0.45.19: a result the phone already read back (verified by state) needs only a short settle before the look
+            if (result.contains(ActCheck.OK)) svc.settle(500, 120) else svc.settle(1200, 200)
             val s = svc.readScreen(diff = true)
             orient.saw(svc.currentPkg())
             return "\n\nScreen now:\n" + s + com.blaze.assistant.phone.Watchers.drain()
@@ -4552,6 +4566,16 @@ When you finish, say what you did in one short sentence.
                 "recent_notifications" -> { add(Role.STEP, "Checking notifications"); com.blaze.assistant.notify.NotificationBrain.list(args.optString("app").ifBlank { null }, args.optDouble("hours", 6.0)) }
                 com.blaze.assistant.phone.Messaging.NAME -> { add(Role.STEP, "Messaging ${args.optString("to")}"); com.blaze.assistant.phone.Messaging.run(app, args) }
                 com.blaze.assistant.browser.BrowserTools.SECURE -> secureInput(args)
+                in com.blaze.assistant.browser.phone.PhoneBrowserTools.names -> {
+                    // 0.45.19 Blaze Phone: one screen, so parallel specialists take turns (the first to use it holds it).
+                    agentId?.let { me -> Dispatch.phone.take(me) { h -> BgAgents.get(h)?.live == true }?.let {
+                        return "Blaze Phone is in use by another agent right now. Use web_search / fetch_page for this step, or finish without it." } }
+                    add(Role.STEP, com.blaze.assistant.browser.phone.PhoneBrowserTools.describe(name, args))
+                    val drv = com.blaze.assistant.browser.phone.PhoneBrowser.Driver(app) { reason, site ->
+                        if (!inForeground) Notifier.actionRequired("Take control: ${reason.take(50)}", site,
+                            "Blaze needs you on Blaze Phone ($site): ${reason.take(80)}. Tap, then Take control.") }
+                    com.blaze.assistant.browser.phone.PhoneBrowserTools.run(drv, name, args, shots) { t, d, a -> confirm(t, d, a, always = true) }
+                }
                 in com.blaze.assistant.browser.BrowserTools.names -> {
                     // v0.26.2: parallel specialists take turns with the one background browser (the first to use it holds it).
                     agentId?.let { me -> Dispatch.browser.take(me) { h -> BgAgents.get(h)?.live == true }?.let { return it } }
@@ -4591,12 +4615,11 @@ When you finish, say what you did in one short sentence.
                         // v0.45.13 verify-after-act: a switch tapped toward a wanted state is read back before anything says it changed.
                         if (want == null || wantId == null || svc == null || r.startsWith("Error") || r.startsWith("Couldn't")) r
                         else {
-                            svc.settle(maxMs = 1200, quietMs = 250)
-                            when (svc.switchState(wantId)) {
-                                want -> r.trimEnd() + " " + ActCheck.checked("the switch \u201c${label.take(40)}\u201d now reads ${TapLoop.wantWord(want)}")
-                                null -> r.trimEnd() + " " + ActCheck.notConfirmed("couldn't read the switch back", "read_screen and check it")
-                                else -> r.trimEnd() + " " + ActCheck.notConfirmed("the switch \u201c${label.take(40)}\u201d still reads ${TapLoop.wantWord(!want)}", "read_screen, then tap the switch itself")
-                            }
+                            // 0.45.19: verify by STATE first (dark mode, Wi-Fi, Bluetooth… read from the system), then the switch
+                            // re-found and re-read; polled with a timeout. A theme switch recreates the screen, so the old node
+                            // read back "unknown" while Dark theme was on, and the reply said both (StateCheck).
+                            val vr = com.blaze.assistant.phone.ToggleVerify.after(app, svc, label, wantId, want)
+                            r.trimEnd() + " " + com.blaze.assistant.phone.ToggleVerify.marker(vr)
                         }
                     }
                 }
@@ -4688,6 +4711,7 @@ When you finish, say what you did in one short sentence.
             fun board() = labels.mapIndexed { i, l -> (when (state[i]) { 2 -> "\u2713 "; 1 -> "\u2192 "; 3 -> "\u2715 "; 4 -> "\u2013 "; else -> "\u00b7 " }) + l }.joinToString("\n")
             val boardId = add(Role.STEP, board())
             val started = System.currentTimeMillis()
+            val planChecks = mutableListOf<String>()
             for (i in skip until n) {
                 val st = steps.getJSONObject(i)
                 state[i] = 1; replace(boardId, Role.STEP, board())
@@ -4733,6 +4757,12 @@ When you finish, say what you did in one short sentence.
                                 svc.flash(id)
                                 val r = svc.tap(id, st.optString("do") == "long_press")
                                 if (r.startsWith("Couldn't") || r.startsWith("No element")) fail = r
+                                else if (want != null) {
+                                    // 0.45.19: a switch step toward a wanted state is verified by state / re-read, like the tap tool.
+                                    val vr = com.blaze.assistant.phone.ToggleVerify.after(app, svc, label.ifBlank { target }, id, want)
+                                    planChecks += com.blaze.assistant.phone.ToggleVerify.marker(vr)
+                                    if (vr.status == com.blaze.assistant.phone.StateCheck.Status.CONTRADICTED) fail = com.blaze.assistant.phone.StateCheck.contradicted(vr)
+                                }
                                 trace.put(JSONObject().put("tool", "tap").put("args", JSONObject().put("text", label)).put("label", label))
                             }
                         }
@@ -4780,7 +4810,8 @@ When you finish, say what you did in one short sentence.
             }
             lastPlan = FastActions.PlanRun(keys, n, false, svc.currentPkg())
             val words = svc.visibleWords().filter { it.length in 2..60 }.take(25)
-            return "All $n steps done in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s. Now in ${svc.currentApp() ?: "?"}. On screen: ${words.joinToString(" · ")}\n(Call read_screen only if you need to act further on this screen.)"
+            return "All $n steps done in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s. Now in ${svc.currentApp() ?: "?"}. On screen: ${words.joinToString(" · ")}\n(Call read_screen only if you need to act further on this screen.)" +
+                (if (planChecks.isNotEmpty()) " " + planChecks.last() else "")
         }
 
         /**
@@ -4860,10 +4891,13 @@ When you finish, say what you did in one short sentence.
          */
         fun showAck(gate: Ack.Gate, a: String, turnUser: Long, said: String) {
             if (gate !== ackGate || streamId >= 0 || duoLive.isNotEmpty()) return
+            // 0.45.19: an ack that carries call text ("browser_open(...)") is never shown; nothing is better than code.
+            if (try { CallScan.has(a) || ToolLeak.forDisplay(a).trim() != a.trim() } catch (_: Throwable) { false }) return
             val after = msgs.dropWhile { it.id != turnUser }.drop(1)
             if (after.any { it.role == Role.BLAZE || it.role == Role.ERROR }) return
             if (!gate.take(a)) return
             gate.user = turnUser
+            gate.said = said
             val aid = ids.getAndIncrement()
             msgs = msgs + ChatMessage(aid, Role.BLAZE, a.trim(), meta = Ack.META)
             taskChip = Ack.chip(said)
@@ -4871,7 +4905,7 @@ When you finish, say what you did in one short sentence.
             TaskKeeper.started(app, TaskKeeper.Task(id, turnUser, said, System.currentTimeMillis()))
             if (!(this === cur && (inForeground || overlayOpen))) {
                 if (isPrivate) Notifier.reply("Blaze got your message in your private chat.", false, id)
-                else Notifier.reply(a.trim(), false, id)
+                else Notifier.ack(a.trim(), id)
             }
         }
 
@@ -4886,12 +4920,13 @@ When you finish, say what you did in one short sentence.
             if (!gate.acked) return
             TaskKeeper.finished(app, id, gate.user)
             val done = synchronized(turnDone) { turnDone.toList() }
-            val last = done.groupBy { it.name }.mapValues { it.value.last().status }
+            // 0.45.19: only actions count; a status check or a page read never makes "Done ✓".
+            val last = done.filterNot { Ack.isReadOnly(it.name) }.groupBy { it.name }.mapValues { it.value.last().status }
             val verified = last.count { it.value == ToolVerify.Status.VERIFIED }
             val unproven = last.count { it.value != ToolVerify.Status.VERIFIED }
             val r = msgs.lastOrNull() ?: return
             if (r.role != Role.BLAZE || r.meta == Ack.META) return
-            val t = Ack.receipt(r.text, verified, unproven, rewrote = false)
+            val t = Ack.receipt(r.text, verified, unproven, rewrote = false, asked = gate.said)
             if (t != r.text) msgs = msgs.map { if (it.id == r.id) it.copy(text = t) else it }
         }
 

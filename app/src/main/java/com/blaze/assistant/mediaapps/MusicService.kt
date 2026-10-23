@@ -177,7 +177,8 @@ class MusicService : MediaLibraryService() {
         super.onCreate()
         MediaLib.ensure(this)
         player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(StreamCache.factory(this, http)))
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(StreamCache.factory(this, http))
+                .setLoadErrorHandlingPolicy(StreamCache.dropPolicy()))   // 0.45.19: drops play on from buffer + cache
             .setLoadControl(StreamCache.loadControl(this))
             .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
             .setHandleAudioBecomingNoisy(true)
@@ -259,7 +260,7 @@ class MusicService : MediaLibraryService() {
     private val retried = HashSet<String>()
 
     /**
-     * v0.30.5 (Luke: "The stream link expired or was refused"): a Store stream the server refuses (403 / 410) is asked
+     * v0.30.5 (Blazeinchue: "The stream link expired or was refused"): a Store stream the server refuses (403 / 410) is asked
      * for again once (the YouTube plug-in then tries its next client) and picks up where it stopped, instead of
      * leaving the error on screen.
      */

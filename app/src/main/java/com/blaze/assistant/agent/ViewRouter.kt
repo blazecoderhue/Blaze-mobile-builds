@@ -1,7 +1,7 @@
 package com.blaze.assistant.agent
 
 /**
- * Views first (v0.23.0). Luke's rule: Blaze always uses its views. Output that fits a view (a deck of
+ * Views first (v0.23.0). Blazeinchue's rule: Blaze always uses its views. Output that fits a view (a deck of
  * flashcards, a page, a reminder, a picture, a memory…) is made THERE, the view is opened or linked,
  * and the chat gets a short answer, never the whole thing dumped as text.
  *

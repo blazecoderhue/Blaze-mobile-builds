@@ -8,7 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** v0.28.1: markdown renders as formatting everywhere (Luke's own sent message showed raw "## App", "1. **Offline mode**:"). */
+/** v0.28.1: markdown renders as formatting everywhere (Blazeinchue's own sent message showed raw "## App", "1. **Offline mode**:"). */
 class MdTest {
     private val sample = "## App\n1. **Offline mode**: works without data\n2. *Sync* with `git`\n- [Docs](https://example.com)"
 

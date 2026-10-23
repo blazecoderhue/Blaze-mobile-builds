@@ -3,7 +3,7 @@ package com.blaze.assistant.agent
 import java.io.File
 
 /**
- * Skills on every turn (v0.23.0). Luke's rule: before each turn's first model call, Blaze looks up the
+ * Skills on every turn (v0.23.0). Blazeinchue's rule: before each turn's first model call, Blaze looks up the
  * skills related to the request. No extra model call: a keyword score over each skill's name,
  * description and keywords (front-matter `tags:` / `keywords:`), across bundled skills (assets/skills),
  * the user's own (~/skills) and learned ones (Learning, skills.json). Disabled skills never match.

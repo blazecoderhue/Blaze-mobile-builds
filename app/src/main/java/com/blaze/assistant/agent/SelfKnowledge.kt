@@ -13,7 +13,7 @@ object SelfKnowledge {
     const val TOOL = "about_blaze"
 
     /** Facts about the Blaze family that never change at runtime. */
-    const val FAMILY = "Blaze is an AI assistant made by Luke (Lackson Kapapa). It comes as three apps that share one Blaze account: " +
+    const val FAMILY = "Blaze is an AI assistant made by Blazeinchue. It comes as three apps that share one Blaze account: " +
         "Blaze for Android (you, this app), Blaze Desktop (Windows/macOS/Linux) and Blaze CLI (terminal). " +
         "The Blaze account (Settings › Blaze account; sign in with Google, GitHub or email) syncs model keys, MCP servers and your own skills between them. " +
         "Phone and PC connect with Blaze Link: on the PC open Blaze Desktop › Phone › Show pairing QR code, " +

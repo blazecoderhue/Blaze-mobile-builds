@@ -70,7 +70,7 @@ import java.util.Date
 import java.util.Locale
 
 /*
- * v0.24.0 messaging-style thread. Luke: "everything looks too uniform and boxed, I want it to look like a
+ * v0.24.0 messaging-style thread. Blazeinchue: "everything looks too uniform and boxed, I want it to look like a
  * messaging platform just with our classic theme."
  *
  * Same palette, fonts and mono labels; what changes is the shape: your messages are ink bubbles on the right,
@@ -109,11 +109,13 @@ object Bubbles {
     const val GAP_MS = 10 * 60_000L
 
     /** Group positions for a thread, given each item's side and time (0 = unknown time, never splits). */
-    fun positions(sides: List<Side>, ats: List<Long>, gapMs: Long = GAP_MS): List<GroupPos> {
+    fun positions(sides: List<Side>, ats: List<Long>, gapMs: Long = GAP_MS, whos: List<String> = emptyList()): List<GroupPos> {
         val n = sides.size
         fun joins(i: Int): Boolean { // item i continues item i-1's group
             if (i <= 0 || i >= n) return false
             if (sides[i] != sides[i - 1]) return false
+            // 0.45.19: Halo's message and Blaze's never share a group (Blaze's answer under Halo's name, one action row).
+            if (whos.isNotEmpty() && whos.getOrElse(i) { "" } != whos.getOrElse(i - 1) { "" }) return false
             val a = ats.getOrElse(i - 1) { 0L }; val b = ats.getOrElse(i) { 0L }
             return a <= 0 || b <= 0 || b - a < gapMs
         }
@@ -178,7 +180,7 @@ object Bubbles {
  */
 object GlassBubble {
     /*
-     * v0.30.5: glass that fits the theme (Luke: "give chat boxes the glass look as well fitted to the theme").
+     * v0.30.5: glass that fits the theme (Blazeinchue: "give chat boxes the glass look as well fitted to the theme").
      * Dark: a translucent white-tinted glass with a faint light hairline. Light: a translucent white frost with a soft
      * darker hairline. Both are brighter at the top and keep the text halo, so particles still drift through. Your
      * bubbles carry a whisper of the accent; Blaze's are neutral. No blue outline.

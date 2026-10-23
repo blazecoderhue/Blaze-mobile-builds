@@ -3,7 +3,7 @@ package com.blaze.assistant.agent
 /**
  * v0.28.3: where the user is in the shell (Chat | Projects), as one small pure value so the rules are unit tested.
  *
- * Rules (Luke's phone report: opening a project chat replaced the One Mind main chat):
+ * Rules (Blazeinchue's phone report: opening a project chat replaced the One Mind main chat):
  *  - The Chat tab always shows the one main conversation ([Mind.MAIN]). Nothing here ever changes that id.
  *  - Project chats open inside Projects: projects list → project page → project chat. Back walks that stack.
  *  - Switching the pill to Chat and back to Projects restores where you were in Projects.

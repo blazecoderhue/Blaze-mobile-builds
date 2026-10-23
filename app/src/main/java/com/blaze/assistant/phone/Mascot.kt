@@ -1,7 +1,7 @@
 package com.blaze.assistant.phone
 
 /**
- * Blaze's mascot (Luke's art, v0.24.5): a flame / teardrop with its pointed tip at the top right, a gradient from warm
+ * Blaze's mascot (Blazeinchue's art, v0.24.5): a flame / teardrop with its pointed tip at the top right, a gradient from warm
  * orange at the top to bright blue at the bottom with a cyan glow in the middle, two dark rounded-rectangle eyes and
  * a soft orange / blue glow around it.
  *

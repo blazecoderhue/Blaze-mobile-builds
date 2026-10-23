@@ -6,7 +6,7 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * v0.28.1: the update download, made for slow and flaky networks (Luke's phone on Zambian mobile data got
+ * v0.28.1: the update download, made for slow and flaky networks (Blazeinchue's phone on Zambian mobile data got
  * "unexpected end of stream" and the whole update failed).
  *
  *  - **Resumable:** bytes go to `<name>.part`; every try asks for `Range: bytes=<have>-` and appends when the server

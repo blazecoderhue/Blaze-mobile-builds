@@ -136,7 +136,7 @@ object Jarvis {
             JarvisLogic.parseQuestion(llm(sys, ctx))
         } catch (_: Throwable) { "" }
         val text = own.ifBlank { q.text }
-        Proactive.say(text, "jarvis-q:" + q.id)
+        Proactive.say(text, "jarvis-q:" + q.id, kind = com.blaze.assistant.notify.BlazeThread.Kind.CHECK_IN)
         Settings.setStr("jarvis_asked", (asked + q.id).joinToString(","))
         Settings.setStr("jarvis_last_topic", q.topic)
         Settings.setStr("jarvis_q_day", day); Settings.setStr("jarvis_q_n", (askedToday + 1).toString())
@@ -283,16 +283,12 @@ object Jarvis {
         val open = Awareness.nows().count { it.key.startsWith("followup:") }
         val text = JarvisLogic.callLine(open, Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
         try { com.blaze.assistant.agent.Agent.recordHeadsUp(text) } catch (_: Throwable) { }
-        val ch = "blaze_calls"
-        if (android.os.Build.VERSION.SDK_INT >= 26) app.getSystemService(android.app.NotificationManager::class.java)?.createNotificationChannel(
-            android.app.NotificationChannel(ch, "Blaze check-ins", android.app.NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Blaze offering a quick voice call" })
         val call = android.app.PendingIntent.getActivity(app, 7400, com.blaze.assistant.IntentKey.sign(app, Intent(app, com.blaze.assistant.MainActivity::class.java)
             .setAction(com.blaze.assistant.MainActivity.ACTION_CALL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)),
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
-        val n = androidx.core.app.NotificationCompat.Builder(app, ch).setSmallIcon(com.blaze.assistant.R.drawable.ic_stat_blaze).setColor(0xFF1F4BD8.toInt())
-            .setContentTitle("Blaze").setContentText(text).setAutoCancel(true).setContentIntent(call)
-            .addAction(0, "Call me", call).build()
-        try { androidx.core.app.NotificationManagerCompat.from(app).notify(7401, n) } catch (_: SecurityException) { }
+        // 0.45.19: a check-in is a text in the one Blaze thread (avatar, quick replies, alerting channel), with Call me.
+        com.blaze.assistant.notify.Notifier.post(text, com.blaze.assistant.notify.BlazeThread.Kind.CALL_OFFER, context = text, tap = call,
+            extra = listOf(androidx.core.app.NotificationCompat.Action.Builder(0, "Call me", call).build()))
     }
 
     // ---------------- chat control ----------------

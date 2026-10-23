@@ -331,7 +331,7 @@ fun BlazeSwitchTrack(on: Boolean, w: androidx.compose.ui.unit.Dp, h: androidx.co
 
 // ---------------- v0.24.5: Blaze dialog and menu (no Material defaults anywhere) ----------------
 
-/** Dialog surface: always the dark Blaze card (Luke: matches the app; never Material's lavender). */
+/** Dialog surface: always the dark Blaze card (Blazeinchue: matches the app; never Material's lavender). */
 /**
  * v0.31.2 theme fix: the surface for menus and pop-up lists whose text uses the theme's ink (the avatar menu, the "/"
  * suggestions). They used the always-dark dialog surface, so in the light theme dark text sat on a dark panel.

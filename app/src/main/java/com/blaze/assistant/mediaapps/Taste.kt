@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * v0.30.5 (Luke: "let Blaze learn the style of music and videos the user listens to and watches", and the Store should
+ * v0.30.5 (Blazeinchue: "let Blaze learn the style of music and videos the user listens to and watches", and the Store should
  * open on scrollable ideas instead of a blank search). Blaze Music / Blaze Video note what is played, streamed and
  * downloaded (title + artist / channel, on this phone only). [TasteLogic] turns that into search ideas for the Store
  * (favourite artists / channels and recurring styles first, then starter ideas) and a one-line summary Blaze keeps in

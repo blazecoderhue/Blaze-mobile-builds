@@ -5,7 +5,7 @@ import com.blaze.assistant.agent.ChatMessage
 /**
  * v0.28.4: how long a turn's work took, for the work card ("Worked · 4 steps · 33s").
  *
- * Luke's screenshot showed "Worked · 4 steps · 97m 45s" over steps of 0–13 s: the card timed a run of steps from the
+ * Blazeinchue's screenshot showed "Worked · 4 steps · 97m 45s" over steps of 0–13 s: the card timed a run of steps from the
  * message before it (the user's prompt), so a Retry or a background agent's wake 97 minutes later counted the whole
  * gap. Now the run starts at the turn's real start, stamped on its first step ([ChatMessage.startAt]), and ends at the
  * message that closed it (the reply) or, when nothing closed it, its last step. A finished card never reads the clock,

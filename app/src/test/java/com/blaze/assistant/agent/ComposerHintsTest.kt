@@ -39,7 +39,7 @@ class ComposerHintsTest {
 
     @Test fun birthdayTodayComesFirst() {
         val notes = listOf(
-            Note("person", "Gloria Gozza", "Luke's mother; birthday 13 October"),
+            Note("person", "Gloria Gozza", "Sam's mother; birthday 13 October"),
             Note("person", "Mutale", "Classmate, born on March 2"),
             Note("project", "Oct 13 launch", "birthday party planning for the store"), // not a person
             Note("person", "Chanda", "Likes football"))
