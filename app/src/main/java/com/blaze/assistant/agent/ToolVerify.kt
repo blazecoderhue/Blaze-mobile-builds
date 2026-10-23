@@ -113,6 +113,8 @@ object ToolVerify {
         if (!ClaimGuard.succeeded(r)) return Verdict(Status.FAILED, firstLine(r))
         if (failWords.containsMatchIn(r.take(400))) return Verdict(Status.FAILED, firstLine(r))
         HANDED_OFF[name]?.let { return Verdict(Status.UNVERIFIED, it) }
+        // 0.45.19 Blaze Phone: a phone tool worked; whether its page PROVES a booking / order is in [why] ("page verified: …").
+        if (name in com.blaze.assistant.browser.phone.PhonePolicy.TOOLS) return phoneVerdict(r)
         if (name in SEND_TOOLS) return if (sentWords.containsMatchIn(r)) Verdict(Status.VERIFIED, firstLine(r))
             else Verdict(Status.UNVERIFIED, "no “Sent” confirmation came back")
         return when (name) {
@@ -131,6 +133,17 @@ object ToolVerify {
             in PROBED -> Verdict(Status.UNVERIFIED, "not checked yet")
             else -> Verdict(Status.VERIFIED)
         }
+    }
+
+    /**
+     * 0.45.19 Blaze Phone: the newest verification line in a phone tool's result (PhonePolicy.Verdict.line). VERIFIED with
+     * why "page verified: …" only when the page itself showed a confirmation; otherwise VERIFIED (the step worked) with
+     * why "page not verified", which never backs a "booked / ordered / paid" claim (ClaimCheck BOOKED).
+     */
+    fun phoneVerdict(r: String): Verdict {
+        val last = r.lineSequence().map { it.trim() }.lastOrNull { it.startsWith("VERIFIED:") || it.startsWith("NOT VERIFIED:") || it.startsWith("SIGNED IN:") }
+        return if (last != null && last.startsWith("VERIFIED:")) Verdict(Status.VERIFIED, "page verified: " + last.removePrefix("VERIFIED:").trim().take(120))
+            else Verdict(Status.VERIFIED, "page not verified" + if (last != null && last.startsWith("SIGNED IN:")) " (signed in)" else "")
     }
 
     /** v0.45.13: the destination of a Maps directions link (google.com/maps/dir/?…destination=X, google.navigation:q=X), else null. */

@@ -353,6 +353,7 @@ fun ChatScreen() {
             "phone" -> com.blaze.assistant.blazeos.BlazeOsActivity.open(ctx)
             "projects" -> go(navNow().projectsList())
             "browser" -> com.blaze.assistant.browser.BrowserTools.show(ctx)
+            "phonebrowser" -> com.blaze.assistant.browser.phone.PhoneBrowserActivity.open(ctx, control = false)
             "terminal" -> com.blaze.assistant.terminal.BlazeTerminalActivity.open(ctx)
             "music" -> com.blaze.assistant.mediaapps.MusicActivity.open(ctx, target)
             "video" -> com.blaze.assistant.mediaapps.VideoActivity.open(ctx, target)
@@ -658,6 +659,8 @@ fun ChatScreen() {
             QuestionCard()
             FixCard()
             SecureFormCard()
+            // 0.45.19: Blaze Phone's live tile (frame, site, step, Take control) while Blaze works on its own phone.
+            PhoneLiveCard()
             // v0.39.0: Blaze using the computer by itself: a watch-only live PC view with Pause / Stop (or a small pill).
             if (desktopTask.active) DesktopTaskCard(onOpen = { com.blaze.assistant.desktop.LinuxDesktop.requestViewer(); settingsPage = "linux" })
             // v0.25.5: live mini view of the Linux desktop while Blaze works in it; tap for the full Desktop view.

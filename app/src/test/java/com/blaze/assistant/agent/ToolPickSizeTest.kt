@@ -33,6 +33,7 @@ class ToolPickSizeTest {
         add("Ussd") { com.blaze.assistant.phone.Ussd.tool() }
         add("Messaging") { com.blaze.assistant.phone.Messaging.tool() }
         add("Browser") { com.blaze.assistant.browser.BrowserTools.definitions() }
+        add("PhoneBrowser") { com.blaze.assistant.browser.phone.PhoneBrowserTools.definitions() }   // 0.45.19
         add("DevTools") { com.blaze.assistant.terminal.DevTools.tools() }
         add("Git") { com.blaze.assistant.terminal.Git.tool() }
         add("PimEdit") { com.blaze.assistant.phone.PimEdit.tools() }

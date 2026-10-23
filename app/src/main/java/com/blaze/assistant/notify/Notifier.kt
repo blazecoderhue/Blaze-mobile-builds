@@ -320,13 +320,13 @@ object Notifier {
      * needed ("Sign in to github.com"). Returns false when notifications aren't allowed (Android 13+ without
      * the permission); the form still waits in the chat.
      */
-    fun actionRequired(title: String, site: String): Boolean {
+    fun actionRequired(title: String, site: String, text0: String? = null): Boolean {
         if (::app.isInitialized) needs("sign in to ${site.take(40)}")
         if (!canPost()) return false
         val open = PendingIntent.getActivity(app, ID_ACTION, com.blaze.assistant.IntentKey.sign(app, Intent(app, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(EXTRA_OPEN_FORM, true)),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val text = "Blaze is waiting for you on $site. Tap to fill it in securely."
+        val text = text0 ?: "Blaze is waiting for you on $site. Tap to fill it in securely."
         val n = NotificationCompat.Builder(app, CH_ACTION).setSmallIcon(R.drawable.ic_stat_blaze).setColor(ACCENT)
             .setContentTitle("Action required: ${title.take(60)}").setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

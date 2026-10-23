@@ -137,6 +137,17 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:screenOrientation="unspecified" />
 
+        <!-- 0.45.19 Blaze Phone full screen: watch Blaze's own phone, take control, hand back. -->
+        <activity
+            android:name=".browser.phone.PhoneBrowserActivity"
+            android:exported="false"
+            android:label="Blaze Phone"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.blaze.assistant.phonebrowser"
+            android:theme="@style/Theme.Blaze"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".device.PermissionActivity"
             android:exported="false"

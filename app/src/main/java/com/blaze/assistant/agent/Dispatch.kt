@@ -155,4 +155,6 @@ object Dispatch {
     }
 
     val browser = Lease()
+    /** 0.45.19: Blaze Phone has one screen too; the first agent to use a phone_ tool holds it. */
+    val phone = Lease()
 }
