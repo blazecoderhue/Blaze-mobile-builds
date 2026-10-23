@@ -195,7 +195,7 @@ object BgAgents {
                 }
             }
         }
-        Dispatch.browser.release(bg.id)
+        Dispatch.browser.release(bg.id); Dispatch.phone.release(bg.id)
         bg = get(bg.id) ?: return
         jobs.remove(bg.id)
         if (bg.status == CANCELLED) { save(); pump(); return }
@@ -228,7 +228,7 @@ object BgAgents {
         val bg = get(id) ?: return "No agent $id."
         if (!bg.live) return "${bg.id} isn't running."
         update(id) { it.copy(status = CANCELLED, ended = System.currentTimeMillis(), waiting = false) }
-        Dispatch.browser.release(bg.id)
+        Dispatch.browser.release(bg.id); Dispatch.phone.release(bg.id)
         if (bg.status == RUNNING) Agent.stopAgent(bg)
         jobs.remove(id)?.cancel()
         scope.launch { pump() }

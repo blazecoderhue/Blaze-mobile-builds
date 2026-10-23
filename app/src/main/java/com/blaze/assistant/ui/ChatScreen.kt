@@ -69,6 +69,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -353,6 +354,7 @@ fun ChatScreen() {
             "phone" -> com.blaze.assistant.blazeos.BlazeOsActivity.open(ctx)
             "projects" -> go(navNow().projectsList())
             "browser" -> com.blaze.assistant.browser.BrowserTools.show(ctx)
+            "phonebrowser" -> com.blaze.assistant.browser.phone.PhoneBrowserActivity.open(ctx, control = false)
             "terminal" -> com.blaze.assistant.terminal.BlazeTerminalActivity.open(ctx)
             "music" -> com.blaze.assistant.mediaapps.MusicActivity.open(ctx, target)
             "video" -> com.blaze.assistant.mediaapps.VideoActivity.open(ctx, target)
@@ -469,7 +471,7 @@ fun ChatScreen() {
     }
 
 
-    if (inCall) { CallScreen(onHangUp = { inCall = false }); return }
+    if (inCall) { SideEffect { BackRule.shellNow = { BackRule.Shell(inCall = true) } }; CallScreen(onHangUp = { inCall = false }); return }
     val me = account.user
     // v0.24.4 private chat: confirm before leaving (the chat is thrown away).
     val isPrivate by Agent.privateChat.collectAsState()
@@ -508,8 +510,28 @@ fun ChatScreen() {
     // Awareness: which surface is in front (Home or Chat).
     val surface by remember(swipeMode) { derivedStateOf { if (!swipeMode) (if (navNow().tab == ChatNav.HOME) "home" else "chat") else com.blaze.assistant.agent.SwipeNav.surfaceOf(sheetP) } }
     LaunchedEffect(surface) { try { com.blaze.assistant.agent.Awareness.set(com.blaze.assistant.agent.Awareness.Now("surface", "Showing", com.blaze.assistant.agent.SwipeNav.awarenessLine(surface), "Blaze")) } catch (_: Throwable) { } }
-    // Back from Chat returns to Home (lowest priority: views, Projects and sheets handle back first).
-    BackHandler(enabled = swipeMode && sheetP > 0.5f && nav.tab == ChatNav.CHAT && !nav.inProjectChat) { settleTo(0f) }
+    // 0.45.19 fix 7: Back returns to the chat from everything (BackRule); the chat is the root, so Back from Chat no
+    // longer goes down to Home (that made Home and Chat a loop Back could never leave). The shell publishes what is
+    // in front and how to close it; BackRule's window interceptor acts on it before any nested BackHandler.
+    fun backToChat() {
+        settingsPage = null; showViews = false; plusOpen = false; arcOpen = false; avatarMenu = false; showSearch = false
+        GalleryUi.open.value = false; Agent.roomOpen.value = -1L; ThemePickerState.open.value = false
+        Views.showing.value = ""
+        val n = navNow(); if (n.tab != ChatNav.CHAT || n.inProjectChat) go(n.switchTab(ChatNav.CHAT))
+        if (swipeMode && sheetP < 1f) settleTo(1f)
+    }
+    SideEffect {
+        // Read when Back is pressed (State reads, never a stale snapshot of this composition).
+        BackRule.shellNow = {
+            val n = navNow(); val swipe = com.blaze.assistant.agent.SwipeNav.swipeFlow.value
+            BackRule.Shell(onboarding = onboard, gate = !onboard && gate, inCall = false,
+                tab = n.tab, inProjectChat = n.inProjectChat, swipeHome = swipe && sheetP < 0.5f,
+                settingsPage = settingsPage, view = if (n.inProjectChat) "" else Views.showing.value,
+                viewsSheet = showViews, plusMenu = plusOpen, arc = arcOpen, avatarMenu = avatarMenu, search = showSearch,
+                gallery = GalleryUi.open.value, room = Agent.roomOpen.value >= 0, themePicker = ThemePickerState.open.value)
+        }
+        BackRule.toChat = { backToChat() }
+    }
     BackHandler(enabled = isPrivate && !confirmLeavePrivate) { confirmLeavePrivate = true }
     // v0.28.3: back inside Projects: project chat → project page → projects list (then the system's back).
     BackHandler(enabled = !isPrivate && nav.back() != null) { navNow().back()?.let { go(it) } }
@@ -658,6 +680,8 @@ fun ChatScreen() {
             QuestionCard()
             FixCard()
             SecureFormCard()
+            // 0.45.19: Blaze Phone's live tile (frame, site, step, Take control) while Blaze works on its own phone.
+            PhoneLiveCard()
             // v0.39.0: Blaze using the computer by itself: a watch-only live PC view with Pause / Stop (or a small pill).
             if (desktopTask.active) DesktopTaskCard(onOpen = { com.blaze.assistant.desktop.LinuxDesktop.requestViewer(); settingsPage = "linux" })
             // v0.25.5: live mini view of the Linux desktop while Blaze works in it; tap for the full Desktop view.

@@ -137,6 +137,18 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:screenOrientation="unspecified" />
 
+        <!-- 0.45.19 Blaze Phone full screen: watch Blaze's own phone, take control, hand back. -->
+        <activity
+            android:name=".browser.phone.PhoneBrowserActivity"
+            android:exported="false"
+            android:label="Blaze Phone"
+            android:supportsPictureInPicture="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.blaze.assistant.phonebrowser"
+            android:theme="@style/Theme.Blaze"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+            android:windowSoftInputMode="adjustResize" />
+
         <activity
             android:name=".device.PermissionActivity"
             android:exported="false"
@@ -192,6 +204,9 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- 0.45.19: Blaze Phone's picture-in-picture Stop / Open Blaze buttons (RemoteAction broadcasts). -->
+        <receiver android:name=".browser.phone.PhonePipReceiver" android:exported="false" />
+
         <!-- v0.33.2 BlazeOS: Blaze's own virtual phone, fullscreen (same task as Blaze; its own power / pause / exit). -->
         <activity
             android:name=".blazeos.BlazeOsActivity"
@@ -236,6 +251,8 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -11,6 +11,8 @@ class BlazeApp : Application() {
         val t0 = android.os.SystemClock.elapsedRealtime()
         com.blaze.assistant.device.CrashLog.init(this)
         com.blaze.assistant.device.CrashLog.shieldMainThread()
+        // 0.45.19 fix 7: one Back rule for every Blaze window (Back returns to the chat).
+        try { com.blaze.assistant.ui.BackRule.install(this) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BlazeApp: BackRule", e) }
         com.blaze.assistant.device.StartGuard.begin(this)   // 0.45.16: crash-loop detection (safe start)
         com.blaze.assistant.device.MainWatch.start()        // 0.45.16: ANR / stall log with the main thread's stack
         com.blaze.assistant.device.StartGuard.step("Settings.init") { Settings.init(this) }

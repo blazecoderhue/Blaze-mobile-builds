@@ -82,7 +82,7 @@ object OsWeb {
     fun release(appId: String) {
         loadedApps.value = loadedApps.value - appId
         live.remove(appId)?.let { try { (it.parent as? ViewGroup)?.removeView(it); it.destroy() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: it.parent as ViewGroup.removeViewit it.d", e) } } }
-    fun pauseAll() { for (w in live.values) try { w.onPause() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: w.onPause", e) } ; try { live.values.firstOrNull()?.pauseTimers() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: w.onPause", e) } }
+    fun pauseAll() { for (w in live.values) try { w.onPause() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: w.onPause", e) } ; try { if (!com.blaze.assistant.browser.phone.PhoneBrowser.active) live.values.firstOrNull()?.pauseTimers() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: w.onPause", e) } }
     fun resumeAll() { for (w in live.values) try { w.onResume() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: w.onResume", e) } ; try { live.values.firstOrNull()?.resumeTimers() } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("OsWebApp: w.onResume", e) } }
     fun releaseAll() { for (id in live.keys.toList()) release(id) }
 

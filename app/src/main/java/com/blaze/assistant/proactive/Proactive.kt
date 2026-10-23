@@ -191,7 +191,8 @@ Reply ONLY with JSON: {"say": "" or "one or two short friendly sentences", "urge
     }
 
     /** Tell the user something unprompted: notification, optional voice, and the orb if it's out. */
-    fun say(text: String, key: String, urgent: Boolean = false, suggest: String = "") {
+    fun say(text: String, key: String, urgent: Boolean = false, suggest: String = "",
+            kind: com.blaze.assistant.notify.BlazeThread.Kind = com.blaze.assistant.notify.BlazeThread.Kind.HEADS_UP) {
         if (!::app.isInitialized) return
         val now = System.currentTimeMillis()
         synchronized(said) {
@@ -203,7 +204,7 @@ Reply ONLY with JSON: {"say": "" or "one or two short friendly sentences", "urge
         // Digest mode: non-urgent things wait for the morning/evening brief instead of buzzing now.
         if (!urgent && Settings.bool("digest_mode", false) && !key.startsWith("brief")) { synchronized(digest) { digest += text; while (digest.size > 12) digest.removeAt(0) }; return }
         recent.value = (recent.value + HeadsUp(now, text, urgent)).takeLast(30)
-        com.blaze.assistant.notify.Notifier.proactive(text, suggest, urgent)
+        com.blaze.assistant.notify.Notifier.proactive(text, suggest, urgent, kind)
         val audio = app.getSystemService(AudioManager::class.java)
         val canTalk = audio?.ringerMode == AudioManager.RINGER_MODE_NORMAL && audio.mode == AudioManager.MODE_NORMAL && !quietNow()
         // v0.20.0 (Luke): heads-ups and reminders are read aloud only when the user switched "proactive_speak" on.

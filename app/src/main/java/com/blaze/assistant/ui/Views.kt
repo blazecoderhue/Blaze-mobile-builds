@@ -37,6 +37,7 @@ object Views {
         BlazeView("phone", "Phone", "BlazeOS: Blaze's own virtual phone with its own apps and App Store, fullscreen", special = "phone", aliases = listOf("blazeos", "virtual phone", "blaze os")),
         BlazeView("gallery", "Gallery", "Images, music and files Blaze made", special = "gallery"),
         BlazeView("browser", "Browser", "Blaze's own browser and tabs", special = "browser"),
+        BlazeView("phonebrowser", "Blaze Phone", "Blaze's own phone browser: watch it log in and book, take control, hand back", special = "phonebrowser", aliases = listOf("blaze phone", "phone browser", "blaze phone browser", "blaze's phone")),
         BlazeView("doctor", "Doctor", "Phone health, self-check, crash report", page = "device", aliases = listOf("device", "diagnostics")),
         BlazeView("usage", "Usage", "Tokens and estimated cost", page = "usage", aliases = listOf("cost")),
         BlazeView("voice", "Voice", "Hey Blaze, spoken replies, call", page = "voice"),

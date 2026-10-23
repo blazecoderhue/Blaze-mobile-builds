@@ -1013,6 +1013,14 @@ data class Attachment(val name: String, val parts: List<JSONObject>, val thumb: 
 
     fun stopAgent(bg: BgAgents.Bg) { sessions[bg.chat]?.stop() }
 
+    /** 0.45.19: stops the turn running in chat [id] (Blaze Phone's picture-in-picture Stop). False when nothing ran there. */
+    fun stopChat(id: String): Boolean {
+        val s = sessions[id] ?: return false
+        val was = s.mood != Mood.IDLE
+        s.stop(); refreshBusy()
+        return was
+    }
+
     /** "/agent <task>": the card goes in the open chat, and the result wakes it. */
     fun startAgentFromUser(task: String) {
         val s = cur
@@ -1270,6 +1278,7 @@ When you finish, say what you did in one short sentence.
         t.put(com.blaze.assistant.phone.Ussd.tool())
         t.put(com.blaze.assistant.phone.Messaging.tool())
         com.blaze.assistant.browser.BrowserTools.definitions().forEach { t.put(it) }
+        com.blaze.assistant.browser.phone.PhoneBrowserTools.definitions().forEach { t.put(it) }   // 0.45.19 Blaze Phone browser
         if (Settings.bool("terminal_tools", true)) com.blaze.assistant.terminal.Terminal.tools(app).forEach { t.put(it) }
         if (Settings.bool("terminal_tools", true)) com.blaze.assistant.terminal.DevTools.tools().forEach { t.put(it) }
         if (Settings.bool("terminal_tools", true)) t.put(com.blaze.assistant.terminal.Git.tool())
@@ -3427,6 +3436,11 @@ When you finish, say what you did in one short sentence.
                         val g = UnconfirmedEcho.fix(textOut, synchronized(turnDone) { turnDone.toList() })
                         if (g != textOut) { CallState.current().errors.add("reply left out that the action wasn't confirmed; said so"); textOut = g; reply.put("content", g) }
                     } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("UnconfirmedEcho", e) }
+                    // 0.45.19: a switch read back on the phone ends with one line saying what was read ("Done ✓ Dark mode is on.").
+                    if ((calls == null || calls.length() == 0) && !rewroteClaim) try {
+                        val g = ToggleReply.fix(textOut, synchronized(turnDone) { turnDone.toList() })
+                        if (g != textOut) { textOut = g; reply.put("content", g) }
+                    } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("ToggleReply", e) }
                     if ((calls == null || calls.length() == 0) && step < maxSteps - 4 && gateLeft > 0 && nudgesLeft > 0 && !routine) {
                         val nudge = when {
                             FakeCall.looksFake(ReplyParts.split(textOut, final = true).text, ToolCalls.names(allTools), actedThisTurn, lastUserText(), lookedThisTurn) -> FakeCall.NUDGE
@@ -3895,7 +3909,8 @@ When you finish, say what you did in one short sentence.
         suspend fun screenAfter(result: String): String {
             val svc = com.blaze.assistant.phone.BlazeAccessibilityService.instance ?: return ""
             if (!Settings.phoneControl || result.startsWith("Error") || result.startsWith("No app") || result.startsWith("Phone control is off") || result.startsWith("Not done yet")) return ""
-            svc.settle(1200, 200)
+            // 0.45.19: a result the phone already read back (verified by state) needs only a short settle before the look
+            if (result.contains(ActCheck.OK)) svc.settle(500, 120) else svc.settle(1200, 200)
             val s = svc.readScreen(diff = true)
             orient.saw(svc.currentPkg())
             return "\n\nScreen now:\n" + s + com.blaze.assistant.phone.Watchers.drain()
@@ -4552,6 +4567,18 @@ When you finish, say what you did in one short sentence.
                 "recent_notifications" -> { add(Role.STEP, "Checking notifications"); com.blaze.assistant.notify.NotificationBrain.list(args.optString("app").ifBlank { null }, args.optDouble("hours", 6.0)) }
                 com.blaze.assistant.phone.Messaging.NAME -> { add(Role.STEP, "Messaging ${args.optString("to")}"); com.blaze.assistant.phone.Messaging.run(app, args) }
                 com.blaze.assistant.browser.BrowserTools.SECURE -> secureInput(args)
+                in com.blaze.assistant.browser.phone.PhoneBrowserTools.names -> {
+                    // 0.45.19 Blaze Phone: one screen, so parallel specialists take turns (the first to use it holds it).
+                    agentId?.let { me -> Dispatch.phone.take(me) { h -> BgAgents.get(h)?.live == true }?.let {
+                        return "Blaze Phone is in use by another agent right now. Use web_search / fetch_page for this step, or finish without it." } }
+                    add(Role.STEP, com.blaze.assistant.browser.phone.PhoneBrowserTools.describe(name, args))
+                    // 0.45.19 fix 4: who drives Blaze Phone now, so the picture-in-picture Stop cancels exactly this turn.
+                    com.blaze.assistant.browser.phone.PhoneBrowser.own(id, agentId)
+                    val drv = com.blaze.assistant.browser.phone.PhoneBrowser.Driver(app) { reason, site ->
+                        if (!inForeground) Notifier.actionRequired("Take control: ${reason.take(50)}", site,
+                            "Blaze needs you on Blaze Phone ($site): ${reason.take(80)}. Tap, then Take control.") }
+                    com.blaze.assistant.browser.phone.PhoneBrowserTools.run(drv, name, args, shots) { t, d, a -> confirm(t, d, a, always = true) }
+                }
                 in com.blaze.assistant.browser.BrowserTools.names -> {
                     // v0.26.2: parallel specialists take turns with the one background browser (the first to use it holds it).
                     agentId?.let { me -> Dispatch.browser.take(me) { h -> BgAgents.get(h)?.live == true }?.let { return it } }
@@ -4591,12 +4618,11 @@ When you finish, say what you did in one short sentence.
                         // v0.45.13 verify-after-act: a switch tapped toward a wanted state is read back before anything says it changed.
                         if (want == null || wantId == null || svc == null || r.startsWith("Error") || r.startsWith("Couldn't")) r
                         else {
-                            svc.settle(maxMs = 1200, quietMs = 250)
-                            when (svc.switchState(wantId)) {
-                                want -> r.trimEnd() + " " + ActCheck.checked("the switch \u201c${label.take(40)}\u201d now reads ${TapLoop.wantWord(want)}")
-                                null -> r.trimEnd() + " " + ActCheck.notConfirmed("couldn't read the switch back", "read_screen and check it")
-                                else -> r.trimEnd() + " " + ActCheck.notConfirmed("the switch \u201c${label.take(40)}\u201d still reads ${TapLoop.wantWord(!want)}", "read_screen, then tap the switch itself")
-                            }
+                            // 0.45.19: verify by STATE first (dark mode, Wi-Fi, Bluetooth… read from the system), then the switch
+                            // re-found and re-read; polled with a timeout. A theme switch recreates the screen, so the old node
+                            // read back "unknown" while Dark theme was on, and the reply said both (StateCheck).
+                            val vr = com.blaze.assistant.phone.ToggleVerify.after(app, svc, label, wantId, want)
+                            r.trimEnd() + " " + com.blaze.assistant.phone.ToggleVerify.marker(vr)
                         }
                     }
                 }
@@ -4688,6 +4714,7 @@ When you finish, say what you did in one short sentence.
             fun board() = labels.mapIndexed { i, l -> (when (state[i]) { 2 -> "\u2713 "; 1 -> "\u2192 "; 3 -> "\u2715 "; 4 -> "\u2013 "; else -> "\u00b7 " }) + l }.joinToString("\n")
             val boardId = add(Role.STEP, board())
             val started = System.currentTimeMillis()
+            val planChecks = mutableListOf<String>()
             for (i in skip until n) {
                 val st = steps.getJSONObject(i)
                 state[i] = 1; replace(boardId, Role.STEP, board())
@@ -4733,6 +4760,12 @@ When you finish, say what you did in one short sentence.
                                 svc.flash(id)
                                 val r = svc.tap(id, st.optString("do") == "long_press")
                                 if (r.startsWith("Couldn't") || r.startsWith("No element")) fail = r
+                                else if (want != null) {
+                                    // 0.45.19: a switch step toward a wanted state is verified by state / re-read, like the tap tool.
+                                    val vr = com.blaze.assistant.phone.ToggleVerify.after(app, svc, label.ifBlank { target }, id, want)
+                                    planChecks += com.blaze.assistant.phone.ToggleVerify.marker(vr)
+                                    if (vr.status == com.blaze.assistant.phone.StateCheck.Status.CONTRADICTED) fail = com.blaze.assistant.phone.StateCheck.contradicted(vr)
+                                }
                                 trace.put(JSONObject().put("tool", "tap").put("args", JSONObject().put("text", label)).put("label", label))
                             }
                         }
@@ -4780,7 +4813,8 @@ When you finish, say what you did in one short sentence.
             }
             lastPlan = FastActions.PlanRun(keys, n, false, svc.currentPkg())
             val words = svc.visibleWords().filter { it.length in 2..60 }.take(25)
-            return "All $n steps done in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s. Now in ${svc.currentApp() ?: "?"}. On screen: ${words.joinToString(" · ")}\n(Call read_screen only if you need to act further on this screen.)"
+            return "All $n steps done in ${"%.1f".format((System.currentTimeMillis() - started) / 1000.0)} s. Now in ${svc.currentApp() ?: "?"}. On screen: ${words.joinToString(" · ")}\n(Call read_screen only if you need to act further on this screen.)" +
+                (if (planChecks.isNotEmpty()) " " + planChecks.last() else "")
         }
 
         /**
