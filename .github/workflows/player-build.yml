@@ -1,0 +1,105 @@
+# Blaze Player CI (public builds repo blazecoderhue/Blaze-mobile-builds, branches player/*).
+# Modelled on app/0.45.18's mobile-build.yml, adapted for React Native / Expo.
+# Builds the release APK UNSIGNED. Signing happens outside GitHub with the private release key:
+# no key, keystore or password is ever in this repo or in Actions.
+name: Player build
+
+on:
+  push:
+    branches: [ "player/**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+  CI: "1"
+
+jobs:
+  jest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Jest
+        run: |
+          set -o pipefail
+          npx jest --ci --json --outputFile=jest.json 2>&1 | tee jest.log
+      - name: units.txt
+        if: always()
+        run: |
+          node -e '
+            const r=require("./jest.json");
+            const bad=r.testResults.flatMap(s=>s.assertionResults.filter(a=>a.status==="failed").map(a=>s.name.split("/").pop()+" > "+a.fullName));
+            const out=`UNITS suites=${r.numTotalTestSuites} tests=${r.numTotalTests} passed=${r.numPassedTests} failed=${r.numFailedTests} suiteFailures=${r.numFailedTestSuites}\n`+bad.map(b=>"FAIL "+b).join("\n");
+            require("fs").writeFileSync("units.txt",out+"\n"); console.log(out);
+          ' | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-tests
+          retention-days: 3
+          path: |
+            jest.log
+            jest.json
+            units.txt
+
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci --no-audit --no-fund
+      - name: Expo prebuild (android)
+        run: npx expo prebuild --platform android --no-install
+      - name: SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          echo "sdk.dir=$ANDROID_HOME" > android/local.properties
+          chmod +x android/gradlew
+      - name: Verify agent manifest
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'com.blaze.player.permission.AGENT" android:protectionLevel="signature"' $M
+          grep -q 'android:name=".AgentEntry"' $M
+          grep -q 'android:name=".AgentService"' $M
+          grep -q 'android:name=".AgentActivity"' $M
+          ! grep -qi 'torrent\|firebase\|usesCleartextTraffic="true"' $M
+      - name: Build unsigned release APK
+        working-directory: android
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleRelease --stacktrace --console=plain \
+            "-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g" 2>&1 | tee ../build.log
+      - name: Collect
+        if: always()
+        run: |
+          mkdir -p out
+          find android/app/build/outputs/apk/release -name '*.apk' -exec cp {} out/ \; || true
+          for f in out/*.apk; do [ -e "$f" ] || continue; case "$f" in *unsigned*) ;; *) mv "$f" "${f%.apk}-unsigned.apk";; esac; done
+          (cd out && sha256sum *.apk | tee SHA256SUMS) || true
+          echo "${GITHUB_SHA}" > out/COMMIT
+          tail -c 20000 build.log > out/build-tail.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apk-unsigned
+          retention-days: 3
+          path: |
+            out/
+            build.log

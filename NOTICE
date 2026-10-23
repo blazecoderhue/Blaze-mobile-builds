@@ -1,0 +1,16 @@
+Blaze Player
+Copyright 2026 Blazeinchue
+
+Blaze Player is a modified version of Vega (https://github.com/vega-org/vega-app) at commit 9ccc0c8, licensed under Apache-2.0. Modified by Blazeinchue.
+
+Vega is the work of the Vega contributors (https://github.com/vega-org/vega-app/graphs/contributors).
+The upstream repository had no NOTICE file at commit 9ccc0c8fc9f92702fd021f1b6f67e26e30988362.
+Later upstream commits use a different licence and were not used.
+
+Files modified or added by Blazeinchue are listed in CHANGES.md, as Section 4(b) of the
+Apache License 2.0 requires. The full licence text is in LICENSE.
+
+This product bundles third-party open-source components under their own licences, including
+React Native (MIT), Expo (MIT), react-native-video / AndroidX Media3 (MIT / Apache-2.0),
+react-native-google-cast (MIT; the Google Cast SDK is under the Google APIs Terms of Service)
+and react-native-mmkv-storage / MMKV (MIT / BSD-3-Clause).
