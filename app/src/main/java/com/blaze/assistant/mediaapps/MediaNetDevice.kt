@@ -52,3 +52,33 @@ object MediaNetDevice {
         return MediaNet.prefetchBytes(link, kind)
     }
 }
+
+/**
+ * 0.45.20: whether the phone has a network right now, as a flow the players and the Store watch (one default-network
+ * callback for the whole app, registered on first use; no polling).
+ */
+object NetWatch {
+    private val _online = kotlinx.coroutines.flow.MutableStateFlow(true)
+    val online: kotlinx.coroutines.flow.StateFlow<Boolean> = _online
+    @Volatile private var started = false
+
+    fun start(ctx: Context): kotlinx.coroutines.flow.StateFlow<Boolean> {
+        if (started) return online
+        synchronized(this) {
+            if (started) return online
+            started = true
+            val cm = ctx.applicationContext.getSystemService(ConnectivityManager::class.java) ?: return online
+            _online.value = MediaNetDevice.link(ctx) != Link.NONE
+            runCatching {
+                cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                    override fun onAvailable(network: android.net.Network) { _online.value = true }
+                    override fun onLost(network: android.net.Network) { _online.value = cm.activeNetwork != null && cm.activeNetwork != network }
+                    override fun onUnavailable() { _online.value = false }
+                })
+            }
+        }
+        return online
+    }
+
+    fun now(ctx: Context): Boolean = start(ctx).value
+}

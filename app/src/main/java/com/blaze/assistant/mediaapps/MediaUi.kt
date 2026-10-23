@@ -284,6 +284,12 @@ class StoreState(kind: String) {
     var pending by mutableStateOf(0)
     /** 0.45.19: recent searches (newest first), loaded on first show. */
     var recent by mutableStateOf<List<String>?>(null)
+    /** 0.45.20: the last search failed outright (error card with Retry), the source to name, and a saved-results note. */
+    var failed by mutableStateOf(false)
+    /** 0.45.20: a key that will search was typed: skeletons show at once (spec: under 100 ms), not after the debounce. */
+    var typing by mutableStateOf(false)
+    var failedSource by mutableStateOf<String?>(null)
+    var savedNote by mutableStateOf("")
 }
 
 /**
@@ -353,12 +359,22 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
         val pairs = use.flatMap { s -> if (mixMode && s.browsable) listOf(s to "") else queries.filter { it.isNotEmpty() || s.browsable }.map { q -> s to q } }
         if (pairs.isEmpty()) return
         state.fired = LiveSearch.key(typed, state.chip)
-        state.error = ""; state.searched = true
+        state.error = ""; state.searched = true; state.failed = false; state.savedNote = ""
+        state.failedSource = pairs.map { it.first.name }.distinct().singleOrNull()
         // 0.45.19 recent searches: a query+chip+source seen in the last 10 minutes shows its results at once.
         val cacheKey = RecentSearches.key(typed, state.chip, src?.id ?: ForYou.ALL)
         RecentSearches.results(kind).get(cacheKey)?.let { hit ->
             state.results = hit.items; state.next = hit.next; state.pageSource = hit.pageSource; state.pageQuery = hit.pageQuery
             state.loading = false; state.pending = 0
+            return
+        }
+        // 0.45.20 offline: a search saved before shows at once with an offline note; a new one gets the "No internet"
+        // card with Retry instead of skeletons waiting out a 15 s timeout.
+        if (!NetWatch.now(ctx)) {
+            state.job?.cancel(); state.pending = 0; state.loading = false; state.next = ""
+            val saved = SavedSearchStore.find(ctx, kind, cacheKey)
+            if (saved != null) { state.results = saved.items; state.savedNote = "Offline \u00b7 saved results" }
+            else { state.results = emptyList(); state.failed = true; state.error = "Connect to search. Downloads still play offline." }
             return
         }
         state.loading = true
@@ -385,6 +401,8 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
             if (pairs.size == 1) { state.pageSource = pairs[0].first.id; state.pageQuery = pairs[0].second; state.next = got[0].getOrNull()?.next.orEmpty() }
             else { state.pageSource = ""; state.pageQuery = ""; state.next = "" }
             RecentSearches.results(kind).put(cacheKey, state.results, state.next, state.pageSource, state.pageQuery)
+            if (state.results.isNotEmpty()) SavedSearchStore.put(ctx, kind, cacheKey, state.results)   // 0.45.20: offline copy
+            state.failed = state.results.isEmpty() && got.all { it.isFailure }
             state.error = when {
                 state.results.isNotEmpty() -> ""
                 got.all { it.isFailure } -> got.first().exceptionOrNull()?.message ?: "Search didn't work. Check the connection."
@@ -397,8 +415,10 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
     // Wave A 17: results update as they type, 250 ms (0.45.19) after the last key; each keystroke restarts the wait.
     LaunchedEffect(state.query) {
         val t = state.query.trim()
-        if (!state.searched || !LiveSearch.shouldFire(state.fired, t, state.chip)) return@LaunchedEffect
+        if (!state.searched || !LiveSearch.shouldFire(state.fired, t, state.chip)) { state.typing = false; return@LaunchedEffect }
+        state.typing = true
         delay(LiveSearch.DEBOUNCE_MS)
+        state.typing = false
         search()
     }
     // 0.45.19 step 3: once the results settle, the top ones' details are fetched in parallel (Wi-Fi 2, good signal 1,
@@ -416,6 +436,11 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
             }
         }
     }
+    // 0.45.20: the saved (offline) searches are read once, off the main thread.
+    LaunchedEffect(kind) { withContext(Dispatchers.IO) { SavedSearchStore.pages(ctx, kind) } }
+    val online by remember { NetWatch.start(ctx) }.collectAsState()
+    val waitedMs = rememberStallMs(state.loading && state.results.isEmpty())
+    val searchNote = NetHonesty.search(state.loading, waitedMs, state.results.isNotEmpty(), state.failed, online)
     // Free sources list something before the first search (popular / the whole catalogue).
     // Wave A 27-28: open on the For you mix, nothing pre-selected.
     LaunchedEffect(src?.id, setup) {
@@ -496,17 +521,30 @@ fun StoreView(kind: String, state: StoreState, onPlay: (StoreItem, StoreDetail, 
         if (setup != null && src is JamendoSource) item(span = { GridItemSpan(maxLineSpan) }) { JamendoSetup(setup) { setupTick++ } }
         else if (setup != null) item(span = { GridItemSpan(maxLineSpan) }) { MText(setup, 13.sp, c.sub, maxLines = 4) }
         if (mine.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { DownloadsList(mine) }
-        if (state.error.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) {
+        // 0.45.20: a search that failed gets an honest card (Retry, saved results when there are any), never a blank grid.
+        if (searchNote == NetHonesty.Search.OFFLINE_ERROR || searchNote == NetHonesty.Search.SOURCE_ERROR) item(span = { GridItemSpan(maxLineSpan) }) {
+            val savedKey = RecentSearches.key(state.query.trim(), state.chip, src?.id ?: ForYou.ALL)
+            val saved = remember(savedKey, state.failed) { SavedSearchStore.find(ctx, kind, savedKey) }
+            SearchErrorCard(NetHonesty.errorTitle(searchNote, state.failedSource), state.error, saved != null,
+                onRetry = { search() },
+                onSaved = { saved?.let { state.results = it.items; state.failed = false; state.error = ""; state.savedNote = "Saved results" } })
+        } else if (state.error.isNotBlank()) item(span = { GridItemSpan(maxLineSpan) }) {
             MText(state.error, 13.sp, c.sub, maxLines = 4, modifier = Modifier.padding(vertical = 8.dp))
         }
-        // Wave A 17: skeleton cards instead of a blank grid while results load.
-        if (state.loading && state.results.isEmpty()) items(LiveSearch.skeletons(kind != "video"), key = { "sk$it" }) { SkeletonTile(kind != "video") }
-        if (state.results.isEmpty() && !state.loading && state.error.isBlank() && setup == null) item(span = { GridItemSpan(maxLineSpan) }) {
+        if (searchNote == NetHonesty.Search.SLOW) item(span = { GridItemSpan(maxLineSpan) }) {
+            MText(NetHonesty.slowText(), 13.sp, c.sub, modifier = Modifier.padding(vertical = 4.dp))
+        }
+        if (state.savedNote.isNotBlank() && state.results.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+            MText(state.savedNote, 12.5.sp, c.sub, FontWeight.Medium, modifier = Modifier.padding(vertical = 2.dp))
+        }
+        // Wave A 17: skeleton cards instead of a blank grid while results load (0.45.20: from the key, not the debounce).
+        if ((state.loading && state.results.isEmpty()) || state.typing) items(LiveSearch.skeletons(kind != "video"), key = { "sk$it" }) { SkeletonTile(kind != "video") }
+        if (state.results.isEmpty() && !state.loading && !state.typing && state.error.isBlank() && !state.failed && setup == null) item(span = { GridItemSpan(maxLineSpan) }) {
             EmptyState(if (kind == "video") "Find a video" else "Find music",
                 "Search, then tap a result to see it, its licence and the qualities. Downloads stay private in Blaze's Library; " +
                     "export or share them from the ⋮ menu.")
         }
-        items(state.results, key = { it.source + ":" + it.id }) { r ->
+        if (!state.typing) items(state.results, key = { it.source + ":" + it.id }) { r ->
             ResultCard(r) {
                 if (state.query.isNotBlank()) state.recent = RecentSearches.remember(ctx, kind, state.query)
                 state.previewSource = StoreSources.get(r.source); state.preview = r
@@ -645,6 +683,23 @@ fun DownloadsList(jobs: List<DlJob>) {
         DlConcurrency.nudge(lim.first, lim.second, jobs.count { it.status == DlStatus.QUEUED && it.attempts == 0 })?.let {
             MText(it, 11.5.sp, c.sub, maxLines = 2, modifier = Modifier.padding(horizontal = 14.dp))
         }
+        // Wave B 3: this month's meters for the kinds in the list (server numbers; hidden on an unlimited plan).
+        val ent by com.blaze.assistant.connect.Entitlements.snap.collectAsState()
+        ent?.let { s ->
+            val kinds = jobs.map { com.blaze.assistant.connect.Entitlements.kindOf(it.kind) }.distinct()
+            kinds.forEach { k ->
+                val ctr = (if (k == "video") s.video else s.song) ?: return@forEach
+                val f = com.blaze.assistant.connect.Entitlements.fraction(ctr) ?: return@forEach
+                val warn = com.blaze.assistant.connect.Entitlements.near(ctr)
+                Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp)) {
+                    MText((if (k == "video") "Video downloads \u00b7 " else "Song downloads \u00b7 ") + com.blaze.assistant.connect.Entitlements.line(ctr), 11.5.sp,
+                        if (warn) BlazeBrush.orange else c.sub)
+                    Spacer(Modifier.height(3.dp))
+                    LinearProgressIndicator(progress = { f }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(BlazeShapes.pill),
+                        color = if (warn) BlazeBrush.orange else c.accent, trackColor = c.hair)
+                }
+            }
+        }
         jobs.forEach { j ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 NetThumb(j.thumb, Modifier.size(44.dp).clip(BlazeShapes.xs))
@@ -757,6 +812,15 @@ fun PreviewSheet(kind: String, item: StoreItem, source: StoreSource, onDismiss: 
                             12.sp, if (metered) BlazeBrush.orange else DialogColors.body, maxLines = 2)
                         if (dl.isNotBlank()) MText("Download: " + dl.substringBefore(" · "), 12.sp, DialogColors.body)
                     }
+                }
+                // Wave B 3: what this month's plan has left, from the server (GET /v1/entitlements), never a hardcoded number.
+                val ent by com.blaze.assistant.connect.Entitlements.snap.collectAsState()
+                LaunchedEffect(Unit) { if (ent == null) withContext(Dispatchers.IO) { runCatching { com.blaze.assistant.connect.Entitlements.cached(ctx) } } }
+                val leftLine = com.blaze.assistant.connect.Entitlements.sheetLine(ent, if (kind == "video") "video" else "song")
+                if (d != null && choices.isNotEmpty() && leftLine.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    val none = leftLine.startsWith("No ")
+                    MText(leftLine, 12.sp, if (none) BlazeBrush.orange else DialogColors.body, maxLines = 2)
                 }
                 if (confirmWatch && d != null) BlazeDialog("Watch on mobile data?", "This stream uses about ${TimeText.size(streamBytes)} of your data. Downloaded videos play offline for free.",
                     confirm = "Watch", onConfirm = { confirmWatch = false; onPlay(d) }, dismiss = "Not now", onDismiss = { confirmWatch = false })
@@ -952,6 +1016,30 @@ object RecentSearches {
     val video = Results()
     fun results(kind: String) = if (kind == "video") video else music
     fun key(typed: String, chip: String, source: String) = LiveSearch.key(typed, chip) + "\u0001" + source
+}
+
+/**
+ * 0.45.20: the last [SavedSearches.MAX] result pages per Store in a small file, for searching again offline. Read once
+ * (preloaded off the main thread by StoreView), written on a background thread.
+ */
+object SavedSearchStore {
+    private val mem = java.util.concurrent.ConcurrentHashMap<String, List<SavedSearches.Page>>()
+    private val io = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "blaze-saved-search").apply { isDaemon = true } }
+    private fun file(ctx: android.content.Context, kind: String) = java.io.File(ctx.applicationContext.filesDir, "store_saved_$kind.json")
+    fun pages(ctx: android.content.Context, kind: String): List<SavedSearches.Page> = mem[kind]
+        ?: SavedSearches.decode(runCatching { file(ctx, kind).takeIf { it.isFile }?.readText() }.getOrNull().orEmpty()).also { mem[kind] = it }
+    fun find(ctx: android.content.Context, kind: String, key: String): SavedSearches.Page? = SavedSearches.find(pages(ctx, kind), key)
+    fun put(ctx: android.content.Context, kind: String, key: String, items: List<StoreItem>) {
+        val app = ctx.applicationContext
+        io.execute {
+            val next = SavedSearches.put(pages(app, kind), key, items, System.currentTimeMillis())
+            mem[kind] = next
+            runCatching {
+                val f = file(app, kind); val tmp = java.io.File(f.path + ".tmp")
+                tmp.writeText(SavedSearches.encode(next)); if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+            }
+        }
+    }
 }
 
 /** 0.45.19: the thumbnail as it loads: null while on the way, with [loading] false once it landed or failed. */

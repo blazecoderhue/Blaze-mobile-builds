@@ -4,12 +4,9 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
-import com.blaze.assistant.agent.Providers
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 
 /**
@@ -95,16 +92,18 @@ object DlQuota {
         val token = runCatching { com.blaze.assistant.agent.Settings.gatewayToken() }.getOrDefault("")
         if (token.isBlank()) return Entitled.Capped(1, "basic")
         if (!force && System.currentTimeMillis() - p.getLong(AT, 0) < TTL) cached(ctx).let { if (it != Entitled.Unknown) return it }
-        val got = runCatching {
-            val c = URL(Providers.GATEWAY_BASE + "entitlements").openConnection() as HttpURLConnection
-            try {
-                c.connectTimeout = 8_000; c.readTimeout = 8_000
-                c.setRequestProperty("Authorization", "Bearer $token")
-                if (c.responseCode == 200) DlConcurrency.parse(c.inputStream.bufferedReader().readText()) else Entitled.Unknown
-            } finally { c.disconnect() }
-        }.getOrDefault(Entitled.Unknown)
+        // 0.45.20: one fetch for the plan's numbers. Entitlements (0.45.18, GET /v1/entitlements) already holds
+        // max_parallel_downloads next to the monthly counters, so the queue reads it there instead of a second call.
+        val got = runCatching { com.blaze.assistant.connect.Entitlements.refresh(ctx, force) }.getOrNull()?.let { fromSnapshot(it) } ?: Entitled.Unknown
         if (got != Entitled.Unknown) { p.edit().putString(KEY, DlConcurrency.toCache(got)).putLong(AT, System.currentTimeMillis()).apply(); return got }
         return cached(ctx)
+    }
+
+    /** The parallel cap in an Entitlements snapshot: a number, no cap (lifetime), or Unknown when the server didn't say. */
+    fun fromSnapshot(s: com.blaze.assistant.connect.Entitlements.Snapshot): Entitled = when {
+        s.maxParallel != null -> Entitled.Capped(s.maxParallel.coerceIn(1, DlConcurrency.AUTO_MAX), s.plan)
+        s.parallelUncapped -> Entitled.Uncapped
+        else -> Entitled.Unknown
     }
 
     /** The limit right now on this phone. */

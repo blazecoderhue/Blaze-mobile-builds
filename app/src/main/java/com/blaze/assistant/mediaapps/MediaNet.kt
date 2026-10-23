@@ -204,6 +204,9 @@ object MediaNet {
         private val chunks: Chunks = Chunks.NONE,
         private val fatal: (IOException) -> Boolean = { false },
         private val eof: (IOException) -> Boolean = { false },
+        /** 0.45.20: a signed url that expired (403 / 410); [renew] swaps in a fresh url of the same rendition. */
+        private val expired: (IOException) -> Boolean = { false },
+        private val renew: () -> Boolean = { false },
     ) {
         private var pos = 0L
         private var end = -1L          // exclusive; -1 = to the stream's end
@@ -215,13 +218,29 @@ object MediaNet {
         private var chunking = true
         var requests = 0; private set
         var reopens = 0; private set
+        var renewals = 0; private set
         val position: Long get() = pos
+        /** The whole stream's size when a server said, else -1. */
+        val totalSize: Long get() = total
+
+        /** 0.45.20: an expired url gets a fresh one (at most [UrlRenew.MAX_PER_OPEN] per open); true = try again now. */
+        private fun renewed(e: IOException): Boolean {
+            if (!expired(e) || renewals >= UrlRenew.MAX_PER_OPEN) return false
+            closeQuietly()
+            if (!renew()) return false
+            renewals++
+            return true
+        }
 
         /** Opens at [start] for [length] bytes (-1 = to the end); returns the length if known, else -1. */
         fun open(start: Long, length: Long): Long {
             pos = start; end = if (length >= 0) start + length else -1; total = -1; chunk = 0; chunking = chunks.first > 0
-            ended = false; requests = 0; reopens = 0
-            openAt()
+            ended = false; requests = 0; reopens = 0; renewals = 0
+            try { openAt() } catch (e: IOException) {
+                // 0.45.20: a remembered url that expired since (replay, a seek much later) is renewed before the player hears of it.
+                if (!renewed(e)) throw e
+                openAt()
+            }
             return when { end >= 0 -> end - start; total >= 0 -> total - start; !chunking && left >= 0 -> left; else -> -1 }
         }
 
@@ -276,10 +295,18 @@ object MediaNet {
 
         /** A drop: re-open at [pos], backing off, until it works or [graceMs] has passed. */
         private fun recover(first: IOException) {
-            if (fatal(first)) { closeQuietly(); throw first }
+            var e = first
+            if (expired(first)) {
+                // 0.45.20: re-resolve and go on at the same byte (no back-off: the network is fine, the url aged).
+                if (!renewed(first)) { closeQuietly(); throw first }
+                try { openAt(); reopens++; return } catch (e2: IOException) {
+                    if (eof(e2)) { ended = true; return }
+                    if (fatal(e2) && !expired(e2)) { closeQuietly(); throw e2 }
+                    closeQuietly(); e = e2
+                }
+            } else if (fatal(first)) { closeQuietly(); throw first }
             closeQuietly()
             val deadline = clock.now() + graceMs
-            var e = first
             var attempt = 0
             while (true) {
                 val now = clock.now()
@@ -289,6 +316,7 @@ object MediaNet {
                     openAt(); reopens++; return
                 } catch (e2: IOException) {
                     if (eof(e2)) { ended = true; return }
+                    if (renewed(e2)) { e = e2; continue }
                     if (fatal(e2)) { closeQuietly(); throw e2 }
                     closeQuietly(); e = e2
                 }

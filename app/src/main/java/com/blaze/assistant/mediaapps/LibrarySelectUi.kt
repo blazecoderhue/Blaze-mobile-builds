@@ -20,6 +20,10 @@ import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.blaze.assistant.ui.BlazeMenu
 import com.blaze.assistant.ui.BlazeShapes
 import com.blaze.assistant.ui.LocalBlaze
 
@@ -40,7 +45,9 @@ fun SelectionBar(
     label: String, allSelected: Boolean, onClose: () -> Unit, onSelectAll: () -> Unit,
     onShare: () -> Unit, onExport: () -> Unit, onDelete: () -> Unit, onAddToPlaylist: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    exportItems: List<Pair<String, () -> Unit>> = emptyList(),
 ) {
+    var exportMenu by remember { mutableStateOf(false) }
     val c = LocalBlaze.current
     Row(modifier.fillMaxWidth().height(48.dp).clip(BlazeShapes.pill).background(c.faint).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
@@ -51,7 +58,11 @@ fun SelectionBar(
             tint = if (allSelected) c.accent else c.ink, onClick = onSelectAll)
         if (onAddToPlaylist != null) RoundIcon(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist", size = 38, onClick = onAddToPlaylist)
         RoundIcon(Icons.Rounded.Share, "Share", size = 38, onClick = onShare)
-        RoundIcon(Icons.Rounded.SaveAlt, "Export", size = 38, onClick = onExport)
+        // Wave B 2: with targets given, Export opens a menu (Music/Movies, Downloads, a folder); else straight to the folder picker.
+        Box {
+            RoundIcon(Icons.Rounded.SaveAlt, "Export", size = 38, onClick = { if (exportItems.isEmpty()) onExport() else exportMenu = true })
+            BlazeMenu(exportMenu, { exportMenu = false }, exportItems)
+        }
         RoundIcon(Icons.Rounded.Delete, "Delete", size = 38, onClick = onDelete)
     }
 }

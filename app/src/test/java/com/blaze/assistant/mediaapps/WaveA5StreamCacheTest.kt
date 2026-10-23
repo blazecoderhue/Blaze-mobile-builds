@@ -35,7 +35,8 @@ class WaveA5StreamCacheTest {
             assertTrue("players read through the cache", "StreamCache.factory(this, http)" in s)
             assertTrue("buffer ahead", "StreamCache.loadControl(this)" in s)
         }
-        assertTrue("video parts keyed by track", "setCustomCacheKey(if (stream) StreamCache.key(t.key) else null)" in v)
+        // 0.45.20: keyed by track, plus the height after a rendition step-down (two renditions never share a key).
+        assertTrue("video parts keyed by track", "setCustomCacheKey(if (stream) StreamCache.key(ck) else null)" in v && "val ck = if (heightCap > 0) \"\${t.key}~\${heightCap}p\" else t.key" in v)
         assertTrue("offline replay on refresh failure", "StreamCache.recall(this@VideoActivity, t.key)" in v)
         val c = src("mediaapps/StreamCache.kt")
         assertTrue("offline replay remembers urls per track", "fun remember(" in c && "fun recall(" in c && "StreamCache.remember(this, t.key, playUris)" in v)

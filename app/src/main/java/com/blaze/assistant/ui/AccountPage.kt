@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -375,8 +376,9 @@ private fun UsageSection(onPlan: () -> Unit) {
         }
         Text(com.blaze.assistant.connect.Billing.planName(snap.plan) + " plan", style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.sub))
         Spacer(Modifier.height(8.dp))
-        snap.song?.let { UsageLine("Songs", com.blaze.assistant.connect.Entitlements.line(it), com.blaze.assistant.connect.Entitlements.near(it)) }
-        snap.video?.let { UsageLine("Videos", com.blaze.assistant.connect.Entitlements.line(it), com.blaze.assistant.connect.Entitlements.near(it)) }
+        // Wave B 3: a meter per counter, numbers straight from the server.
+        snap.song?.let { UsageMeter("Song downloads", it) }
+        snap.video?.let { UsageMeter("Video downloads", it) }
         val par = com.blaze.assistant.connect.Entitlements.parallelLine(snap)
         if (par.isNotBlank()) UsageLine("At once", par, false)
         val reset = com.blaze.assistant.connect.Entitlements.resetLine(snap.resetAtMs)
@@ -385,6 +387,24 @@ private fun UsageSection(onPlan: () -> Unit) {
         if (nudge.isNotBlank()) {
             Text(nudge, modifier = Modifier.padding(top = 10.dp), style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.body))
             ActionText("See plans", color = c.accent, size = 10.sp, modifier = Modifier.clickable(onClick = onPlan).padding(vertical = 8.dp))
+        }
+    }
+}
+
+/** Wave B 3: label + "x of y left" on one row, a 6 dp meter under it (full width, so nothing squishes at 360 dp). */
+@Composable
+fun UsageMeter(label: String, counter: com.blaze.assistant.connect.Entitlements.Counter) {
+    val c = LocalBlaze.current.mono
+    val E = com.blaze.assistant.connect.Entitlements
+    val warn = E.near(counter)
+    Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+        UsageLine(label, E.line(counter), warn)
+        E.fraction(counter)?.let { f ->
+            Spacer(Modifier.height(4.dp))
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(c.hair)) {
+                Box(Modifier.fillMaxWidth(f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(if (warn) BlazeBrush.orange else c.ink))
+            }
+            Text(E.usedLine(counter), modifier = Modifier.padding(top = 3.dp), style = TextStyle(fontFamily = Type.Sans, fontSize = 12.sp, color = c.sub))
         }
     }
 }

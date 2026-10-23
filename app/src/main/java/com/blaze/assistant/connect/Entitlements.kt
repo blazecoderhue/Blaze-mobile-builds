@@ -56,6 +56,13 @@ object Entitlements {
     /** Left this month; Int.MAX_VALUE = no cap. */
     fun left(c: Counter): Int = if (c.unlimited) Int.MAX_VALUE else (if (c.remaining >= 0) c.remaining else c.limit - c.used).coerceAtLeast(0)
 
+    /** Wave B 3: how full the month's meter is (used / limit, 0..1); null = no meter (unlimited or no limit given). */
+    fun fraction(c: Counter): Float? = if (c.unlimited || c.limit <= 0) null
+        else ((c.limit - left(c)).coerceAtLeast(0).toFloat() / c.limit).coerceIn(0f, 1f)
+
+    /** Wave B 3: the meter's caption, "3 of 100 used" (server numbers, never a hardcoded plan table). */
+    fun usedLine(c: Counter): String = if (c.unlimited) "Unlimited" else "${fmt((c.limit - left(c)).coerceAtLeast(0))} of ${fmt(c.limit)} used"
+
     /** "97 of 100 left" / "Unlimited". */
     fun line(c: Counter): String = if (c.unlimited) "Unlimited" else "${fmt(left(c))} of ${fmt(c.limit)} left"
 

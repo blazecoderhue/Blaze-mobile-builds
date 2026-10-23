@@ -347,6 +347,10 @@ class VideoActivity : ComponentActivity() {
             }
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) { current.value?.let { MediaLib.savePosition(it.key, 0, 1) }; onEnded() }
+                // 0.45.20 (spec 1): a stall = playing, then buffering while it should play. 2 in 60 s: one rendition down.
+                if (state == Player.STATE_BUFFERING && lastState == Player.STATE_READY && player.playWhenReady &&
+                    stalls.stall(android.os.SystemClock.elapsedRealtime())) stepDown()
+                lastState = state
             }
             override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
                 // v0.34.0 skip intro: an early jump forward in an episode teaches where the series' intro ends.
@@ -424,7 +428,9 @@ class VideoActivity : ComponentActivity() {
         val t = current.value ?: return
         val subs = subsLoaded.map { SubsLoader.config(it, it.id == pendingSub) }
         val stream = t.source == "stream"
-        val first = MediaItem.Builder().setMediaId(t.key).setUri(playUris.first()).setCustomCacheKey(if (stream) StreamCache.key(t.key) else null)
+        // 0.45.20: a stepped-down rendition caches under its own key (bytes of two renditions never mix under one key).
+        val ck = if (heightCap > 0) "${t.key}~${heightCap}p" else t.key
+        val first = MediaItem.Builder().setMediaId(t.key).setUri(playUris.first()).setCustomCacheKey(if (stream) StreamCache.key(ck) else null)
             .setMediaMetadata(MediaMetadata.Builder().setTitle(t.title).build()).setSubtitleConfigurations(subs).build()
         if (playUris.size == 1) player.setMediaItem(first, at)
         else {
@@ -432,7 +438,7 @@ class VideoActivity : ComponentActivity() {
             val parts = ArrayList<MediaSource>()
             parts += msf.createMediaSource(first)
             playUris.drop(1).forEachIndexed { i, u -> parts += ProgressiveMediaSource.Factory(StreamCache.factory(this, http)).setLoadErrorHandlingPolicy(StreamCache.dropPolicy())
-                .createMediaSource(MediaItem.Builder().setUri(u).setCustomCacheKey(if (stream) StreamCache.key(t.key, i + 1) else null).build()) }
+                .createMediaSource(MediaItem.Builder().setUri(u).setCustomCacheKey(if (stream) StreamCache.key(ck, i + 1) else null).build()) }
             player.setMediaSource(MergingMediaSource(*parts.toTypedArray()), at)
         }
         if (pendingSub != null) player.trackSelectionParameters = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build()
@@ -514,6 +520,25 @@ class VideoActivity : ComponentActivity() {
 
     private var lastWatch: Pair<StoreItem, StoreSource>? = null
     private var retriedKey = ""
+    // 0.45.20 rendition step-down: the detail on screen, the height cap (0 = none) and the stall window.
+    private var lastDetail: StoreDetail? = null
+    private var heightCap = 0
+    private var lastState = Player.STATE_IDLE
+    private val stalls = NetHonesty.StallWindow()
+
+    /** Two stalls in a minute on a streamed video: the next lower picture at the same spot (never below 144p). */
+    private fun stepDown() {
+        val t = current.value ?: return
+        if (t.source != "stream") return
+        val (item, src) = lastWatch ?: return
+        val d = lastDetail ?: return
+        val curH = player.videoSize.height.takeIf { it > 0 } ?: return
+        val lower = NetHonesty.stepDown(minOf(curH, if (heightCap > 0) heightCap else curH),
+            src.choices("video", d).map { it.height }.filter { it > 0 }.distinct()) ?: return
+        heightCap = lower
+        Toast.makeText(this, "Weak network: ${lower}p for now", Toast.LENGTH_SHORT).show()
+        watch(item, d, src, player.currentPosition.coerceAtLeast(1))
+    }
 
     /** v0.30.5: a refused stream (403 / 410) is asked for again once and resumes where it stopped (see MusicService). */
     private fun retryStream(e: PlaybackException) {
@@ -538,10 +563,12 @@ class VideoActivity : ComponentActivity() {
     /** Watch a Store result without downloading: one progressive file, or video + audio merged while playing. */
     fun watch(item: StoreItem, d: StoreDetail, src: StoreSource, at: Long = 0) {
         // v0.34.0 data saver: on mobile data the smallest picture (240p or more).
-        val picks = VideoSmart.streamFor("video", d, src, MediaPrefs.saving(this))
+        if (at == 0L || lastWatch?.first?.id != item.id) { heightCap = 0; stalls.reset() }
+        val picks = VideoSmart.capped("video", d, src, heightCap) ?: VideoSmart.streamFor("video", d, src, MediaPrefs.saving(this))
         if (picks.isEmpty()) return
         upNext.value = null
         lastWatch = item to src
+        lastDetail = d
         if (at == 0L) retriedKey = ""
         savePos()
         http.setUserAgent(src.userAgent)
@@ -851,6 +878,12 @@ private fun PlayerSurface(a: VideoActivity, controls: Boolean) {
                 })
         }
         if (buffering) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp), color = BlazeBrush.blue, trackColor = Color.Transparent)
+        // 0.45.20: honest network line on streams: weak network after 1.5 s, retrying + Retry after 10 s, offline from saved.
+        val online by remember { NetWatch.start(ctx) }.collectAsState()
+        val stalledMs = rememberStallMs(buffering && p.playWhenReady)
+        val net = NetHonesty.play(stalledMs, online, cur?.source == "stream")
+        if (error.isBlank()) NetNote(net, online, onRetry = { p.seekTo(p.currentPosition); p.prepare(); p.play() },
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 16.dp), onDark = true)
         if (hint.isNotEmpty()) Box(Modifier.align(Alignment.Center).clip(BlazeShapes.medium).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 16.dp, vertical = 10.dp)) {
             MText(hint, 15.sp, Color.White, FontWeight.Medium)
         }
@@ -1062,6 +1095,11 @@ private fun VideoLibrary(a: VideoActivity) {
             if (i == null) Toast.makeText(ctx, "These can't be shared", Toast.LENGTH_SHORT).show() else runCatching { ctx.startActivity(i) }
         },
         onExport = { runCatching { exportTree.launch(null) }.onFailure { Toast.makeText(ctx, "No file picker on this phone", Toast.LENGTH_SHORT).show() } },
+            exportItems = listOf(
+                "Export to Movies" to { export.run(LibrarySelection.picked(sel, shown), MediaStorePolicy.Target.DEFAULT); sel = LibrarySelection.clear() },
+                "Export to Downloads" to { export.run(LibrarySelection.picked(sel, shown), MediaStorePolicy.Target.DOWNLOADS); sel = LibrarySelection.clear() },
+                "Export to folder\u2026" to { runCatching { exportTree.launch(null) }.onFailure { Toast.makeText(ctx, "No file picker on this phone", Toast.LENGTH_SHORT).show() } },
+            ),
         onDelete = {
             val p = LibrarySelection.picked(sel, shown)
             if (LibrarySelection.deletable(p).isEmpty()) Toast.makeText(ctx, "Gallery videos are deleted in Gallery", Toast.LENGTH_SHORT).show() else confirmMany = p
