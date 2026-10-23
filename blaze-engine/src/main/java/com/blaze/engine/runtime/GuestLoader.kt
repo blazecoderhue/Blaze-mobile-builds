@@ -80,7 +80,7 @@ class GuestLoader(private val context: Context, private val layout: StorageLayou
     }
 
     /**
-     * Extracts lib/<abi>/*.so into the guest's own lib dir so System.loadLibrary resolves through
+     * Extracts the lib/<abi>/ .so files into the guest's own lib dir so System.loadLibrary resolves through
      * ApplicationInfo.nativeLibraryDir. Returns the chosen ABI, or null when the APK has no native code.
      */
     fun extractNativeLibs(pkg: String, preferredAbi: String? = null): String? {
