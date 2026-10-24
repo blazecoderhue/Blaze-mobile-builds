@@ -24,8 +24,9 @@ object TabStore {
     fun keepUrl(url: String): Boolean = url.isEmpty() || url == "about:blank" || url.startsWith("http://", true) ||
         url.startsWith("https://", true) || SavedPages.isSavedUrl(url)
 
-    fun encode(s: Saved): String {
-        var budget = MAX_TOTAL_STATE
+    /** [totalBudget]: total back/forward state written (scaled to the device by [PerfPolicy.Budget.persistStateBudget]). */
+    fun encode(s: Saved, totalBudget: Int = MAX_TOTAL_STATE): String {
+        var budget = totalBudget.coerceIn(0, MAX_TOTAL_STATE)
         val tabs = s.tabs.filter { keepUrl(it.url) }.take(MAX_TABS)
         val a = JSONArray()
         tabs.forEach { t ->
@@ -70,9 +71,9 @@ object TabStore {
     @Volatile var dir: File? = null
     private fun file() = dir?.let { File(it, "browser_tabs.json") }
 
-    fun write(s: Saved) {
+    fun write(s: Saved, totalBudget: Int = MAX_TOTAL_STATE) {
         val f = file() ?: return
-        try { val tmp = File(f.path + ".tmp"); tmp.writeText(encode(s)); if (!tmp.renameTo(f)) { f.writeText(tmp.readText()); tmp.delete() } } catch (_: Exception) { }
+        try { val tmp = File(f.path + ".tmp"); tmp.writeText(encode(s, totalBudget)); if (!tmp.renameTo(f)) { f.writeText(tmp.readText()); tmp.delete() } } catch (_: Exception) { }
     }
 
     fun read(): Saved = decode(try { file()?.takeIf { it.exists() }?.readText() } catch (_: Exception) { null })

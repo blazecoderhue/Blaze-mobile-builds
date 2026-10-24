@@ -50,7 +50,18 @@ import kotlin.coroutines.resume
  * read, click and type on pages in the background, and the Browser screen just shows the current tab.
  */
 object BrowserEngine {
-    class Tab(val id: Int, val web: WebView, val ctxWrap: MutableContextWrapper, val isPrivate: Boolean = false) {
+    class Tab(val id: Int, val ctxWrap: MutableContextWrapper, val isPrivate: Boolean = false) {
+        /**
+         * Unreleased (browser perf): the WebView is created on first use and can be discarded while the tab is in the
+         * background (its back/forward state goes to [pending] and comes back when the tab is shown again). Restored
+         * tabs no longer each create a WebView at start, and only [PerfPolicy.Budget.maxLiveWebViews] stay alive.
+         */
+        internal var webOrNull: WebView? = null
+        val web: WebView get() = webOrNull ?: materialize(this)
+        val live: Boolean get() = webOrNull != null
+        /** When this tab was last on screen (for least-recently-used discarding). */
+        @Volatile var lastShown: Long = System.currentTimeMillis()
+        internal var captureLate = false
         var title by mutableStateOf(if (isPrivate) "Private tab" else "New tab")
         var icon by mutableStateOf<ImageBitmap?>(null)
         /** A small picture of the page for the tab grid, taken when you leave the tab. */
@@ -60,10 +71,13 @@ object BrowserEngine {
         var url by mutableStateOf("")
         var progress by mutableIntStateOf(100)
         /** v0.29.1 load feed: what the page is pulling right now (see [LoadFeed]). */
-        var pulls by mutableIntStateOf(0)
-        var pulling by mutableStateOf("")
-        var loadStart by mutableStateOf(0L)
-        var lastPull by mutableStateOf(0L)
+        // Unreleased: plain fields, not Compose state. onLoadResource fires for every request (hundreds per page) and
+        // nothing on screen reads these, so each write used to be a snapshot-state write on the main thread for nothing.
+        @Volatile var pulls = 0
+        @Volatile internal var pullingUrl: String = ""
+        val pulling: String get() = pullingUrl.let { if (it.isEmpty()) "" else LoadFeed.label(it) }
+        @Volatile var loadStart = 0L
+        @Volatile var lastPull = 0L
         var canBack by mutableStateOf(false)
         var canForward by mutableStateOf(false)
         @Volatile var loaded: CompletableDeferred<Unit> = CompletableDeferred(Unit)
@@ -88,7 +102,14 @@ object BrowserEngine {
     /** The tab on screen. Switching to a restored tab loads it (v0.29.7). */
     var current: Int
         get() = currentIndex
-        set(v) { currentIndex = v; tabs.getOrNull(v)?.let { if (it.pending != null) main.post { wake(it) } }; scheduleSave() }
+        set(v) {
+            val prev = tabs.getOrNull(currentIndex)
+            currentIndex = v
+            val now = tabs.getOrNull(v)
+            prev?.takeIf { it !== now }?.let { it.lastShown = System.currentTimeMillis(); background(it) }
+            now?.let { it.lastShown = System.currentTimeMillis(); foreground(it); if (it.pending != null) main.post { wake(it) } }
+            scheduleSave(); main.post { enforceLiveCap() }
+        }
     var desktop by mutableStateOf(false)
     var fullView by mutableStateOf<View?>(null)
     private var fullCallback: WebChromeClient.CustomViewCallback? = null
@@ -104,6 +125,8 @@ object BrowserEngine {
         if (::app.isInitialized) return
         app = ctx.applicationContext
         BrowserLogins.dir = app.filesDir; TabStore.dir = app.filesDir; SavedPages.root = app.filesDir
+        BrowserPerf.hardware(app)
+        BrowserData.warm(app)   // bookmarks/history parsed off the main thread before the start page asks
         BrowserVpn.onMaskChanged = { remask() }
         BrowserVpn.init(app)
         main.post { clearPrivateData() }   // leftovers if Blaze was killed with private tabs open
@@ -116,7 +139,7 @@ object BrowserEngine {
     private val saveTask = Runnable { saveTabsNow() }
 
     /** Saves the tab list a moment after something changed (page loaded, tab opened / closed / switched). */
-    fun scheduleSave() { if (!restored) return; main.removeCallbacks(saveTask); main.postDelayed(saveTask, 1500) }
+    fun scheduleSave() { if (!restored) return; main.removeCallbacks(saveTask); main.postDelayed(saveTask, BrowserPerf.budget().saveDebounceMs) }
 
     /** Writes the normal tabs (URL, title, order, back/forward state) and flushes cookies so sign-ins survive a kill. */
     fun saveTabsNow() {
@@ -125,12 +148,14 @@ object BrowserEngine {
         try {
             val snaps = tabs.filter { !it.isPrivate }.map { snapOf(it) }
             val saved = TabStore.Saved(snaps, TabStore.activeIndex(tabs.map { it.isPrivate }, current))
-            io.execute { TabStore.write(saved) }   // one writer thread, in order
+            val budget = BrowserPerf.budget().persistStateBudget
+            io.execute { TabStore.write(saved, budget) }   // one writer thread, in order
         } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.error("Browser tabs not saved", e) }
         flushCookies()
     }
 
-    fun flushCookies() { try { CookieManager.getInstance().flush() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: CookieManager.getInstance.flush", e) } }
+    /** Unreleased: CookieManager.flush blocks and does disk I/O, so it runs on the writer thread, not the main thread. */
+    fun flushCookies() { io.execute { try { CookieManager.getInstance().flush() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: CookieManager.getInstance.flush", e) } } }
 
     @Suppress("DEPRECATION")
     private fun snapOf(t: Tab): TabStore.Snap {
@@ -229,7 +254,7 @@ object BrowserEngine {
 
     /** Re-applies masking after the VPN or the setting changed; reloads the visible page so it takes effect. */
     fun remask() {
-        tabs.forEach { installMask(it) }
+        tabs.forEach { if (it.live) installMask(it) }   // sleeping tabs get it when their WebView is made
         tab()?.let { if (it.url.startsWith("http")) it.web.reload() }
     }
 
@@ -238,11 +263,12 @@ object BrowserEngine {
         val w = t?.web ?: return
         if (w.width <= 0 || w.height <= 0 || !w.isAttachedToWindow) return
         try {
-            val sc = 0.35f
+            val sc = BrowserPerf.budget().thumbScale
             val b = Bitmap.createBitmap((w.width * sc).toInt().coerceAtLeast(1), (w.height * sc).toInt().coerceAtLeast(1), Bitmap.Config.RGB_565)
             val c = Canvas(b); c.scale(sc, sc); c.translate(-w.scrollX.toFloat(), -w.scrollY.toFloat())
             w.draw(c)
             t.thumb = b.asImageBitmap()
+            trimThumbs(BrowserPerf.budget().maxThumbs)
         } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: val sc 0.35f", e) }
     }
 
@@ -255,12 +281,27 @@ object BrowserEngine {
     @SuppressLint("SetJavaScriptEnabled")
     fun newTab(ctx: Context, url: String? = null, isPrivate: Boolean = false, restore: TabStore.Snap? = null): Tab {
         init(ctx)
-        val wrap = MutableContextWrapper(app)
-        val w = WebView(wrap)
+        if (isPrivate && !privateIsolated) toast("Private tabs share cookies with normal tabs on this phone. Update Android System WebView to keep them apart.")
+        val t = Tab(nextId++, MutableContextWrapper(app), isPrivate)
+        if (restore != null && restore.url.isNotBlank()) {
+            // Unreleased: a restored tab stays a title + saved state until it's shown (no WebView at start).
+            t.url = restore.url; t.title = restore.title.ifBlank { display(restore.url) }; t.pending = restore
+        } else materialize(t)
+        tabs.add(t)
+        if (t.pending != null) currentIndex = tabs.lastIndex else current = tabs.lastIndex
+        if (!url.isNullOrBlank()) load(t, url)
+        return t
+    }
+
+    /** Creates the tab's WebView (settings, clients, masking, the sign-in bridge). Called on first use of [Tab.web]. */
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun materialize(t: Tab): WebView {
+        t.webOrNull?.let { return it }
+        val isPrivate = t.isPrivate
+        val w = WebView(t.ctxWrap)
+        t.webOrNull = w
         // The profile must be set before the WebView is used for anything else.
         if (isPrivate && privateIsolated) { try { WebViewCompat.setProfile(w, PRIVATE_PROFILE) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: WebViewCompat.setProfilew PRIVATE_PROFIL", e) } }
-        else if (isPrivate) toast("Private tabs share cookies with normal tabs on this phone. Update Android System WebView to keep them apart.")
-        val t = Tab(nextId++, w, wrap, isPrivate)
         w.settings.apply {
             javaScriptEnabled = true; domStorageEnabled = true; databaseEnabled = true
             loadWithOverviewMode = true; useWideViewPort = true
@@ -273,7 +314,6 @@ object BrowserEngine {
         }
         CookieManager.getInstance().setAcceptThirdPartyCookies(w, true)
         layoutOffscreen(w)
-        var captureLate = false   // set below: inject the sign-in watcher after each load (old WebView)
         w.webViewClient = object : WebViewClient() {
             // v0.20.0: a dead page renderer (Android reclaims it on a 3 GB phone, or it crashes) used to take the
             // whole app down with it, and Samsung then switches Blaze's phone control off. Reopen the tab instead.
@@ -296,14 +336,14 @@ object BrowserEngine {
                 t.url = url.orEmpty(); t.progress = 5
                 // A page that got here without shouldOverrideUrlLoading (redirect, history) never keeps file access it shouldn't.
                 if (!fileAccessFor(url)) allowFiles(t, url.orEmpty())
-                t.pulls = 0; t.pulling = ""; t.loadStart = System.currentTimeMillis(); t.lastPull = t.loadStart
+                t.pulls = 0; t.pullingUrl = ""; t.loadStart = System.currentTimeMillis(); t.lastPull = t.loadStart
                 if (t.loaded.isCompleted) t.loaded = CompletableDeferred()
                 t.maskJs?.let { v.evaluateJavascript(it, null) }
                 t.fillAccounts = emptyList()
             }
             override fun onLoadResource(v: WebView, url: String?) {
                 if (t.progress >= 100 || url.isNullOrBlank() || url.startsWith("data:")) return
-                t.pulls++; t.pulling = LoadFeed.label(url); t.lastPull = System.currentTimeMillis()
+                t.pulls++; t.pullingUrl = url; t.lastPull = System.currentTimeMillis()
             }
             override fun onPageFinished(v: WebView, url: String?) {
                 t.url = url.orEmpty(); t.progress = 100; t.canBack = v.canGoBack(); t.canForward = v.canGoForward()
@@ -312,9 +352,9 @@ object BrowserEngine {
                 if (url.orEmpty().startsWith("http")) v.evaluateJavascript(BOTTOM_PAD_JS, null)
                 if (!t.isPrivate && !url.isNullOrBlank() && url != "about:blank" && !SavedPages.isSavedUrl(url)) BrowserData.addHistory(app, v.title ?: url, url)
                 if (!t.isPrivate) {
-                    if (captureLate) v.evaluateJavascript(BrowserLogins.CAPTURE_JS, null)
+                    if (t.captureLate) v.evaluateJavascript(BrowserLogins.CAPTURE_JS, null)
                     offerSoon(t, 700)
-                    scheduleSave(); flushCookies()
+                    scheduleSave()   // the debounced save also flushes cookies (off the main thread)
                 }
             }
             override fun doUpdateVisitedHistory(v: WebView, url: String?, isReload: Boolean) {
@@ -342,7 +382,7 @@ object BrowserEngine {
                 r.confirm(); return true
             }
             override fun onReceivedTitle(v: WebView, title: String?) { t.title = title?.ifBlank { null } ?: t.url }
-            override fun onReceivedIcon(v: WebView, icon: Bitmap?) { t.icon = icon?.asImageBitmap() }
+            override fun onReceivedIcon(v: WebView, icon: Bitmap?) { t.icon = icon?.let { smallIcon(it) }?.asImageBitmap() }
             override fun onShowFileChooser(v: WebView, cb: ValueCallback<Array<Uri>>, p: FileChooserParams): Boolean =
                 filePicker?.invoke(cb, p) ?: run { cb.onReceiveValue(null); false }
             override fun onShowCustomView(view: View, callback: CustomViewCallback) { fullView = view; fullCallback = callback }
@@ -351,16 +391,11 @@ object BrowserEngine {
         w.setDownloadListener { dl, userAgent, disposition, mime, _ -> download(dl, userAgent, disposition, mime) }
         installMask(t)
         // v0.29.7 saved passwords: normal tabs only. Private tabs never get the capture script or the bridge.
-        captureLate = !isPrivate && installLoginBridge(t)
-        if (restore != null && restore.url.isNotBlank()) {
-            t.url = restore.url; t.title = restore.title.ifBlank { display(restore.url) }; t.pending = restore
-        }
-        tabs.add(t)
-        if (t.pending != null) currentIndex = tabs.lastIndex else current = tabs.lastIndex
-        if (!url.isNullOrBlank()) load(t, url)
-        return t
+        t.captureLate = !isPrivate && installLoginBridge(t)
+        applyPerf(t, w)
+        if (!visible(t)) background(t)
+        return w
     }
-
     private fun display(u: String) = u.removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore('/')
 
     // ---------- v0.29.7 saved passwords ----------
@@ -475,7 +510,7 @@ object BrowserEngine {
     }
 
     /** True while the Browser screen shows this tab (an Activity is attached to its dialogs). */
-    private fun visible(t: Tab) = t.ctxWrap.baseContext !== app && t.web.isAttachedToWindow
+    private fun visible(t: Tab) = t.ctxWrap.baseContext !== app && t.webOrNull?.isAttachedToWindow == true
 
     /**
      * The background browser: a WebView that isn't on screen still needs a size, or pages lay out at 0×0
@@ -491,12 +526,88 @@ object BrowserEngine {
         } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: val dm app.resources.displayMetrics", e) }
     }
 
+    // ---------- Unreleased: hardware-aware tab memory ----------
+    /** Per-WebView settings from the device budget: pre-raster only where there's memory for it. */
+    private fun applyPerf(t: Tab, w: WebView) {
+        val b = BrowserPerf.budget()
+        if (android.os.Build.VERSION.SDK_INT >= 23) try { w.settings.offscreenPreRaster = b.offscreenPreRaster } catch (_: Throwable) { }
+    }
+
+    /** The tab is on screen: full renderer priority, page timers / animations running. */
+    private fun foreground(t: Tab) {
+        val w = t.webOrNull ?: return
+        try { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true) } catch (_: Throwable) { }
+        try { w.onResume() } catch (_: Throwable) { }
+    }
+
+    /**
+     * The tab left the screen: the page is told it's hidden (it throttles its own timers and animations) and its
+     * renderer becomes the first one Android may reclaim, instead of the app. The tab on screen keeps running so
+     * Blaze can keep driving it in the background.
+     */
+    private fun background(t: Tab) {
+        val w = t.webOrNull ?: return
+        if (t === tab()) return
+        try { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_WAIVED, true) } catch (_: Throwable) { }
+        try { w.onPause() } catch (_: Throwable) { }
+    }
+
+    private fun uses(): List<PerfPolicy.TabUse> { val cur = tab()
+        return tabs.map { PerfPolicy.TabUse(it.id, it.live, it === cur, it.progress < 100 || (it === cur && fullView != null), it.lastShown) } }
+
+    /** Discards the least recently shown background WebViews beyond the device's live-WebView budget. */
+    fun enforceLiveCap(max: Int = BrowserPerf.budget().maxLiveWebViews) {
+        if (!::app.isInitialized) return
+        val ids = PerfPolicy.toDiscard(uses(), max).toSet()
+        if (ids.isEmpty()) return
+        tabs.filter { it.id in ids }.forEach { discard(it) }
+    }
+
+    /** Frees a background tab's WebView; its back/forward state is kept in memory and restored when it's shown. */
+    private fun discard(t: Tab) {
+        val w = t.webOrNull ?: return
+        if (t === tab()) return
+        val snap = try { snapOf(t) } catch (_: Throwable) { TabStore.Snap(t.url, t.title) }
+        t.pending = snap.copy(url = snap.url.ifBlank { t.url.takeIf { u -> u.startsWith("http") || SavedPages.isSavedUrl(u) }.orEmpty() })
+        try { t.mask?.remove() } catch (_: Throwable) { }
+        t.mask = null; t.maskJs = null
+        t.webOrNull = null
+        try { (w.parent as? ViewGroup)?.removeView(w); w.stopLoading(); w.destroy() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: discard", e) }
+        if (!t.loaded.isCompleted) t.loaded.complete(Unit)
+    }
+
+    private fun trimThumbs(keep: Int) {
+        val have = tabs.filter { it.thumb != null }.map { it.id }.toSet()
+        val drop = PerfPolicy.thumbsToDrop(uses(), have, keep).toSet()
+        if (drop.isNotEmpty()) tabs.forEach { if (it.id in drop) it.thumb = null }
+    }
+
+    /** Called from the Application's onTrimMemory: sleeps background tabs and drops thumbnails by pressure and device. */
+    fun onTrimMemory(level: Int) {
+        if (!::app.isInitialized) return
+        main.post {
+            try {
+                val b = BrowserPerf.budget()
+                enforceLiveCap(PerfPolicy.keepLiveOnTrim(level, b))
+                trimThumbs(PerfPolicy.keepThumbsOnTrim(level, b))
+            } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: onTrimMemory", e) }
+        }
+    }
+
+    /** Favicons can arrive at 192-512 px (up to 1 MB each); the UI draws them at 16-36 dp. */
+    private fun smallIcon(b: Bitmap): Bitmap {
+        val m = PerfPolicy.ICON_MAX_PX
+        if (b.width <= m && b.height <= m) return b
+        val k = m.toFloat() / maxOf(b.width, b.height)
+        return try { Bitmap.createScaledBitmap(b, (b.width * k).toInt().coerceAtLeast(1), (b.height * k).toInt().coerceAtLeast(1), true) } catch (_: Throwable) { b }
+    }
+
     /** Replaces a tab whose renderer died with a fresh one on the same page. */
     private fun reopen(t: Tab) {
         val i = tabs.indexOf(t); if (i < 0) return
         val url = t.url.takeIf { it.startsWith("http") }
         val keep = tabs.getOrNull(current)?.takeIf { it !== t }
-        try { (t.web.parent as? ViewGroup)?.removeView(t.web); t.web.destroy() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: t.web.parent as ViewGroup.removeViewt.we", e) }
+        try { t.webOrNull?.let { w -> (w.parent as? ViewGroup)?.removeView(w); w.destroy() }; t.webOrNull = null } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: t.web.parent as ViewGroup.removeViewt.we", e) }
         tabs.removeAt(i)
         val n = newTab(app, url, t.isPrivate)
         tabs.remove(n); tabs.add(i.coerceAtMost(tabs.size), n)
@@ -508,8 +619,8 @@ object BrowserEngine {
 
     fun close(i: Int) {
         val t = tabs.getOrNull(i) ?: return
-        (t.web.parent as? ViewGroup)?.removeView(t.web)
-        t.web.stopLoading(); t.web.destroy()
+        t.webOrNull?.let { w -> (w.parent as? ViewGroup)?.removeView(w); w.stopLoading(); w.destroy() }
+        t.webOrNull = null
         tabs.removeAt(i)
         if (current >= tabs.size) current = (tabs.size - 1).coerceAtLeast(0)
         if (t.isPrivate && tabs.none { it.isPrivate }) clearPrivateData()
@@ -531,7 +642,7 @@ object BrowserEngine {
 
     fun useDesktop(on: Boolean) {
         desktop = on
-        tabs.forEach { t -> t.web.settings.userAgentString = ua(WebSettings.getDefaultUserAgent(app), on); t.web.settings.useWideViewPort = true }
+        tabs.forEach { t -> t.webOrNull?.let { w -> w.settings.userAgentString = ua(WebSettings.getDefaultUserAgent(app), on); w.settings.useWideViewPort = true } }
         tab()?.web?.reload()
     }
 
@@ -788,24 +899,53 @@ object BrowserEngine {
     })()"""
 }
 
-/** Bookmarks and history, kept in filesDir/browser.json. */
+/**
+ * Bookmarks and history, kept in filesDir/browser.json.
+ * Unreleased: reads and writes are off the main thread. The file is parsed once on a background thread ([warm]),
+ * kept in memory, and written at most every [WRITE_DELAY_MS] on one writer thread (it used to be re-serialised and
+ * rewritten on the main thread after every page load, up to 300 history entries each time).
+ */
 object BrowserData {
     data class Entry(val title: String, val url: String, val time: Long = System.currentTimeMillis())
+    private const val WRITE_DELAY_MS = 2000L
     private fun file(ctx: Context) = File(ctx.filesDir, "browser.json")
     private var cache: JSONObject? = null
+    private val lock = Any()
+    private val writer = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
+    @Volatile private var writeQueued = false
 
-    private fun data(ctx: Context): JSONObject = cache ?: try { JSONObject(file(ctx).readText()) } catch (_: Exception) {
-        JSONObject().put("bookmarks", JSONArray()).put("history", JSONArray()) }.also { cache = it }
+    /** Parses the file on a background thread so the first start page / history read doesn't touch the disk. */
+    fun warm(ctx: Context) { val app = ctx.applicationContext; writer.execute { try { data(app) } catch (_: Throwable) { } } }
 
-    private fun save(ctx: Context) { try { file(ctx).writeText(data(ctx).toString()) } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: filectx.writeTextdatactx.toString", e) } }
-
-    // 0.45.19-speed: Blaze Phone's site resolver reads history off the main thread while the browser writes it; one lock.
-    @Synchronized private fun list(ctx: Context, k: String): List<Entry> {
-        val a = data(ctx).optJSONArray(k) ?: JSONArray()
-        return (0 until a.length()).map { a.getJSONObject(it) }.map { Entry(it.optString("t"), it.optString("u"), it.optLong("at")) }
+    private fun data(ctx: Context): JSONObject = synchronized(lock) {
+        cache ?: try { JSONObject(file(ctx).readText()) } catch (_: Exception) {
+            JSONObject().put("bookmarks", JSONArray()).put("history", JSONArray()) }.also { cache = it }
     }
-    @Synchronized private fun put(ctx: Context, k: String, l: List<Entry>) {
-        data(ctx).put(k, JSONArray().apply { l.forEach { put(JSONObject().put("t", it.title).put("u", it.url).put("at", it.time)) } }); save(ctx)
+
+    private fun save(ctx: Context) {
+        if (writeQueued) return
+        writeQueued = true
+        val app = ctx.applicationContext
+        writer.schedule({
+            writeQueued = false
+            try {
+                val text = synchronized(lock) { data(app).toString() }
+                val f = file(app); val tmp = File(f.path + ".tmp")
+                tmp.writeText(text); if (!tmp.renameTo(f)) { f.writeText(text); tmp.delete() }
+            } catch (e: Exception) { com.blaze.assistant.device.CrashLog.quiet("BrowserData: save", e) }
+        }, WRITE_DELAY_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    // 0.45.19-speed: Blaze Phone's site resolver reads history off the main thread while the browser writes it.
+    // Reads/writes of the cached JSON share [lock]; read-modify-write callers (toggleBookmark, addHistory) are @Synchronized.
+    private fun list(ctx: Context, k: String): List<Entry> = synchronized(lock) {
+        val a = data(ctx).optJSONArray(k) ?: JSONArray()
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Entry(it.optString("t"), it.optString("u"), it.optLong("at")) }
+    }
+    private fun put(ctx: Context, k: String, l: List<Entry>) {
+        val arr = JSONArray().apply { l.forEach { put(JSONObject().put("t", it.title).put("u", it.url).put("at", it.time)) } }
+        synchronized(lock) { data(ctx).put(k, arr) }
+        save(ctx)
     }
 
     fun bookmarks(ctx: Context) = list(ctx, "bookmarks")
@@ -816,6 +956,7 @@ object BrowserData {
         if (b.removeAll { it.url == url }.not()) b.add(0, Entry(title.ifBlank { url }, url))
         put(ctx, "bookmarks", b)
     }
+    /** Called on every page load: the in-memory list is updated now; the file write is batched off the main thread. */
     @Synchronized fun addHistory(ctx: Context, title: String, url: String) {
         val h = history(ctx).filter { it.url != url }.toMutableList()
         h.add(0, Entry(title, url)); put(ctx, "history", h.take(300))

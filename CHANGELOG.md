@@ -6,6 +6,8 @@
 - Playback resumes from the same spot when a stream link expires; when you're offline Blaze says so, skips what isn't saved and plays what is.
 - Video steps down to a lower quality after repeated stalls instead of freezing.
 - Store: clear error card with Retry, a note when it's slow, faster search while you type, and saved results when offline.
+- Faster, lighter built-in browser that adapts to your phone's hardware: tabs you aren't using sleep and wake with their history, restored tabs no longer all load at start, and background pages slow themselves down. ⋯ › Browser speed: Auto, Performance or Battery saver.
+- Less lag after each page loads: history, bookmarks and cookies are saved in the background, the loading bar redraws less, and big site icons are shrunk.
 
 ## v0.45.21: new chat bubbles, Sending/Sent/Read, live step pills (versionCode 166)
 - Chat bubbles: yours on the right, Blaze on the left, with tails, the time inside, Today/Yesterday chips and a long-press menu; readable in every theme.

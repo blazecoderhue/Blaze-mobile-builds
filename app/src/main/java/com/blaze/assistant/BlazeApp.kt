@@ -129,6 +129,8 @@ class BlazeApp : Application() {
      */
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        // Unreleased: the browser sleeps background tabs / drops thumbnails by pressure level and this phone's hardware.
+        try { com.blaze.assistant.browser.BrowserEngine.onTrimMemory(level) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("onTrimMemory browser", e) }
         if (com.blaze.assistant.device.MemoryTrim.shouldDropCaches(level)) {
             try { com.blaze.assistant.device.MemoryTrim.dropCaches() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("onTrimMemory", e) }
         }

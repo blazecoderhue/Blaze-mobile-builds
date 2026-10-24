@@ -170,7 +170,7 @@ class BrowserActivity : androidx.fragment.app.FragmentActivity() {
         BrowserUi.authenticate = null
         BrowserEngine.attach(null); BrowserEngine.filePicker = null
         // Back to the background browser: the tabs keep running offscreen at screen size.
-        BrowserEngine.tabs.forEach { (it.web.parent as? ViewGroup)?.removeView(it.web); BrowserEngine.layoutOffscreen(it.web) }
+        BrowserEngine.tabs.forEach { t -> t.webOrNull?.let { w -> (w.parent as? ViewGroup)?.removeView(w); BrowserEngine.layoutOffscreen(w) } }
         super.onDestroy()
     }
 }
@@ -305,9 +305,7 @@ internal fun BrowserScreen(onClose: () -> Unit, onImport: () -> Unit, onPopOut: 
                         keyboardActions = KeyboardActions(onGo = { tab?.let { BrowserEngine.load(it, bar) }; focus.clearFocus() }),
                         modifier = Modifier.fillMaxWidth().onFocusChanged { editing = it.isFocused })
                 }
-                val loading = (tab?.progress ?: 100) < 100
-                Icon(if (loading) Icons.Rounded.Close else Icons.Rounded.Refresh, if (loading) "Stop loading" else "Reload", tint = Glass.sub,
-                    modifier = Modifier.size(30.dp).clip(CircleShape).clickable { tab?.web?.let { if (loading) it.stopLoading() else it.reload() } }.padding(6.dp))
+                ReloadButton(tab)
             }
             Spacer(Modifier.width(6.dp))
             GlassIconButton(Icons.Rounded.AutoAwesome, "Ask Blaze about this page", size = 38.dp, bg = Glass.blue,
@@ -315,7 +313,7 @@ internal fun BrowserScreen(onClose: () -> Unit, onImport: () -> Unit, onPopOut: 
         }
         // v0.33.3: no status line and no tab pills (the tabs button keeps the count); just a 2dp progress line laid
         // over the bottom edge of the address row, taking no layout space.
-        if ((tab?.progress ?: 100) in 0..99) ThinProgress(tab?.progress ?: 100, Modifier.align(Alignment.BottomCenter).padding(horizontal = 22.dp))
+        TabProgress(tab, Modifier.align(Alignment.BottomCenter).padding(horizontal = 22.dp))
         }
 
         Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged { areaSize = it }) {
@@ -359,6 +357,15 @@ internal fun BrowserScreen(onClose: () -> Unit, onImport: () -> Unit, onPopOut: 
                     MenuRow(Icons.Rounded.Key, "Saved passwords") { panel = Panel.PASSWORDS }
                     MenuRow(Icons.Rounded.History, "History") { panel = Panel.HISTORY }
                     MenuRow(if (BrowserEngine.desktop) Icons.Rounded.PhoneAndroid else Icons.Rounded.DesktopWindows, if (BrowserEngine.desktop) "Mobile site" else "Desktop site") { BrowserEngine.useDesktop(!BrowserEngine.desktop); panel = Panel.NONE }
+                    // Unreleased: Browser speed (Auto follows this phone's hardware). Tap cycles Auto → Performance → Battery saver.
+                    var speed by remember { mutableStateOf(BrowserPerf.mode) }
+                    MenuRow(Icons.Rounded.Speed, "Browser speed: ${speed.label}") {
+                        speed = speed.next(); BrowserPerf.mode = speed; BrowserEngine.enforceLiveCap()
+                        android.widget.Toast.makeText(ctx, when (speed) {
+                            SpeedMode.AUTO -> "Browser speed: Auto (tuned to this phone)"
+                            SpeedMode.PERFORMANCE -> "Browser speed: Performance (more tabs kept ready, uses more memory)"
+                            SpeedMode.BATTERY -> "Browser speed: Battery saver (fewer tabs kept in memory)"
+                        }, android.widget.Toast.LENGTH_SHORT).show() }
                     if (url.startsWith("http")) {
                         MenuRow(Icons.Rounded.AutoAwesome, "Ask Blaze about this page") { askFirst = null; askOpen = true; panel = Panel.NONE }
                         MenuRow(Icons.Rounded.AdsClick, "Summon the Blaze pointer") { pointer = true; panel = Panel.NONE }
@@ -402,7 +409,7 @@ internal fun BrowserScreen(onClose: () -> Unit, onImport: () -> Unit, onPopOut: 
         // nearest edge, never resting in between, and the edge is remembered. The grip is the only drag target, so taps
         // on the buttons are untouched. Left / right turn it into a column.
         val showBar = barShown || panel != Panel.NONE || pointer || tab?.url.isNullOrBlank() || tab?.url == "about:blank"
-        val hide by androidx.compose.animation.core.animateFloatAsState(if (showBar) 0f else 1f, androidx.compose.animation.core.tween(220), label = "bar")
+        val hide by androidx.compose.animation.core.animateFloatAsState(if (showBar) 0f else 1f, androidx.compose.animation.core.tween(BrowserPerf.budget().animMs), label = "bar")
         val density = LocalDensity.current
         val scope = rememberCoroutineScope()
         val dragOff = remember { Animatable(Offset.Zero, Offset.VectorConverter) }
@@ -594,6 +601,23 @@ internal val LocalSheetInset = androidx.compose.runtime.compositionLocalOf { 0.d
 @Composable private fun Text(s: String, color: androidx.compose.ui.graphics.Color, size: Int, modifier: Modifier = Modifier, maxLines: Int = Int.MAX_VALUE, weight: FontWeight = FontWeight.Normal) =
     androidx.compose.material3.Text(s, modifier = modifier, maxLines = maxLines, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         style = TextStyle(fontFamily = if (size >= 20) Type.Display else Type.Sans, fontWeight = weight, fontSize = size.sp, color = color))
+
+/**
+ * Unreleased: tab.progress changes many times per page load. Reading it in BrowserScreen recomposed the whole screen
+ * (address bar, page host, floating toolbar) on every tick; these two small composables are the only readers now.
+ */
+@Composable
+private fun ReloadButton(tab: BrowserEngine.Tab?) {
+    val loading = (tab?.progress ?: 100) < 100
+    Icon(if (loading) Icons.Rounded.Close else Icons.Rounded.Refresh, if (loading) "Stop loading" else "Reload", tint = Glass.sub,
+        modifier = Modifier.size(30.dp).clip(CircleShape).clickable { tab?.web?.let { if (loading) it.stopLoading() else it.reload() } }.padding(6.dp))
+}
+
+@Composable
+private fun TabProgress(tab: BrowserEngine.Tab?, modifier: Modifier) {
+    val p = tab?.progress ?: 100
+    if (p in 0..99) ThinProgress(p, modifier)
+}
 
 /** v0.33.3: a 2dp progress line (brand gradient, rounded), overlaid on the address row's bottom edge. */
 @Composable
