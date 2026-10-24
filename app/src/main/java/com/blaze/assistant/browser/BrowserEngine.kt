@@ -530,14 +530,14 @@ object BrowserEngine {
     /** Per-WebView settings from the device budget: pre-raster only where there's memory for it. */
     private fun applyPerf(t: Tab, w: WebView) {
         val b = BrowserPerf.budget()
-        if (android.os.Build.VERSION.SDK_INT >= 23) try { w.settings.offscreenPreRaster = b.offscreenPreRaster } catch (_: Throwable) { }
+        if (android.os.Build.VERSION.SDK_INT >= 23) try { w.settings.offscreenPreRaster = b.offscreenPreRaster } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: offscreenPreRaster", e) }
     }
 
     /** The tab is on screen: full renderer priority, page timers / animations running. */
     private fun foreground(t: Tab) {
         val w = t.webOrNull ?: return
-        try { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true) } catch (_: Throwable) { }
-        try { w.onResume() } catch (_: Throwable) { }
+        try { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: foreground priority", e) }
+        try { w.onResume() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: foreground onResume", e) }
     }
 
     /**
@@ -548,8 +548,8 @@ object BrowserEngine {
     private fun background(t: Tab) {
         val w = t.webOrNull ?: return
         if (t === tab()) return
-        try { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_WAIVED, true) } catch (_: Throwable) { }
-        try { w.onPause() } catch (_: Throwable) { }
+        try { w.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_WAIVED, true) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: background priority", e) }
+        try { w.onPause() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: background onPause", e) }
     }
 
     private fun uses(): List<PerfPolicy.TabUse> { val cur = tab()
@@ -569,7 +569,7 @@ object BrowserEngine {
         if (t === tab()) return
         val snap = try { snapOf(t) } catch (_: Throwable) { TabStore.Snap(t.url, t.title) }
         t.pending = snap.copy(url = snap.url.ifBlank { t.url.takeIf { u -> u.startsWith("http") || SavedPages.isSavedUrl(u) }.orEmpty() })
-        try { t.mask?.remove() } catch (_: Throwable) { }
+        try { t.mask?.remove() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: discard mask.remove", e) }
         t.mask = null; t.maskJs = null
         t.webOrNull = null
         try { (w.parent as? ViewGroup)?.removeView(w); w.stopLoading(); w.destroy() } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserEngine: discard", e) }
@@ -915,7 +915,7 @@ object BrowserData {
     @Volatile private var writeQueued = false
 
     /** Parses the file on a background thread so the first start page / history read doesn't touch the disk. */
-    fun warm(ctx: Context) { val app = ctx.applicationContext; writer.execute { try { data(app) } catch (_: Throwable) { } } }
+    fun warm(ctx: Context) { val app = ctx.applicationContext; writer.execute { try { data(app) } catch (e: Throwable) { com.blaze.assistant.device.CrashLog.quiet("BrowserData: warm", e) } } }
 
     private fun data(ctx: Context): JSONObject = synchronized(lock) {
         cache ?: try { JSONObject(file(ctx).readText()) } catch (_: Exception) {
