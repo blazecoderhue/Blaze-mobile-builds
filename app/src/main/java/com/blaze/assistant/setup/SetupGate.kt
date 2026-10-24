@@ -9,18 +9,18 @@ import androidx.core.content.ContextCompat
 import java.io.File
 
 /**
- * v0.24.4 dependency setup gate. On launch (new users after the first-run flow, and users who upgraded), Blaze
- * checks which dependencies are missing and shows the setup columns for just those. Required ones block the
- * app until they're done; optional ones have "Later". Once everything is resolved `setup_deps_done` is set and
- * the gate never runs again. Before the gate first runs, prefs and user data are backed up (see [backup]).
+ * What Blaze can use on this phone (Settings › Permissions & setup) and the one-time data backup per build.
  *
- * The decision itself is pure (maps and sets in, steps out) so it is tested without a phone.
+ * 0.45.23: no launch gate any more. 0.24.4 to 0.45.22 blocked the app on first run with required columns (notifications,
+ * the Linux download) and optional ones; now nothing is asked up front: each is asked or installed when a task first
+ * needs it (notifications: NotifyAsk; Linux: the agent's linux_install / the terminal; phone control: PermissionGate), and
+ * all of them stay on the Settings page. The list and probe are pure enough to test without a phone.
  */
 object SetupGate {
     const val PREF_DONE = "setup_deps_done"
-    const val PREF_LATER = "setup_later"
     const val PREF_BACKUP = "setup_backup_v"
 
+    /** [required] = Blaze can't do its core work without it (shown as such on the Settings page; never blocks the app). */
     data class Dep(val id: String, val title: String, val why: String, val required: Boolean)
 
     /** Order is the order of the columns on screen. */
@@ -35,23 +35,6 @@ object SetupGate {
     )
 
     fun dep(id: String): Dep? = deps.firstOrNull { it.id == id }
-
-    /** Steps still to show: missing, and (for optional ones) not put off with Later. */
-    fun pending(have: Map<String, Boolean>, later: Set<String>): List<Dep> =
-        deps.filter { have[it.id] != true && !(!it.required && it.id in later) }
-
-    /** Required steps still missing: these block the app. */
-    fun blocking(have: Map<String, Boolean>): List<Dep> = deps.filter { it.required && have[it.id] != true }
-
-    /** True when the gate should show. Never again once [done] is set. */
-    fun shouldGate(done: Boolean, have: Map<String, Boolean>, later: Set<String>): Boolean =
-        !done && pending(have, later).isNotEmpty()
-
-    /** True when everything is installed, granted or put off: the pref can be set for good. */
-    fun complete(have: Map<String, Boolean>, later: Set<String>): Boolean = pending(have, later).isEmpty()
-
-    fun parseLater(raw: String): Set<String> = raw.split(',').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-    fun joinLater(s: Set<String>): String = s.sorted().joinToString(",")
 
     // ---------- the phone's side ----------
 
@@ -68,23 +51,8 @@ object SetupGate {
         "desktop" to try { com.blaze.assistant.link.DesktopLink.paired } catch (_: Throwable) { false },
     )
 
+    /** 0.45.22 and earlier set this once their launch gate finished; it now only decides the one-time backup (BlazeApp). */
     fun isDone(): Boolean = com.blaze.assistant.agent.Settings.bool(PREF_DONE, false)
-    fun later(): Set<String> = parseLater(com.blaze.assistant.agent.Settings.str(PREF_LATER, ""))
-    fun putOff(id: String) {
-        if (dep(id)?.required != false) return   // required steps can't be put off
-        com.blaze.assistant.agent.Settings.setStr(PREF_LATER, joinLater(later() + id))
-    }
-
-    /** Sets the done pref when nothing is left. Returns true when done. */
-    fun markIfComplete(have: Map<String, Boolean>): Boolean {
-        if (isDone()) return true
-        if (!complete(have, later())) return false
-        com.blaze.assistant.agent.Settings.setBool(PREF_DONE, true)
-        return true
-    }
-
-    /** Should the gate show now on this phone? */
-    fun shouldGate(ctx: Context): Boolean = !isDone() && shouldGate(false, probe(ctx), later()).also { show -> if (!show) markIfComplete(probe(ctx)) }
 
     // ---------- backup before anything runs ----------
 

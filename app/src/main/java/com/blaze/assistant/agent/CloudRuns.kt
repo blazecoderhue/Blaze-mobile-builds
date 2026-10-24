@@ -360,7 +360,7 @@ object CloudRuns {
     }
 
     /** The real gateway: HTTPS with the Blaze sign-in. */
-    class GatewayHttp(private val base: String = Providers.GATEWAY_BASE, private val token: () -> String = { Settings.gatewayToken() }) : Http {
+    class GatewayHttp(private val base: String = Providers.gatewayBase, private val token: () -> String = { Settings.gatewayToken() }) : Http {
         override fun send(method: String, path: String, body: String?, headers: Map<String, String>): Response {
             val c = com.blaze.assistant.connect.UrlSafety.open(base.trimEnd('/') + path)
             c.requestMethod = method

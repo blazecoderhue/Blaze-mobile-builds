@@ -18,6 +18,14 @@ object Providers {
     const val GATEWAY = "gateway"
     /** v0.25.0: the gateway's own name (the old blaze-gateway.blaze-app.workers.dev address still answers too). */
     const val GATEWAY_BASE = "https://ai.blaze-app.workers.dev/v1/"
+    /**
+     * 0.45.23: the gateway Blaze talks to. Always [GATEWAY_BASE] in a release build. Only a DEBUG build made for the
+     * emulator clean-install CI job (-Pblaze.testBase=http://10.0.2.2:8787) points at that job's local mock gateway, so no
+     * test ever reaches Blaze Cloud or a paid model.
+     */
+    val gatewayBase: String get() = testBase()?.let { "$it/v1/" } ?: GATEWAY_BASE
+    fun testBase(): String? = com.blaze.assistant.BuildConfig.TEST_BASE.trim().trimEnd('/')
+        .takeIf { com.blaze.assistant.BuildConfig.DEBUG && it.isNotEmpty() }
     /** Keyless public endpoint used as the very last resort (chat only, no tools). */
     val keyless = Provider("pollinations", "Pollinations (keyless)", "https://text.pollinations.ai/openai/",
         "openai-fast", "", "", "")
@@ -27,7 +35,7 @@ object Providers {
         // Runs on this phone (agent/BlazeRouter.kt); its key is set when it starts.
         Provider("blazerouter", "BlazeRouter (on this phone)", "http://127.0.0.1:20128/v1/", "auto/best-free", "set automatically", "", ""),
         // Signs in with your Blaze account (no key to paste); until you sign in, Auto (free) answers instead.
-        Provider(GATEWAY, "Blaze Gateway", GATEWAY_BASE, "blaze-auto", "your Blaze account", "", ""),
+        Provider(GATEWAY, "Blaze Gateway", gatewayBase, "blaze-auto", "your Blaze account", "", ""),
         Provider("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai/",
             "gemini-3.8-flash", "AIza…", "https://aistudio.google.com/apikey",
             "https://aistudio.google.com/rate-limit?timeRange=last-28-days"),

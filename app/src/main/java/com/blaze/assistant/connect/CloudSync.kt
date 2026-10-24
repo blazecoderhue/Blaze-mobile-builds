@@ -142,7 +142,7 @@ object CloudSync {
     // ---------------- the gateway ----------------
 
     /** Blaze Gateway root (the same Worker that answers chat; its /v1/sync routes). */
-    fun base(): String = com.blaze.assistant.agent.Providers.GATEWAY_BASE.trimEnd('/').removeSuffix("/v1")
+    fun base(): String = com.blaze.assistant.agent.Providers.gatewayBase.trimEnd('/').removeSuffix("/v1")
 
     class HttpError(val code: Int, val err: String) : Exception("http $code $err")
     class Offline(cause: Exception) : Exception(cause.message, cause)

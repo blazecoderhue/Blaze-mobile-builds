@@ -454,7 +454,7 @@ open class ShotsTest {
 
     @Test fun settingsList() = shot("20-settings") { SettingsFrame("Settings") { SettingsList {} } }
 
-    @Test fun onboarding() = shot("22-onboarding") { SetupFlow(startPage = 1) {} }
+    @Test fun onboarding() = shot("22-onboarding") { FirstRunSignIn {} }
 
     @Test fun accounts() = shot("23-accounts") {
         SettingsFrame("Connected accounts") { ConnectionsPage(connected0 = setOf("google", "github"), online0 = true, open0 = "spotify") }

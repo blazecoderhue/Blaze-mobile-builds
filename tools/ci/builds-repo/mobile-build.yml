@@ -154,3 +154,78 @@ jobs:
             shots.log
             shots.zip
             app/build/shots/
+
+  # 0.45.23 clean-install proof: a debug APK pointed at a local mock gateway (tools/firstrun/mock_gateway.py: fixed replies,
+  # no model, no Blaze Cloud) is installed fresh 5 times on an x86_64 emulator (KVM) and driven through the 2-step first run
+  # (sign in -> chat with the starter -> restore the account's chats and memory -> first answer) by tools/firstrun/drive.py.
+  # Every run is recorded with adb screenrecord; recordings, end screenshots, UI dumps, logcat and the mock's request log
+  # are the firstrun-recordings artifact.
+  firstrun-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26.x", cache: false }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+      - name: Go libraries (browser VPN, BlazeRouter)
+        run: |
+          VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          (cd wgproxy && CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags "-s -w" -o ../app/src/main/jniLibs/arm64-v8a/libwgproxy.so . \
+            && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w" -o ../app/src/main/jniLibs/armeabi-v7a/libwgproxy.so .) || echo "wgproxy build skipped"
+          (cd blazerouter && CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.version=$VER" -o ../app/src/main/jniLibs/arm64-v8a/libblazerouter.so . \
+            && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.version=$VER" -o ../app/src/main/jniLibs/armeabi-v7a/libblazerouter.so .) || echo "blazerouter build skipped"
+      - name: Debug APK for the mock gateway + the account copy to restore
+        env:
+          BLAZE_SEED_OUT: ${{ github.workspace }}/firstrun/seed.json
+        run: |
+          set -o pipefail
+          mkdir -p firstrun/out
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --tests 'com.blaze.assistant.setup.FirstRunSeedTest' -Pblaze.testBase=http://10.0.2.2:8787 \
+            --console=plain "-Dorg.gradle.jvmargs=-Xmx5g -Xss8m -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.jvm.target.validation.mode=warning 2>&1 | tee firstrun/build.log
+          ls -la app/build/outputs/apk/debug/
+          test -s firstrun/seed.json
+      - name: Mock gateway (fixed replies, no model)
+        run: |
+          nohup python3 tools/firstrun/mock_gateway.py --port 8787 --seed firstrun/seed.json > firstrun/mock.log 2>&1 &
+          sleep 2; curl -sf http://127.0.0.1:8787/health
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: 5 clean installs, recorded
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          disk-size: 8000M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot
+          disable-animations: true
+          script: python3 tools/firstrun/drive.py --apk app/build/outputs/apk/debug/app-debug.apk --out firstrun/out --runs 5 --seed firstrun/seed.json
+      - name: Summary
+        if: always()
+        run: cat firstrun/out/summary.txt 2>/dev/null | tee -a "$GITHUB_STEP_SUMMARY" || echo "no summary" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: firstrun-recordings
+          retention-days: 14
+          path: |
+            firstrun/out/
+            firstrun/mock.log
+            firstrun/build.log
+            firstrun/seed.json

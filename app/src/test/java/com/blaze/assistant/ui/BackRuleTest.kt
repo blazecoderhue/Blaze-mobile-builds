@@ -71,7 +71,6 @@ class BackRuleTest {
         assertEquals(BackRule.CHAT, BackRule.front(BackRule.Shell()))
         assertEquals(BackRule.Action.OWN, BackRule.action(BackRule.Shell()))
         assertEquals(BackRule.Action.OWN, BackRule.action(BackRule.Shell(onboarding = true, settingsPage = "ai")))
-        assertEquals(BackRule.Action.OWN, BackRule.action(BackRule.Shell(gate = true)))
         assertEquals(BackRule.Action.OWN, BackRule.action(BackRule.Shell(inCall = true)))
         // Back never skips the app lock.
         BackRule.toChat = { }; BackRule.shellNow = { BackRule.Shell(settingsPage = "memory") }

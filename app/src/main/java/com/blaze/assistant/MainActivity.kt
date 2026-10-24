@@ -60,10 +60,7 @@ class MainActivity : FragmentActivity(), com.blaze.assistant.ui.BackRule.Shelled
                 com.blaze.assistant.browser.phone.PhonePip.working(l.mode, com.blaze.assistant.browser.phone.PhoneBrowser.ownerChat, b)
             }.distinctUntilChanged().collect { w -> com.blaze.assistant.browser.phone.PhonePipHost.update(this@MainActivity, w, locked.value) }
         }
-        if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 7)
-        }
+        // 0.45.23: no notification prompt at launch. A task that runs long enough asks once (setup/NotifyAsk, ChatScreen).
         if (savedInstanceState == null) handle(intent) else authLink(intent)   // v0.45.4: a sign-in link must land even after a restore
         // Long-press the Blaze icon → "Call Blaze".
         try {

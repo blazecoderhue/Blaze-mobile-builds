@@ -180,19 +180,34 @@ fun ChatScreen() {
     // v0.45.8: the first frame that shows the working state, timed from the Send tap (StartTrace "Send → working").
     LaunchedEffect(mood) { if (mood != Mood.IDLE) androidx.compose.runtime.withFrameNanos { com.blaze.assistant.agent.StartTrace.visible() } }
     val ctx = LocalContext.current
+    // 0.45.23 (setup/NotifyAsk): notifications are asked when a task first runs long enough to want the "done" heads-up,
+    // once, while Blaze is in front; never at launch.
+    val notifAsk = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { }
+    val busyNow = mood != Mood.IDLE
+    LaunchedEffect(busyNow) {
+        if (!busyNow) return@LaunchedEffect
+        delay(com.blaze.assistant.setup.NotifyAsk.AFTER_MS)
+        val sdk = android.os.Build.VERSION.SDK_INT
+        val granted = sdk < 33 || androidx.core.content.ContextCompat.checkSelfPermission(ctx, "android.permission.POST_NOTIFICATIONS") == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (com.blaze.assistant.setup.NotifyAsk.shouldAsk(sdk, granted, Settings.bool(com.blaze.assistant.setup.NotifyAsk.PREF, false),
+                com.blaze.assistant.setup.NotifyAsk.AFTER_MS, Agent.inForeground)) {
+            Settings.setBool(com.blaze.assistant.setup.NotifyAsk.PREF, true)
+            runCatching { notifAsk.launch("android.permission.POST_NOTIFICATIONS") }
+        }
+    }
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current   // v0.45.2: long-press light / dark
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     val clip = LocalClipboardManager.current
 
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
-    // First run only: people who already set Blaze up never see it.
-    var onboard by rememberSaveable { mutableStateOf(!Settings.bool("onboarded", false) && !Settings.ready && !hasMessages) }
-    var setupPage by rememberSaveable { mutableStateOf(0) }
+    // 0.45.23 first run (setup/FirstRun): step 1 sign in, step 2 this chat with a starter in the composer. Only a brand-new
+    // install sees step 1; a returning user (signed in or with chats) or an upgrade never does.
+    var onboard by rememberSaveable { mutableStateOf(com.blaze.assistant.setup.FirstRun.shouldShow(
+        Settings.bool(com.blaze.assistant.setup.FirstRun.PREF, false), Settings.ready || com.blaze.assistant.connect.BlazeAccount.signedIn(), hasMessages,
+        upgraded = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).let { com.blaze.assistant.setup.FirstRun.upgraded(it.firstInstallTime, it.lastUpdateTime) } }.getOrDefault(false))) }
     val galleryOpen by GalleryUi.open.collectAsState()
-    LaunchedEffect(Unit) { if (!onboard) Settings.setBool("onboarded", true) }
-    // v0.24.4: the dependency gate. Upgraded (and new) users finish whatever required setup is missing; never again once done.
-    var gate by remember { mutableStateOf(!onboard && com.blaze.assistant.setup.SetupGate.shouldGate(ctx)) }
+    LaunchedEffect(Unit) { if (!onboard) Settings.setBool(com.blaze.assistant.setup.FirstRun.PREF, true) }
     // Blaze opening one of its own settings pages (setup help).
     val askedPage by com.blaze.assistant.agent.SelfSetup.openPage.collectAsState()
     LaunchedEffect(askedPage) { askedPage?.let { settingsPage = it; com.blaze.assistant.agent.SelfSetup.openPage.value = null } }
@@ -526,7 +541,7 @@ fun ChatScreen() {
         // Read when Back is pressed (State reads, never a stale snapshot of this composition).
         BackRule.shellNow = {
             val n = navNow(); val swipe = com.blaze.assistant.agent.SwipeNav.swipeFlow.value
-            BackRule.Shell(onboarding = onboard, gate = !onboard && gate, inCall = false,
+            BackRule.Shell(onboarding = onboard, inCall = false,
                 tab = n.tab, inProjectChat = n.inProjectChat, swipeHome = swipe && sheetP < 0.5f,
                 settingsPage = settingsPage, view = if (n.inProjectChat) "" else Views.showing.value,
                 viewsSheet = showViews, plusMenu = plusOpen, arc = arcOpen, avatarMenu = avatarMenu, search = showSearch,
@@ -644,7 +659,7 @@ fun ChatScreen() {
                     BackHandler { Views.showing.value = DesignNav.back(Views.showing.value) }
                 } else if (!hasMessages) {
                     if (simpleMode && Settings.ready) SimpleWelcome(me?.name.orEmpty().ifBlank { Settings.userName }) { send(it) }
-                    else Welcome(needsSetup = !Settings.ready, onSetup = { setupPage = 0; onboard = true }) { Agent.send(it) }
+                    else Welcome(needsSetup = !Settings.ready, onSetup = { settingsPage = "account" }) { Agent.send(it) }
                 } else {
                     val dens = LocalDensity.current
                     CompositionLocalProvider(LocalTextToolbar provides toolbar, LocalClipboardManager provides capClip,
@@ -682,6 +697,8 @@ fun ChatScreen() {
             QuestionCard()
             FixCard()
             SecureFormCard()
+            // 0.45.23: after sign-in with cloud sync off here, offer to bring the account's chats and memory back (setup/FirstRun).
+            if (!onboard && chatBody) RestoreCard()
             // 0.45.19: Blaze Phone's live tile (frame, site, step, Take control) while Blaze works on its own phone.
             PhoneLiveCard()
             // v0.24.6: "Open in Design?" instead of switching views on its own.
@@ -813,15 +830,14 @@ fun ChatScreen() {
             title = com.blaze.assistant.agent.PrivateChat.LEAVE_TITLE, body = com.blaze.assistant.agent.PrivateChat.LEAVE_TEXT,
             confirm = "Leave", onConfirm = { confirmLeavePrivate = false; Agent.leavePrivate() }, warm = true,
             dismiss = "Stay", onDismiss = { confirmLeavePrivate = false })
-        if (!onboard && gate) SetupGateScreen(onOpenPage = { settingsPage = it }, onDone = { gate = false })
-        if (onboard) SetupFlow(setupPage) { prompt ->
-            onboard = false; setupPage = 0
-            gate = com.blaze.assistant.setup.SetupGate.shouldGate(ctx)
-            when {
-                prompt == null -> { if (swipeMode) settleTo(0f) }
-                prompt.startsWith("/settings") -> settingsPage = "ai"
-                else -> Agent.send(prompt)
-            }
+        if (onboard) FirstRunSignIn { signedIn ->
+            Settings.setBool(com.blaze.assistant.setup.FirstRun.PREF, true)
+            onboard = false
+            ComeBack.prefetch(ctx)
+            // Step 2 (Desktop's land()): the chat, with the starter typed into an empty composer; nothing is sent until Send.
+            com.blaze.assistant.setup.FirstRun.draftFor(input.text, com.blaze.assistant.setup.FirstRun.Landing(com.blaze.assistant.setup.FirstRun.STARTER, signedIn))
+                ?.let { d -> input = TextFieldValue(d, TextRange(0, d.length)) }
+            if (swipeMode) settleTo(1f)
         }
         settingsPage?.let { start ->
             androidx.compose.runtime.key(start) {
@@ -1328,9 +1344,9 @@ internal fun Welcome(needsSetup: Boolean, onSetup: () -> Unit, onPick: (String) 
 
         if (needsSetup) {
             GlassCard(Modifier.fillMaxWidth(), intensity = GlassIntensity.High, onClick = onSetup) {
-                ButtonText("Make me smarter · one tap  →", color = c.ink)
+                ButtonText("Sign in to start · one tap  →", color = c.ink)
                 Spacer(Modifier.height(4.dp))
-                Text("I already work. Signing in makes me faster and smarter.", style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.sub))
+                Text("Blaze Cloud answers once you sign in. Your synced chats and memory come back with it.", style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, color = c.sub))
             }
             Spacer(Modifier.height(24.dp))
         }

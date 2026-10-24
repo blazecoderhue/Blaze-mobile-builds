@@ -109,7 +109,7 @@ object LlmClient {
         if (lane == Lane.MAIN) OfflineBrain.maybe(messages, onText)?.let { lastRoute = "Offline Brain"; return it }
         val token = Settings.gatewayToken()
         if (token.isBlank()) throw LlmException(Cloud.SIGNED_OUT, 401)
-        val t = Target(Providers.GATEWAY, Providers.GATEWAY_BASE, token, Cloud.MODEL)
+        val t = Target(Providers.GATEWAY, Providers.gatewayBase, token, Cloud.MODEL)
         var msgs = messages
         // v0.44.0: an action turn asks for the strong (agent) lineup with the weak routes last (ModelRoute).
         val pick = ModelRoute.task(Cloud.task(msgs, tools, liteTurn || (quickTurn && (tools == null || tools.length() == 0))),
@@ -214,7 +214,7 @@ object LlmClient {
             if (!WarmGate.take()) return
             Thread {
                 try {
-                    val c = com.blaze.assistant.connect.UrlSafety.open(WarmGate.url(Providers.GATEWAY_BASE))
+                    val c = com.blaze.assistant.connect.UrlSafety.open(WarmGate.url(Providers.gatewayBase))
                     c.requestMethod = "POST"; c.connectTimeout = 5000; c.readTimeout = 5000; c.doOutput = true
                     c.setRequestProperty("Authorization", "Bearer $tok"); c.setRequestProperty("Content-Type", "application/json")
                     c.outputStream.use { it.write("{}".toByteArray()) }
@@ -225,7 +225,7 @@ object LlmClient {
             return
         }
         val bases = try {
-            listOf(Providers.GATEWAY_BASE)
+            listOf(Providers.gatewayBase)
         } catch (_: Exception) { emptyList() }
         for (b in bases.map { it.trimEnd('/') }.filter { it.startsWith("http") }.distinct().take(2)) {
             val host = try { URL(b).host } catch (_: Exception) { continue }

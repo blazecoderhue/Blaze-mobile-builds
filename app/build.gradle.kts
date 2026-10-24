@@ -19,11 +19,17 @@ android {
         // empty = "not configured" (the user can paste one in the Music Store instead).
         buildConfigField("String", "JAMENDO_CLIENT_ID", "\"" + (System.getenv("JAMENDO_CLIENT_ID") ?: (project.findProperty("jamendo.clientId") as String?) ?: "").replace("\"", "") + "\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // 0.45.23: the clean-install CI job's local mock gateway + account server. Empty here, so every release build has none;
+        // only a debug build made with -Pblaze.testBase=http://10.0.2.2:8787 uses it (Providers.testBase checks DEBUG too).
+        buildConfigField("String", "TEST_BASE", "\"\"")
     }
     // 0.45.15 (key rotation, user-approved 22 Oct 08:32): no signing key or password lives in this repo. Gradle signs with the
     // SDK's own debug key (fine for local runs and CI test builds); a release APK is re-signed outside the repo with the
     // private Blaze release key and a v3 lineage from the old (burned, public) key, so existing installs still update.
     buildTypes {
+        debug {
+            buildConfigField("String", "TEST_BASE", "\"" + ((project.findProperty("blaze.testBase") as String?) ?: "").replace("\"", "") + "\"")
+        }
         // Release = what you install: R8-optimised, not debuggable (Compose runs far smoother).
         release {
             isMinifyEnabled = true

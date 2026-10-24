@@ -33,7 +33,7 @@ object BackRule {
 
     /** Everything the chat shell can show over (or instead of) the main chat. */
     data class Shell(
-        val onboarding: Boolean = false, val gate: Boolean = false, val inCall: Boolean = false,
+        val onboarding: Boolean = false, val inCall: Boolean = false,
         val tab: String = ChatNav.CHAT, val inProjectChat: Boolean = false, val swipeHome: Boolean = false,
         val settingsPage: String? = null, val view: String = "",
         val viewsSheet: Boolean = false, val plusMenu: Boolean = false, val arc: Boolean = false,
@@ -46,7 +46,6 @@ object BackRule {
     /** The id of what is in front (what Back leaves). */
     fun front(s: Shell): String = when {
         s.onboarding -> "setup"
-        s.gate -> "setup-gate"
         s.inCall -> "call"
         s.themePicker -> "themes"
         s.settingsPage != null -> "page:" + s.settingsPage.ifBlank { "settings" }
@@ -65,7 +64,7 @@ object BackRule {
     }
 
     /** Fronts that keep their own Back. Everything else goes to the chat. */
-    val OWN_BACK = setOf(CHAT, "setup", "setup-gate", "call")
+    val OWN_BACK = setOf(CHAT, "setup", "call")
 
     fun action(s: Shell): Action = if (front(s) in OWN_BACK) Action.OWN else Action.TO_CHAT
 

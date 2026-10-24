@@ -141,7 +141,7 @@ object Entitlements {
     private fun who(): String = runCatching { com.blaze.assistant.agent.Settings.gatewayToken().takeLast(10) }.getOrDefault("")
 
     private fun call(method: String, path: String, body: String?): Pair<Int, String> {
-        val c = UrlSafety.open(com.blaze.assistant.agent.Providers.GATEWAY_BASE.trimEnd('/') + path)
+        val c = UrlSafety.open(com.blaze.assistant.agent.Providers.gatewayBase.trimEnd('/') + path)
         c.requestMethod = method; c.connectTimeout = 8_000; c.readTimeout = 10_000
         c.setRequestProperty("Authorization", "Bearer " + com.blaze.assistant.agent.Settings.gatewayToken())
         try {

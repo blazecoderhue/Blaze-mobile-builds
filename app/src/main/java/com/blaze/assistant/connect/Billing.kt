@@ -104,7 +104,7 @@ object Billing {
     /** The gateway calls (signed in with the Blaze account token). */
     object Client {
         private fun call(method: String, path: String, body: String?): Pair<Int, String> {
-            val c = UrlSafety.open(com.blaze.assistant.agent.Providers.GATEWAY_BASE.trimEnd('/') + path)
+            val c = UrlSafety.open(com.blaze.assistant.agent.Providers.gatewayBase.trimEnd('/') + path)
             c.requestMethod = method; c.connectTimeout = 15_000; c.readTimeout = 30_000
             c.setRequestProperty("Authorization", "Bearer " + com.blaze.assistant.agent.Settings.gatewayToken())
             try {

@@ -76,7 +76,7 @@ object BlazeAccount {
 
     /** BLAZE cloud override for local testing (Settings str "blaze_cloud_url"), else the deployed Worker. */
     fun base(): String = Settings.str("blaze_cloud_url").trim().trimEnd('/')
-        .takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: DEFAULT_BASE
+        .takeIf { it.startsWith("https://") || it.startsWith("http://") } ?: com.blaze.assistant.agent.Providers.testBase() ?: DEFAULT_BASE
 
     fun signedIn() = _view.value.user != null
     /** The session token (Keystore-encrypted at rest), "" when signed out. */

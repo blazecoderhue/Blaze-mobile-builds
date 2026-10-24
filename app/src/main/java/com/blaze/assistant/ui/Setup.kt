@@ -56,6 +56,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 
 /**
  * Watches for a system toggle the user was sent to flip, and brings Blaze back to the front the
@@ -87,142 +89,59 @@ object ComeBack {
     }
 }
 
-/** One phone permission in the setup checklist. */
-private data class Need(val id: String, val title: String, val why: String, val ok: (Context) -> Boolean)
-
-private fun granted(ctx: Context, p: String) = ContextCompat.checkSelfPermission(ctx, p) == PackageManager.PERMISSION_GRANTED
-
-private val needs = listOf(
-    // 0.45.20 (item 15): phone control is no longer asked here; the first task that needs it asks in chat (PermissionGate).
-    Need("mic", "Hear you", "For talking to Blaze instead of typing.") { granted(it, Manifest.permission.RECORD_AUDIO) },
-    Need("notifications", "Tell you when it's done", "A quick heads-up when a task finishes.") { Build.VERSION.SDK_INT < 33 || granted(it, Manifest.permission.POST_NOTIFICATIONS) },
-    Need("overlay", "Show up over other apps", "So Blaze can pop up wherever you are.") { android.provider.Settings.canDrawOverlays(it) },
-    Need("battery", "Keep working in the background", "Stops the phone from putting Blaze to sleep halfway through a job.") {
-        it.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(it.packageName) == true },
-)
-
 /**
- * First run, three steps, nothing technical:
- *  1. Give Blaze a brain: one-tap sign-ins (or just start free)
- *  2. Let Blaze help on your phone: one button walks through every permission, coming back after each
- *  3. Say hi
+ * 0.45.23 first run, step 1 of 2: sign in (Desktop's "signin" step). Step 2 is the chat itself, with a starter prompt
+ * in the composer (setup/FirstRun). No permissions, themes, voice or tours here: they are asked when a task needs them
+ * or live in Settings. Signing in moves on by itself; "Not now" lands in the chat too (it says to sign in when asked).
  */
 @Composable
-fun SetupFlow(startPage: Int = 0, onDone: (firstPrompt: String?) -> Unit) {
+fun FirstRunSignIn(onDone: (signedIn: Boolean) -> Unit) {
     val c = LocalBlaze.current.mono
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var page by remember { mutableStateOf(startPage) }
-    val brainStatus by Brains.status.collectAsState()
-    var busy by remember { mutableStateOf(false) }
-    var tick by remember { mutableStateOf(0) }
-    LaunchedEffect(Unit) { while (true) { delay(900); tick++ } }
-    val have = remember(tick, brainStatus) { Brains.connected() }
-    val state = remember(tick) { needs.associate { it.id to it.ok(ctx) } }
-    BackHandler(enabled = page > 0) { page-- }
     val account by com.blaze.assistant.connect.BlazeAccount.view.collectAsState()
-    var wasIn by remember { mutableStateOf(account.user != null) }
-    LaunchedEffect(account.user) {
-        if (page == 0 && !wasIn && account.user != null) { delay(1200); if (page == 0) page = 1 }
-        wasIn = account.user != null
+    var left by remember { mutableStateOf(false) }
+    fun go(e: com.blaze.assistant.setup.FirstRun.Event) {
+        val out = com.blaze.assistant.setup.FirstRun.reduce(com.blaze.assistant.setup.FirstRun.Step.SIGN_IN, e)
+        if (out.cancelBrowser) com.blaze.assistant.connect.BlazeAccount.cancel()
+        out.land?.let { if (!left) { left = true; onDone(it.signedIn) } }
     }
-    fun finish(prompt: String?) { Settings.setBool("onboarded", true); ComeBack.prefetch(ctx); onDone(prompt) }
+    // Back while the browser sign-in waits cancels it; otherwise Back leaves the app as usual (the step comes back next time).
+    BackHandler(enabled = account.pending.isNotEmpty()) { go(com.blaze.assistant.setup.FirstRun.Event.Back(pending = true)) }
+    LaunchedEffect(account.user) { if (account.user != null) { delay(900); go(com.blaze.assistant.setup.FirstRun.Event.SignedIn) } }
 
-    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
-
-    var asked by remember { mutableStateOf(setOf<String>()) }
-    fun fix(n: Need) {
-        asked = asked + n.id
-        val pkg = Uri.parse("package:" + ctx.packageName)
-        when (n.id) {
-            "accessibility" -> {
-                Settings.phoneControl = true
-                ComeBack.watch(ctx) { BlazeAccessibilityService.isEnabled(ctx) }
-                ctx.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-            "mic" -> permLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            "notifications" -> if (Build.VERSION.SDK_INT >= 33) permLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            "overlay" -> {
-                ComeBack.watch(ctx) { android.provider.Settings.canDrawOverlays(ctx) }
-                ctx.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-            "battery" -> try {
-                @Suppress("BatteryLife")
-                ctx.startActivity(Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            } catch (_: Exception) {
-                ctx.startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-        }
-    }
-
-    Box(Modifier.fillMaxSize().pageBackdrop(c)) {
+    Box(Modifier.fillMaxSize().pageBackdrop(c).semantics { testTag = "firstrun_signin" }) {
         ParticleField(com.blaze.assistant.agent.Mood.IDLE)
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 18.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // v0.19.0: progress segments, like Desktop's onboarding.
-                (0 until 3).forEach { i -> Box(Modifier.padding(end = 4.dp).width(22.dp).height(3.dp).clip(BlazeShapes.pill).background(if (i <= page) c.accent else c.hair2)) }
+                // Two segments, like Desktop's "1 of 2 · Sign in".
+                (0 until com.blaze.assistant.setup.FirstRun.STEPS.size).forEach { i ->
+                    Box(Modifier.padding(end = 4.dp).width(22.dp).height(3.dp).clip(BlazeShapes.pill).background(if (i == 0) c.accent else c.hair2))
+                }
                 Spacer(Modifier.width(8.dp))
-                Label("0${page + 1} / 03", color = c.weak, size = 10.sp)
+                Label("1 of 2 \u00b7 Sign in", color = c.weak, size = 10.sp)
                 Spacer(Modifier.weight(1f))
-                Box(Modifier.clip(BlazeShapes.pill).clickable { finish(null) }.padding(8.dp)) { ActionText("Skip", color = c.sub, size = 10.sp) }
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 18.dp)) {
                 OrbFace(64.dp)
                 Spacer(Modifier.height(22.dp))
-                val (title, body) = when (page) {
-                    0 -> "Sign in to Blaze." to "One free Blaze account and I'm ready. Blaze Cloud picks the best free model for every message. No keys, no settings."
-                    1 -> "Let me help on your phone." to "Tap the button and switch each one on. I'll bring you straight back here every time."
-                    else -> "All set. Say hi." to "Ask me anything, tell me to do something on your phone, or ask me to draw a picture or make a beat."
-                }
-                Text(title, style = TextStyle(fontFamily = Type.Display, fontWeight = FontWeight.Medium, fontSize = 32.sp, lineHeight = 38.sp, color = c.ink))
+                val signedIn = account.user != null
+                Text(if (signedIn) "You're signed in." else "Sign in to Blaze.",
+                    style = TextStyle(fontFamily = Type.Display, fontWeight = FontWeight.Medium, fontSize = 32.sp, lineHeight = 38.sp, color = c.ink))
                 Spacer(Modifier.height(12.dp))
-                Text(body, style = TextStyle(fontFamily = Type.Sans, fontSize = 16.sp, lineHeight = 24.sp, color = c.sub))
+                Text("Blaze Cloud answers with no keys and picks a good model for every message. It's the same account as Blaze Desktop, " +
+                    "and your synced chats and memory come back with it.",
+                    style = TextStyle(fontFamily = Type.Sans, fontSize = 16.sp, lineHeight = 24.sp, color = c.sub))
                 Spacer(Modifier.height(22.dp))
-                when (page) {
-                    // v0.25.0: no keys or providers: the Blaze account is the brain.
-                    0 -> AccountPage()
-                    1 -> {
-                        needs.forEach { n ->
-                            val on = state[n.id] == true
-                            SetupRow(n.title, n.why, on, working = !on && n.id in asked) { if (!on) fix(n) }
-                            Spacer(Modifier.height(8.dp))
-                        }
-                    }
-                }
+                AccountPage()
             }
-            val nextNeed = needs.firstOrNull { state[it.id] != true }
-            val label = when (page) {
-                0 -> if (Settings.ready) "Continue" else "Later"
-                1 -> if (nextNeed != null) "Turn on: ${nextNeed.title.lowercase()}" else "Continue"
-                else -> "Say hi to Blaze"
-            }
-            Box(Modifier.fillMaxWidth().height(56.dp).clip(BlazeShapes.pill).glassButton(c).clickable {
-                when (page) {
-                    0 -> page = 1
-                    1 -> if (nextNeed != null) fix(nextNeed) else page = 2
-                    else -> finish("Hi! Introduce yourself in two sentences and tell me three useful things you can do for me.")
-                }
-            }, contentAlignment = Alignment.Center) { ButtonText(label, color = Color.White) }
-            if (page == 1 && nextNeed != null) Box(Modifier.fillMaxWidth().clickable { page = 2 }.padding(14.dp), contentAlignment = Alignment.Center) {
-                Label("Later", color = c.sub, size = 10.sp)
+            val signedIn = account.user != null
+            Box(Modifier.fillMaxWidth().height(56.dp).clip(BlazeShapes.pill).glassButton(c)
+                .semantics { testTag = if (signedIn) "firstrun_start" else "firstrun_notnow" }
+                .clickable { go(if (signedIn) com.blaze.assistant.setup.FirstRun.Event.SignedIn else com.blaze.assistant.setup.FirstRun.Event.NotNow) },
+                contentAlignment = Alignment.Center) { ButtonText(if (signedIn) "Start chatting" else "Not now", color = Color.White) }
+            if (!signedIn) Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                Label("Blaze answers once you sign in.", color = c.weak, size = 10.sp)
             }
         }
-    }
-}
-
-/** One setup step: a raised card with a ring on the right that spins while it's being set up and turns into a checkmark (v0.24.4). */
-@Composable
-private fun SetupRow(title: String, sub: String, on: Boolean, working: Boolean = false, onClick: () -> Unit) {
-    val c = LocalBlaze.current.mono
-    Row(Modifier.fillMaxWidth().pageGlassSelectable(c, on).clickable(onClick = onClick).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = TextStyle(fontFamily = Type.Display, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = if (on) c.accent else c.ink))
-            Spacer(Modifier.height(2.dp))
-            Text(sub, style = TextStyle(fontFamily = Type.Sans, fontSize = 13.sp, lineHeight = 18.sp, color = c.sub))
-        }
-        Spacer(Modifier.width(12.dp))
-        StepMark(if (on) Mark.DONE else if (working) Mark.WORKING else Mark.TODO, 24.dp)
     }
 }
 
@@ -237,7 +156,7 @@ fun BrainCard(onSignIn: () -> Unit = {}) {
     LaunchedEffect(tick) {
         reach = null
         reach = kotlinx.coroutines.withContext(Dispatchers.IO) {
-            try { com.blaze.assistant.connect.Http.req("GET", com.blaze.assistant.agent.Providers.GATEWAY_BASE.removeSuffix("/").removeSuffix("/v1") + "/health", timeoutMs = 8_000).first == 200 }
+            try { com.blaze.assistant.connect.Http.req("GET", com.blaze.assistant.agent.Providers.gatewayBase.removeSuffix("/").removeSuffix("/v1") + "/health", timeoutMs = 8_000).first == 200 }
             catch (_: Exception) { false }
         }
     }

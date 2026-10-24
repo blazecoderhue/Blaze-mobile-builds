@@ -242,7 +242,10 @@ fun HomePane(onAsk: (String) -> Unit, onQuote: (String) -> Unit = {},
     val loading by HomeBoard.loading.collectAsState()
     val offline by HomeBoard.offline.collectAsState()
     val refreshing by HomeBoard.refreshing.collectAsState()
-    var onboarded by remember { mutableStateOf(HomeBoard.onboarded) }
+    // 0.45.23: no interest picker on the first look at Home (it was a first-run step). The board starts with the starters,
+    // which include the one-time "Tell me what you're into" card; tapping it opens the picker.
+    var picking by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { if (!HomeBoard.onboarded) HomeBoard.finishOnboarding(emptySet(), emptySet(), "", skipped = true) }
     var stackState by remember { mutableStateOf(StackState()) }
     var menuFor by remember { mutableStateOf<String?>(null) }
     var customise by rememberSaveable { mutableStateOf(false) }
@@ -310,7 +313,7 @@ fun HomePane(onAsk: (String) -> Unit, onQuote: (String) -> Unit = {},
             a == "calendar" -> scope.launch { com.blaze.assistant.device.Perms.ensure(ctx, android.Manifest.permission.READ_CALENDAR); HomeBoard.refresh(w.id) }
             a == "city" -> cityFor = w.id
             a == "usage" -> openUsageAccess(ctx)
-            a == "interests" -> { onboarded = false }
+            a == "interests" -> { picking = true }
             a.startsWith("ask:") -> { onAsk(a.removePrefix("ask:")); toast = "Asked Blaze. The answer is in Chat." }
         }
     }
@@ -323,10 +326,10 @@ fun HomePane(onAsk: (String) -> Unit, onQuote: (String) -> Unit = {},
             }
             Column(Modifier.fillMaxSize().then(if (edgeToEdge) Modifier.statusBarsPadding() else Modifier)) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (!onboarded) {
+            if (picking) {
                 InterestPicker(onDone = { chosen, subs, typed ->
-                    HomeBoard.finishOnboarding(chosen, subs, typed, skipped = false); onboarded = true
-                }, onSkip = { HomeBoard.finishOnboarding(emptySet(), emptySet(), "", skipped = true); onboarded = true })
+                    HomeBoard.finishOnboarding(chosen, subs, typed, skipped = false); picking = false
+                }, onSkip = { picking = false })
             } else {
                 val stacks = remember(widgets) { Stacks.build(widgets) }
                 LaunchedEffect(stacks) { stackState = stackState.prune(stacks) }
@@ -355,7 +358,7 @@ fun HomePane(onAsk: (String) -> Unit, onQuote: (String) -> Unit = {},
                 onAsk = { t -> onAsk(t); toast = "Asked Blaze. The answer is in Chat." },
                 onQuote = { t -> onQuote(t) }) }
             // v0.30.5: while Blaze works in its browser, a fixed glass window previews the page (× hides it until the next task).
-            if (glassUrl == null && onboarded && liveShowing && !liveHidden) BrowserLivePreview(onHide = { liveHidden = true })
+            if (glassUrl == null && !picking && liveShowing && !liveHidden) BrowserLivePreview(onHide = { liveHidden = true })
 
             menuFor?.let { id ->
                 val w = widgets.firstOrNull { it.id == id }

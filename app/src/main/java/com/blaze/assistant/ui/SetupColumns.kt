@@ -145,68 +145,6 @@ fun setupFix(ctx: Context, id: String, ask: (String) -> Unit, openPage: (String)
     }
 }
 
-/**
- * The dependency gate (v0.24.4): only the missing steps, as columns. Required ones must be finished before the
- * app opens; optional ones have Later. When nothing is left the done pref is set and this never shows again.
- */
-@Composable
-fun SetupGateScreen(onOpenPage: (String) -> Unit, onDone: () -> Unit) {
-    val c = LocalBlaze.current.mono
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var tick by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) { while (true) { delay(900); tick++ } }
-    val have = remember(tick) { SetupGate.probe(ctx) }
-    var later by remember { mutableStateOf(SetupGate.later()) }
-    // Shown once at the start: only what was missing then (finished ones stay, as checkmarks).
-    val shown = remember { SetupGate.pending(SetupGate.probe(ctx), SetupGate.later()) }
-    val linuxBusy by com.blaze.assistant.terminal.Linux.installing.collectAsState()
-    val linuxStatus by com.blaze.assistant.terminal.Linux.status.collectAsState()
-    var asked by remember { mutableStateOf(setOf<String>()) }
-    val perm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
-    val blocking = SetupGate.blocking(have)
-    val left = SetupGate.pending(have, later)
-    LaunchedEffect(left.isEmpty()) { if (left.isEmpty()) { SetupGate.markIfComplete(have); delay(700); onDone() } }
-    BackHandler(enabled = true) { }   // required steps can't be skipped with Back
-
-    Box(Modifier.fillMaxSize().pageBackdrop(c)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 18.dp)) {
-            Label("Finish setting up \u00b7 ${shown.size - left.size}/${shown.size}", color = c.weak, size = 10.sp)
-            Spacer(Modifier.height(14.dp))
-            Text(if (blocking.isEmpty()) "Almost there." else "A few things Blaze needs.",
-                style = TextStyle(fontFamily = Type.Display, fontWeight = FontWeight.Medium, fontSize = 30.sp, lineHeight = 36.sp, color = c.ink))
-            Spacer(Modifier.height(8.dp))
-            Text("Only what's missing on this phone. Everything you already set up is kept and skipped.",
-                style = TextStyle(fontFamily = Type.Sans, fontSize = 15.sp, lineHeight = 22.sp, color = c.sub))
-            Spacer(Modifier.height(18.dp))
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                shown.forEach { d ->
-                    val ok = have[d.id] == true
-                    val working = !ok && ((d.id == "linux" && linuxBusy) || (d.id in asked && d.id != "linux" && d.id != "desktop"))
-                    val mark = when { ok -> Mark.DONE; working -> Mark.WORKING; else -> Mark.TODO }
-                    val putOff = !d.required && d.id in later && !ok
-                    if (!putOff) {
-                        SetupColumnRow(d.title, d.why, mark, d.required,
-                            status = if (d.id == "linux" && linuxBusy) linuxStatus else "",
-                            onDo = { asked = asked + d.id; setupFix(ctx, d.id, { perm.launch(it) }, onOpenPage, scope) },
-                            onLater = if (d.required) null else ({ SetupGate.putOff(d.id); later = SetupGate.later() }))
-                        Spacer(Modifier.height(10.dp))
-                    }
-                }
-            }
-            val next = left.firstOrNull { it.required } ?: left.firstOrNull()
-            Box(Modifier.fillMaxWidth().height(54.dp).clip(BlazeShapes.pill).glassButton(c).clickable {
-                if (next == null) onDone() else { asked = asked + next.id; setupFix(ctx, next.id, { perm.launch(it) }, onOpenPage, scope) }
-            }, contentAlignment = Alignment.Center) {
-                ButtonText(if (next == null) "Open Blaze" else "Set up: ${next.title.lowercase()}", color = Color.White)
-            }
-            if (blocking.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(top = 10.dp), contentAlignment = Alignment.Center) {
-                Label("Required steps can't be skipped.", color = c.weak, size = 10.sp)
-            }
-        }
-    }
-}
-
 /** Settings › Permissions (v0.24.4): every dependency with its mark; tap to fix. */
 @Composable
 fun PermissionsPage(onOpenPage: (String) -> Unit = {}) {

@@ -22,9 +22,11 @@ class SyncEngineTest {
         var seq = 0L
         var setUp = true
         var check = ""
+        /** 0.45.23 (FirstRunTest / FirstRunSeedTest): the salt and kdf the account's meta names. */
+        var salt = "salt"; var kdf = "pbkdf2-sha256:1000"
         var pulls = 0; var pushes = 0; var busyOnce = false
         var maxPushSeen = 0
-        override fun meta() = SyncEngine.Meta(setUp, "salt", "pbkdf2-sha256:1000", check, epoch)
+        override fun meta() = SyncEngine.Meta(setUp, salt, kdf, check, epoch)
         override fun pull(since: Long, limit: Int): SyncEngine.Page {
             pulls++
             val after = rows.entries.filter { it.value.seq > since }.sortedBy { it.value.seq }
